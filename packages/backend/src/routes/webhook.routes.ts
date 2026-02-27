@@ -23,6 +23,10 @@ export async function webhookRoutes(app: FastifyInstance) {
     return reply.status(403).send('Forbidden');
   });
 
+  // Deduplication: track recently processed message IDs
+  const processedMessageIds = new Set<string>();
+  const MAX_DEDUP_SIZE = 1000;
+
   // Debug endpoint to see last webhook payload
   let lastWebhookPayload: any = null;
   app.get('/debug', async (request: FastifyRequest, reply: FastifyReply) => {
@@ -82,12 +86,23 @@ export async function webhookRoutes(app: FastifyInstance) {
               profileName: value.contacts?.[0]?.profile?.name || null,
             };
 
+            // Deduplication check
+            if (processedMessageIds.has(message.id)) {
+              console.log(`⚠️ Duplicate message ${message.id}, skipping`);
+              continue;
+            }
+            processedMessageIds.add(message.id);
+            if (processedMessageIds.size > MAX_DEDUP_SIZE) {
+              const first = processedMessageIds.values().next().value;
+              if (first) processedMessageIds.delete(first);
+            }
+
             console.log('✅ Enqueuing message:', JSON.stringify(incomingMessage));
 
             try {
               await getMessageQueue().add('process-message', incomingMessage, {
-                attempts: 3,
-                backoff: { type: 'exponential', delay: 2000 },
+                jobId: `msg-${message.id}`,
+                attempts: 1,
               });
               console.log('✅ Message enqueued successfully');
             } catch (queueErr) {
