@@ -1,10 +1,14 @@
 .container {
   display: flex;
   gap: 24px;
+  max-width: 100%;
+  overflow: hidden;
 }
 
 .listPanel {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .header {
@@ -68,9 +72,15 @@
   color: var(--color-primary);
 }
 
+.tableWrapper {
+  width: 100%;
+  overflow-x: auto;
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
+  table-layout: auto;
 }
 
 .table th {
@@ -87,6 +97,10 @@
   padding: 12px 14px;
   font-size: 14px;
   border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .table tr {

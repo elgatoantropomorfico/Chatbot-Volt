@@ -132,36 +132,38 @@ export default function LeadsPage() {
           </div>
         ) : (
           <>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Teléfono</th>
-                  <th>Stage</th>
-                  <th>Agente</th>
-                  <th>Último msg</th>
-                </tr>
-              </thead>
-              <tbody>
-                {leads.map((lead) => (
-                  <tr key={lead.id} onClick={() => selectLead(lead.id)}>
-                    <td>{lead.name || '—'}</td>
-                    <td>{lead.phone}</td>
-                    <td>
-                      <span className={`${styles.stageBadge} ${getStageBadgeClass(lead.stage)}`}>
-                        {STAGE_LABELS[lead.stage] || lead.stage}
-                      </span>
-                    </td>
-                    <td>{lead.assignedUser?.email || '—'}</td>
-                    <td>
-                      {lead.lastMessageAt
-                        ? new Date(lead.lastMessageAt).toLocaleDateString('es-AR')
-                        : '—'}
-                    </td>
+            <div className={styles.tableWrapper}>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>Nombre</th>
+                    <th>Teléfono</th>
+                    <th>Stage</th>
+                    <th>Agente</th>
+                    <th>Último msg</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {leads.map((lead) => (
+                    <tr key={lead.id} onClick={() => selectLead(lead.id)}>
+                      <td>{lead.name || '—'}</td>
+                      <td>{lead.phone}</td>
+                      <td>
+                        <span className={`${styles.stageBadge} ${getStageBadgeClass(lead.stage)}`}>
+                          {STAGE_LABELS[lead.stage] || lead.stage}
+                        </span>
+                      </td>
+                      <td>{lead.assignedUser?.email || '—'}</td>
+                      <td>
+                        {lead.lastMessageAt
+                          ? new Date(lead.lastMessageAt).toLocaleDateString('es-AR')
+                          : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className={styles.pagination}>
               <button className={styles.pageBtn} disabled={page <= 1} onClick={() => setPage(page - 1)}>
