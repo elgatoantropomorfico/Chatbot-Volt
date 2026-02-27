@@ -400,7 +400,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '700px', margin: '0 auto' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Integraciones</h1>
         {!showCreate && !editingId && (

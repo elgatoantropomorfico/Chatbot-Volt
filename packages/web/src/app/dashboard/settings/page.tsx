@@ -26,7 +26,7 @@ export default function SettingsPage() {
   };
 
   return (
-    <div style={{ maxWidth: '900px' }}>
+    <div style={{ maxWidth: '700px', margin: '0 auto' }}>
       <h1 style={{ fontSize: '26px', fontWeight: 700, marginBottom: '24px', letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Configuración</h1>
 
       <div style={cardStyle}>

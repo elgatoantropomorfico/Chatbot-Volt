@@ -750,8 +750,10 @@ export default function BotSettingsPage() {
             <Save size={15} /> {saving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '28px', maxWidth: '720px' }}>
-          {renderContent()}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '28px' }}>
+          <div style={{ maxWidth: '640px', margin: '0 auto' }}>
+            {renderContent()}
+          </div>
         </div>
       </div>
     </div>
