@@ -165,6 +165,15 @@ class ApiClient {
   async getIntegrations() { return this.fetch<{ integrations: any[] }>('/integrations'); }
   async createIntegration(data: any) { return this.fetch<{ integration: any }>('/integrations', { method: 'POST', body: data }); }
   async updateIntegration(id: string, data: any) { return this.fetch<{ integration: any }>(`/integrations/${id}`, { method: 'PATCH', body: data }); }
+
+  // Sales
+  async getSales(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.fetch<{ sales: any[]; total: number; page: number; totalPages: number }>(`/sales${qs}`);
+  }
+  async getSaleStats() { return this.fetch<{ stats: any }>('/sales/stats'); }
+  async getSale(id: string) { return this.fetch<{ sale: any }>(`/sales/${id}`); }
+  async updateSale(id: string, data: any) { return this.fetch<{ sale: any }>(`/sales/${id}`, { method: 'PATCH', body: data }); }
 }
 
 export const api = new ApiClient();

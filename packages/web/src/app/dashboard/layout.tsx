@@ -17,7 +17,9 @@ import {
   LayoutDashboard,
   Menu,
   X,
+  DollarSign,
 } from 'lucide-react';
+import { api } from '@/lib/api';
 import styles from './layout.module.css';
 
 const navItems = [
@@ -43,6 +45,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showSales, setShowSales] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -53,6 +56,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [pathname]);
+
+  // Check if WooCommerce + cart is enabled to show Sales nav item
+  useEffect(() => {
+    if (!user || user.role === 'superadmin') return;
+    (async () => {
+      try {
+        const { integrations } = await api.getIntegrations();
+        const woo = integrations.find((i: any) => i.type === 'woocommerce' && i.status === 'active');
+        if (woo) {
+          const config = JSON.parse(woo.configEncrypted || '{}');
+          setShowSales(config.enableCart !== false);
+        }
+      } catch {}
+    })();
+  }, [user]);
 
   if (loading || !user) return null;
 
@@ -97,6 +115,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               {item.label}
             </Link>
           ))}
+
+          {showSales && (
+            <Link
+              href="/dashboard/sales"
+              className={`${styles.navItem} ${pathname === '/dashboard/sales' ? styles.navItemActive : ''}`}
+            >
+              <DollarSign size={18} />
+              Ventas
+            </Link>
+          )}
 
           {filterByRole(adminItems).length > 0 && (
             <>

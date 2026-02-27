@@ -5,6 +5,7 @@ import { OpenAIService } from './services/openai.service';
 import { WhatsAppService } from './services/whatsapp.service';
 import { WooService } from './services/woo.service';
 import { HandoffService } from './services/handoff.service';
+import { SaleService } from './services/sale.service';
 import { prisma } from './config/database';
 
 // Store last search results per conversation for "agregar el 2" cart operations
@@ -147,20 +148,39 @@ async function processMessage(job: Job<IncomingMessage>) {
           wooDirectResponse = '🗑️ Tu carrito fue vaciado.';
 
         } else if (wooIntent.intent === 'cart_checkout' && wooService.settings.enableCart) {
-          const checkoutPhone = wooService.settings.checkoutPhone;
-          if (!checkoutPhone) {
-            wooDirectResponse = '⚠️ El checkout no está configurado. Contactá al negocio directamente.';
-          } else if (wooService.settings.checkoutMode === 'wa_human') {
-            const customerName = lead.name || data.profileName || '';
-            wooDirectResponse = WooService.generateCheckout(
-              conversation.id,
-              customerName,
-              data.from,
-              checkoutPhone,
-            );
+          const cartItems = WooService.getCart(conversation.id);
+          if (cartItems.length === 0) {
+            wooDirectResponse = '🛒 Tu carrito está vacío. Buscá productos y agregalos antes de finalizar.';
           } else {
-            // Future: mercadopago checkout
-            wooDirectResponse = '⚠️ El método de pago aún no está disponible. Contactá al negocio directamente.';
+            const checkoutPhone = wooService.settings.checkoutPhone;
+            if (!checkoutPhone) {
+              wooDirectResponse = '⚠️ El checkout no está configurado. Contactá al negocio directamente.';
+            } else if (wooService.settings.checkoutMode === 'wa_human') {
+              const customerName = lead.name || data.profileName || '';
+              wooDirectResponse = WooService.generateCheckout(
+                conversation.id,
+                customerName,
+                data.from,
+                checkoutPhone,
+              );
+              // Record the sale
+              try {
+                await SaleService.createSale({
+                  tenantId: tenant.id,
+                  leadId: lead.id,
+                  conversationId: conversation.id,
+                  customerName,
+                  customerPhone: data.from,
+                  checkoutMode: 'wa_human',
+                  items: cartItems,
+                });
+              } catch (saleErr: any) {
+                console.error('⚠️ Failed to record sale:', saleErr.message);
+              }
+            } else {
+              // Future: mercadopago checkout
+              wooDirectResponse = '⚠️ El método de pago aún no está disponible. Contactá al negocio directamente.';
+            }
           }
         }
       }

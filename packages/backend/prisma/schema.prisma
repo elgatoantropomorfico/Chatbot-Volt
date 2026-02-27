@@ -57,6 +57,12 @@ enum IntegrationStatus {
   error
 }
 
+enum SaleStatus {
+  pending
+  completed
+  cancelled
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -103,6 +109,7 @@ model Tenant {
   conversations Conversation[]
   botSettings   BotSettings?
   integrations  Integration[]
+  sales         Sale[]
   eventsOutbox  EventOutbox[]
 
   @@map("tenants")
@@ -142,6 +149,7 @@ model Lead {
   assignedUser    User?     @relation("AssignedAgent", fields: [assignedUserId], references: [id])
   conversations   Conversation[]
   notes           LeadNote[]
+  sales           Sale[]
 
   @@unique([tenantId, phone])
   @@map("leads")
@@ -226,6 +234,29 @@ model Integration {
 
   @@unique([tenantId, type])
   @@map("integrations")
+}
+
+model Sale {
+  id               String     @id @default(cuid())
+  tenantId         String     @map("tenant_id")
+  leadId           String     @map("lead_id")
+  conversationId   String?    @map("conversation_id")
+  status           SaleStatus @default(pending)
+  totalAmount      Float      @map("total_amount")
+  currency         String     @default("ARS")
+  checkoutMode     String     @default("wa_human") @map("checkout_mode")
+  customerName     String?    @map("customer_name")
+  customerPhone    String?    @map("customer_phone")
+  itemsJson        Json       @map("items_json")
+  notes            String?
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
+
+  tenant           Tenant     @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead             Lead       @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, createdAt])
+  @@map("sales")
 }
 
 model EventOutbox {
