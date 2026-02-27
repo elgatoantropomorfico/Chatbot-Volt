@@ -81,7 +81,13 @@ export default function DashboardPage() {
         <p>Bienvenido, {user?.email}</p>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '20px', marginBottom: '32px' }}>
+      {/* Main Stats Grid */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '24px', 
+        marginBottom: '32px' 
+      }}>
         <StatCard 
           icon={<MessageSquare size={20} />}
           label="Conversaciones activas" 
@@ -114,6 +120,15 @@ export default function DashboardPage() {
           color="#06b6d4" 
           glow="rgba(6, 182, 212, 0.15)" 
         />
+      </div>
+
+      {/* Sales & Performance Row */}
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+        gap: '24px', 
+        marginBottom: '32px' 
+      }}>
         {stats?.sales && (
           <>
             <StatCard 
@@ -134,7 +149,29 @@ export default function DashboardPage() {
             />
           </>
         )}
-        {isSuperAdmin && stats?.tenants && (
+        {stats?.messages.avgResponseTime ? (
+          <StatCard 
+            icon={<TrendingUp size={20} />}
+            label="Tiempo de respuesta" 
+            value={stats.messages.avgResponseTime < 60 
+              ? `${Math.round(stats.messages.avgResponseTime)}s`
+              : `${Math.round(stats.messages.avgResponseTime / 60)}min`
+            }
+            subtitle="Promedio de respuesta del bot"
+            color="#8b5cf6" 
+            glow="rgba(139, 92, 246, 0.15)" 
+          />
+        ) : null}
+      </div>
+
+      {/* Admin Stats */}
+      {isSuperAdmin && stats?.tenants && (
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+          gap: '24px', 
+          marginBottom: '32px' 
+        }}>
           <StatCard 
             icon={<TrendingUp size={20} />}
             label="Tenants activos" 
@@ -143,27 +180,6 @@ export default function DashboardPage() {
             color="#67e8f9" 
             glow="rgba(103, 232, 249, 0.15)" 
           />
-        )}
-      </div>
-
-      {stats?.messages.avgResponseTime && (
-        <div style={{ 
-          padding: '20px 24px', background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-          borderRadius: 'var(--radius-lg)', marginBottom: '20px'
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-            <TrendingUp size={16} style={{ color: 'var(--color-primary)' }} />
-            <span style={{ fontSize: '14px', fontWeight: 600 }}>Tiempo de respuesta promedio</span>
-          </div>
-          <div style={{ fontSize: '24px', fontWeight: 700, color: 'var(--color-primary)' }}>
-            {stats.messages.avgResponseTime < 60 
-              ? `${Math.round(stats.messages.avgResponseTime)}s`
-              : `${Math.round(stats.messages.avgResponseTime / 60)}min`
-            }
-          </div>
-          <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
-            Tiempo promedio entre mensaje del cliente y respuesta del bot
-          </div>
         </div>
       )}
     </div>
