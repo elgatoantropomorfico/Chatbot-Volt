@@ -142,8 +142,14 @@ async function processMessage(job: Job<IncomingMessage>) {
     aiResponse = wooDirectResponse;
   } else {
     console.log(`🤖 No WooCommerce match, falling back to OpenAI...`);
-    // 7. Build context and call OpenAI
     const context = await OpenAIService.buildContext(conversation.id, tenant.id);
+    // If WooCommerce is active, prevent OpenAI from inventing product info
+    try {
+      const wooCheck = await WooService.forTenant(tenant.id);
+      if (wooCheck) {
+        context.systemPrompt += '\n\n[REGLA CRÍTICA]: NUNCA inventes nombres de productos, precios ni disponibilidad de stock. No tenés acceso directo al inventario. Si el cliente pregunta por productos, decile que busque usando frases como "Tienen [nombre del producto]?" o "Busco [nombre]" para que el sistema consulte el catálogo real. Solo puede buscar un producto a la vez.';
+      }
+    } catch {}
     aiResponse = await OpenAIService.generateResponse(context);
   }
 
