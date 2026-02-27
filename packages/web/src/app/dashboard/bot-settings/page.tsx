@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
-  ChevronDown, Wand2, Loader2,
+  ChevronDown, WandSparkles, Loader2,
 } from 'lucide-react';
 
 interface PromptBuilder {
@@ -206,7 +206,7 @@ export default function BotSettingsPage() {
           transition: 'all 0.15s', whiteSpace: 'nowrap',
         }}
       >
-        {isGenerating ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Wand2 size={12} />}
+        {isGenerating ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <WandSparkles size={13} />}
         {isGenerating ? 'Generando...' : 'IA'}
       </button>
     );
