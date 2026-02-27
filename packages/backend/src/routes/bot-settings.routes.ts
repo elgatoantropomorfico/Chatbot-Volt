@@ -15,6 +15,7 @@ const updateBotSettingsSchema = z.object({
   handoffEnabled: z.boolean().optional(),
   handoffPhoneE164: z.string().nullable().optional(),
   handoffMessageTemplate: z.string().nullable().optional(),
+  handoffWaMeTemplate: z.string().nullable().optional(),
   handoffTriggersJson: z.any().optional(),
   guardrailsJson: z.any().optional(),
   promptBuilderJson: z.any().optional(),

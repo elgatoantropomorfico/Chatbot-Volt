@@ -136,6 +136,7 @@ export default function BotSettingsPage() {
         handoffEnabled: settings.handoffEnabled,
         handoffPhoneE164: settings.handoffPhoneE164,
         handoffMessageTemplate: settings.handoffMessageTemplate,
+        handoffWaMeTemplate: settings.handoffWaMeTemplate,
         handoffTriggersJson: settings.handoffTriggersJson,
         guardrailsJson: settings.guardrailsJson,
         promptBuilderJson: settings.promptBuilderJson || defaultPB,
@@ -611,9 +612,15 @@ export default function BotSettingsPage() {
                 <input value={(settings.handoffTriggersJson?.keywords || []).join(', ')} onChange={(e) => updateField('handoffTriggersJson', { ...settings.handoffTriggersJson, keywords: e.target.value.split(',').map((k: string) => k.trim()).filter(Boolean) })} placeholder="humano, asesor, reclamo" style={inputStyle} />
               </div>
             </div>
-            <div>
-              <label style={labelStyle}>Plantilla de mensaje</label>
+            <div style={fieldGap}>
+              <label style={labelStyle}>Plantilla de mensaje principal</label>
               <textarea value={settings.handoffMessageTemplate || ''} onChange={(e) => updateField('handoffMessageTemplate', e.target.value)} rows={3} style={textareaStyle} placeholder="Te derivo con un asesor: {{wa_me_link}}" />
+              <p style={{ ...hintStyle, marginTop: '4px' }}>Mensaje que recibe el cliente. Variables: {'{{wa_me_link}}'}, {'{{lead_name}}'}, {'{{tenant_name}}'}</p>
+            </div>
+            <div>
+              <label style={labelStyle}>Texto prefijado del wa.me</label>
+              <textarea value={settings.handoffWaMeTemplate || ''} onChange={(e) => updateField('handoffWaMeTemplate', e.target.value)} rows={2} style={textareaStyle} placeholder="Hola, soy {{lead_name}} y vengo desde el bot." />
+              <p style={{ ...hintStyle, marginTop: '4px' }}>Texto que se precarga en el link wa.me. Variables: {'{{lead_name}}'}, {'{{lead_phone}}'}, {'{{handoff_reason}}'}, {'{{tenant_name}}'}</p>
             </div>
           </div>
         );

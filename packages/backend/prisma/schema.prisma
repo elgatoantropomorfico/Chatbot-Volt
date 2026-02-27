@@ -210,6 +210,7 @@ model BotSettings {
   handoffEnabled          Boolean  @default(true) @map("handoff_enabled")
   handoffPhoneE164        String?  @map("handoff_phone_e164")
   handoffMessageTemplate  String?  @default("Te derivo con un asesor: {{wa_me_link}}") @map("handoff_message_template")
+  handoffWaMeTemplate     String?  @map("handoff_wa_me_template")
   handoffTriggersJson     Json?    @map("handoff_triggers_json")
   guardrailsJson          Json?    @map("guardrails_json")
   promptBuilderJson       Json?    @map("prompt_builder_json")

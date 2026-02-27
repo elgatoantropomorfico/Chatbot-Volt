@@ -76,9 +76,17 @@ export class HandoffService {
       throw new Error('No handoff phone number configured');
     }
 
-    // Build wa.me link
-    const prellenText = `Hola! Soy ${conversation.lead.name || conversation.lead.phone} (${conversation.lead.phone}). Vengo desde el bot. Motivo: ${reason}. Resumen: ${conversation.summary || 'Sin resumen disponible'}`;
-    const waMeLink = this.buildWaMeLink(botSettings.handoffPhoneE164, prellenText);
+    // Build wa.me link using configurable template
+    const waMeDefaultTemplate = 'Hola, soy {{lead_name}} y vengo desde el bot.';
+    const waMeRawTemplate = botSettings.handoffWaMeTemplate || waMeDefaultTemplate;
+    const waMeText = this.buildHandoffMessage(waMeRawTemplate, {
+      leadName: conversation.lead.name || undefined,
+      leadPhone: conversation.lead.phone,
+      handoffReason: reason,
+      conversationSummary: conversation.summary || undefined,
+      tenantName: conversation.tenant.name,
+    });
+    const waMeLink = this.buildWaMeLink(botSettings.handoffPhoneE164, waMeText);
 
     // Build message to send to the user
     const template = customMessage || botSettings.handoffMessageTemplate || 'Te derivo con un asesor: {{wa_me_link}}';
