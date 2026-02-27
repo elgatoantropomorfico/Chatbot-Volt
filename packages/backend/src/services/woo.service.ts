@@ -402,10 +402,12 @@ export class WooService {
 
     // ── Strong explicit search patterns: these auto-activate shopping mode ──
     const strongPatterns = [
-      /(?:buscar|busco)\s+.{2,}/,
-      /(?:producto|artículo|articulo).*(?:buscar|busco|precio|cuesta)/,
+      /(?:buscar|busco|buscando)\s+.{2,}/,
+      /(?:estoy|ando)\s+buscando\s+.{2,}/,
+      /(?:producto|artículo|articulo).*(?:buscar|busco|buscando|precio|cuesta)/,
       /cu[aá]nto (?:cuesta|sale|vale)\s+.{2,}/,
       /(?:tenés|tenes|tienen)\s+.{3,}/,
+      /(?:quiero|necesito|me interesa)\s+(?:comprar|ver|un|una|el|la|los|las)\s+.{2,}/,
     ];
     for (const pattern of strongPatterns) {
       if (pattern.test(lower)) {
@@ -458,7 +460,8 @@ export class WooService {
     let q = text.trim();
     const prefixes = [
       /^(?:hola[,!.]?\s*)/i,
-      /^(?:tienen|tenes|tenés|hay|busco|buscar|quiero|necesito|me interesa)\s+/i,
+      /^(?:estoy|ando)\s+buscando\s+/i,
+      /^(?:tienen|tenes|tenés|hay|busco|buscar|buscando|quiero|necesito|me interesa)\s+/i,
       /^(?:cuánto|cuanto)\s+(?:cuesta|sale|vale)\s+/i,
       /^(?:venden|ofrecen|manejan)\s+/i,
       /^(?:libros?\s+(?:de|del|sobre))\s+/i,
