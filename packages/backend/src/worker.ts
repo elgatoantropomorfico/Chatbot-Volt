@@ -19,10 +19,18 @@ interface IncomingMessage {
 async function processMessage(job: Job<IncomingMessage>) {
   const data = job.data;
   console.log(`🔄 Processing message from ${data.from} (phone_number_id: ${data.phoneNumberId})`);
+  console.log(`📋 Job data: ${JSON.stringify(data)}`);
 
   // 1. Resolve tenant, lead, conversation and save incoming message
-  const resolved = await ConversationService.resolveOrCreate(data);
+  let resolved;
+  try {
+    resolved = await ConversationService.resolveOrCreate(data);
+  } catch (err) {
+    console.error(`❌ Failed to resolve conversation:`, err);
+    throw err;
+  }
   const { conversation, channel, tenant, lead } = resolved;
+  console.log(`✅ Resolved: tenant=${tenant.name}, lead=${lead.id}, conversation=${conversation.id}`);
 
   // 2. If conversation is pending_human, skip AI processing
   if (conversation.status === 'pending_human') {
