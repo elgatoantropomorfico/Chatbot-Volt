@@ -154,7 +154,7 @@ export default function BotSettingsPage() {
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', fontSize: '14px', outline: 'none', transition: 'all 0.15s' };
   const labelStyle: React.CSSProperties = { display: 'block', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px', fontWeight: 600, letterSpacing: '0.01em' };
-  const textareaStyle: React.CSSProperties = { ...inputStyle, resize: 'vertical', minHeight: '80px' };
+  const textareaStyle: React.CSSProperties = { ...inputStyle, resize: 'vertical', minHeight: '100px', lineHeight: '1.5' };
   const hintStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.4 };
   const fieldGap: React.CSSProperties = { marginBottom: '16px' };
 
@@ -235,7 +235,7 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Descripción del negocio</label>
                 <AIButton section="business" field="description" />
               </div>
-              <textarea value={pb.business.description} onChange={(e) => updatePBField('business', 'description', e.target.value)} placeholder="Contá brevemente qué hace tu negocio, qué lo diferencia..." rows={4} style={textareaStyle} />
+              <textarea value={pb.business.description} onChange={(e) => updatePBField('business', 'description', e.target.value)} placeholder="Contá brevemente qué hace tu negocio, qué lo diferencia..." rows={5} style={{ ...textareaStyle, minHeight: '120px' }} />
             </div>
             <div style={fieldGap}>
               <label style={labelStyle}>Tono de comunicación</label>
@@ -303,7 +303,7 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Horarios de atención</label>
                 <AIButton section="hours" field="schedule" />
               </div>
-              <textarea value={pb.hours.schedule} onChange={(e) => updatePBField('hours', 'schedule', e.target.value)} placeholder={"Ej:\nLunes a Viernes: 8:00 - 12:30 / 16:30 - 20:30\nSábados: 9:00 - 13:00\nDomingos: Cerrado"} rows={5} style={textareaStyle} />
+              <textarea value={pb.hours.schedule} onChange={(e) => updatePBField('hours', 'schedule', e.target.value)} placeholder={"Ej:\nLunes a Viernes: 8:00 - 12:30 / 16:30 - 20:30\nSábados: 9:00 - 13:00\nDomingos: Cerrado"} rows={6} style={{ ...textareaStyle, minHeight: '140px' }} />
               <p style={hintStyle}>Escribí los horarios como querés que el bot los comunique</p>
             </div>
             <div style={fieldGap}>
@@ -363,7 +363,7 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Descripción general</label>
                 <AIButton section="products" field="description" />
               </div>
-              <textarea value={pb.products.description} onChange={(e) => updatePBField('products', 'description', e.target.value)} placeholder="Ej: Vendemos libros infantiles, juveniles y para adultos. También tenemos juegos didácticos y artículos de librería." rows={4} style={textareaStyle} />
+              <textarea value={pb.products.description} onChange={(e) => updatePBField('products', 'description', e.target.value)} placeholder="Ej: Vendemos libros infantiles, juveniles y para adultos. También tenemos juegos didácticos y artículos de librería." rows={5} style={{ ...textareaStyle, minHeight: '120px' }} />
             </div>
             <div style={fieldGap}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
@@ -393,7 +393,7 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Métodos de envío</label>
                 <AIButton section="shipping" field="methods" />
               </div>
-              <textarea value={pb.shipping.methods} onChange={(e) => updatePBField('shipping', 'methods', e.target.value)} placeholder="Ej: Retiro en local, Envío por OCA, Correo Argentino, Cadete zona centro" rows={3} style={textareaStyle} />
+              <textarea value={pb.shipping.methods} onChange={(e) => updatePBField('shipping', 'methods', e.target.value)} placeholder="Ej: Retiro en local, Envío por OCA, Correo Argentino, Cadete zona centro" rows={4} style={{ ...textareaStyle, minHeight: '110px' }} />
             </div>
             <div style={fieldGap}>
               <label style={labelStyle}>Zonas de cobertura</label>
@@ -408,7 +408,7 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Medios de pago</label>
                 <AIButton section="shipping" field="paymentMethods" />
               </div>
-              <textarea value={pb.shipping.paymentMethods} onChange={(e) => updatePBField('shipping', 'paymentMethods', e.target.value)} placeholder="Ej: Efectivo, Transferencia, MercadoPago, Tarjeta de crédito (3 cuotas sin interés)" rows={3} style={textareaStyle} />
+              <textarea value={pb.shipping.paymentMethods} onChange={(e) => updatePBField('shipping', 'paymentMethods', e.target.value)} placeholder="Ej: Efectivo, Transferencia, MercadoPago, Tarjeta de crédito (3 cuotas sin interés)" rows={4} style={{ ...textareaStyle, minHeight: '110px' }} />
             </div>
             <div style={fieldGap}>
               <label style={labelStyle}>Notas</label>
@@ -427,7 +427,7 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Promociones activas</label>
                 <AIButton section="promotions" field="active" />
               </div>
-              <textarea value={pb.promotions.active} onChange={(e) => updatePBField('promotions', 'active', e.target.value)} placeholder={"Ej:\n- 2x1 en libros infantiles\n- 20% OFF en la segunda unidad\n- Envío gratis comprando 3 o más"} rows={5} style={textareaStyle} />
+              <textarea value={pb.promotions.active} onChange={(e) => updatePBField('promotions', 'active', e.target.value)} placeholder={"Ej:\n- 2x1 en libros infantiles\n- 20% OFF en la segunda unidad\n- Envío gratis comprando 3 o más"} rows={7} style={{ ...textareaStyle, minHeight: '160px' }} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', ...fieldGap }}>
               <div>
@@ -452,14 +452,14 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Devoluciones</label>
                 <AIButton section="policies" field="returns" />
               </div>
-              <textarea value={pb.policies.returns} onChange={(e) => updatePBField('policies', 'returns', e.target.value)} placeholder="Ej: Se aceptan devoluciones dentro de los 7 días con ticket" rows={2} style={textareaStyle} />
+              <textarea value={pb.policies.returns} onChange={(e) => updatePBField('policies', 'returns', e.target.value)} placeholder="Ej: Se aceptan devoluciones dentro de los 7 días con ticket" rows={3} style={{ ...textareaStyle, minHeight: '100px' }} />
             </div>
             <div style={fieldGap}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Cambios</label>
                 <AIButton section="policies" field="exchanges" />
               </div>
-              <textarea value={pb.policies.exchanges} onChange={(e) => updatePBField('policies', 'exchanges', e.target.value)} placeholder="Ej: Cambios dentro de los 30 días, producto sin uso" rows={2} style={textareaStyle} />
+              <textarea value={pb.policies.exchanges} onChange={(e) => updatePBField('policies', 'exchanges', e.target.value)} placeholder="Ej: Cambios dentro de los 30 días, producto sin uso" rows={3} style={{ ...textareaStyle, minHeight: '100px' }} />
             </div>
             <div style={fieldGap}>
               <label style={labelStyle}>Garantía</label>
@@ -524,14 +524,14 @@ export default function BotSettingsPage() {
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Estilo de respuesta</label>
                 <AIButton section="personality" field="style" />
               </div>
-              <textarea value={pb.personality.style} onChange={(e) => updatePBField('personality', 'style', e.target.value)} placeholder="Ej: Respuestas cortas y directas, usa emojis, tutea al cliente" rows={3} style={textareaStyle} />
+              <textarea value={pb.personality.style} onChange={(e) => updatePBField('personality', 'style', e.target.value)} placeholder="Ej: Respuestas cortas y directas, usa emojis, tutea al cliente" rows={4} style={{ ...textareaStyle, minHeight: '110px' }} />
             </div>
             <div style={fieldGap}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
                 <label style={{ ...labelStyle, marginBottom: 0 }}>Restricciones</label>
                 <AIButton section="personality" field="restrictions" />
               </div>
-              <textarea value={pb.personality.restrictions} onChange={(e) => updatePBField('personality', 'restrictions', e.target.value)} placeholder="Ej: No hablar de política, no recomendar competidores, no dar consejos médicos" rows={3} style={textareaStyle} />
+              <textarea value={pb.personality.restrictions} onChange={(e) => updatePBField('personality', 'restrictions', e.target.value)} placeholder="Ej: No hablar de política, no recomendar competidores, no dar consejos médicos" rows={4} style={{ ...textareaStyle, minHeight: '110px' }} />
             </div>
             <div style={fieldGap}>
               <label style={labelStyle}>Idioma</label>
@@ -547,7 +547,7 @@ export default function BotSettingsPage() {
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Configuración técnica del modelo de IA.</p>
             <div style={fieldGap}>
               <label style={labelStyle}>System Prompt base</label>
-              <textarea value={settings.systemPrompt} onChange={(e) => updateField('systemPrompt', e.target.value)} rows={6} style={{ ...textareaStyle, minHeight: '120px' }} />
+              <textarea value={settings.systemPrompt} onChange={(e) => updateField('systemPrompt', e.target.value)} rows={8} style={{ ...textareaStyle, minHeight: '180px' }} />
               <p style={hintStyle}>Este es el prompt base. El contexto del negocio (secciones de arriba) se agrega automáticamente.</p>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
