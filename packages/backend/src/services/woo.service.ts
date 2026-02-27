@@ -141,7 +141,7 @@ export class WooService {
     }).join('\n\n');
 
     const cartHint = this.settings.enableCart
-      ? '\n\n💡 Para agregar al carrito escribí: *"Agregar [número] al carrito"* o *"Agregar 2 unidades del [número]"*'
+      ? '\n\n� *Escribí el número* para agregar al carrito. Ej: *3* · Para cantidad: *3 x2*'
       : '';
     const exitHint = '\n\n_Escribí *"salir"* para volver al modo conversación._';
 
@@ -374,7 +374,26 @@ export class WooService {
       return { intent: 'cart_view', query: '' };
     }
 
-    // Cart: add by number — always active (only works if there were previous search results)
+    // Cart: quick add by number — only in shopping mode (e.g. "3", "el 3", "3 x2", "3 - 2 unidades", "dame el 1")
+    if (inShopMode) {
+      // "3", "el 3", "dame el 3", "el 3 por favor"
+      const quickMatch = lower.match(/^\s*(?:(?:dame|quiero|manda|el|la|los|las)\s+)*(?:el\s+)?(\d{1,2})(?:\s+(?:por\s+favor|porfa|pls|please))?\s*[.!]?\s*$/);
+      if (quickMatch) {
+        return { intent: 'cart_add', query: '', quantity: 1, itemNumber: parseInt(quickMatch[1]) };
+      }
+      // "3 - 2", "3 x2", "3 x 2", "3 2 unidades", "1 - 3 unidades"
+      const qtyMatch = lower.match(/^\s*(\d{1,2})\s*[-xX×·]\s*(\d{1,2})(?:\s*(?:unidades?|u))?\s*$/);
+      if (qtyMatch) {
+        return { intent: 'cart_add', query: '', quantity: parseInt(qtyMatch[2]), itemNumber: parseInt(qtyMatch[1]) };
+      }
+      // "3, 2 unidades" / "3 - 2 unidades"
+      const qtyMatch2 = lower.match(/^\s*(\d{1,2})\s*[,\-]\s*(\d{1,2})\s+(?:unidades?|u)\s*$/);
+      if (qtyMatch2) {
+        return { intent: 'cart_add', query: '', quantity: parseInt(qtyMatch2[2]), itemNumber: parseInt(qtyMatch2[1]) };
+      }
+    }
+
+    // Cart: add by number (verbose) — always active (only works if there were previous search results)
     const addMatch = lower.match(/(?:agregar|añadir|sumar|quiero)\s+(?:(\d+)\s+(?:unidades?|items?)\s+(?:del?|al)\s+(?:n[uú]mero\s+)?(\d+)|(?:el\s+)?(\d+)(?:\s+al\s+carrito)?)/);
     if (addMatch) {
       if (addMatch[1] && addMatch[2]) {
