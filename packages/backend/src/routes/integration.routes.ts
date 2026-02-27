@@ -14,6 +14,8 @@ const createIntegrationSchema = z.object({
     enableProductSearch: z.boolean().optional(),
     enableOrderLookup: z.boolean().optional(),
     enableCart: z.boolean().optional(),
+    checkoutMode: z.enum(['wa_human', 'mercadopago']).optional(),
+    checkoutPhone: z.string().optional(),
   }),
 });
 
@@ -26,6 +28,8 @@ const updateIntegrationSchema = z.object({
     enableProductSearch: z.boolean().optional(),
     enableOrderLookup: z.boolean().optional(),
     enableCart: z.boolean().optional(),
+    checkoutMode: z.enum(['wa_human', 'mercadopago']).optional(),
+    checkoutPhone: z.string().optional(),
   }).optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });

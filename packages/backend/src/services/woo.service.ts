@@ -9,6 +9,8 @@ interface WooConfig {
   enableProductSearch?: boolean;
   enableOrderLookup?: boolean;
   enableCart?: boolean;
+  checkoutMode?: 'wa_human' | 'mercadopago';
+  checkoutPhone?: string;
 }
 
 interface WooProduct {
@@ -56,6 +58,8 @@ export class WooService {
       enableProductSearch: this.config.enableProductSearch !== false,
       enableOrderLookup: this.config.enableOrderLookup !== false,
       enableCart: this.config.enableCart !== false,
+      checkoutMode: this.config.checkoutMode || 'wa_human',
+      checkoutPhone: this.config.checkoutPhone || '',
     };
   }
 
@@ -229,13 +233,70 @@ export class WooService {
     return `🛒 *Tu carrito:*\n\n${items}\n\n` +
            `━━━━━━━━━━━━━━━\n` +
            `*Total: $${total.toLocaleString('es-AR')}*\n\n` +
-           `💡 Escribí *"Vaciar carrito"* para vaciarlo o seguí buscando productos.`;
+           `💡 Escribí *"Finalizar compra"* para cerrar el pedido o *"Vaciar carrito"* para vaciarlo.`;
+  }
+
+  // ───── CHECKOUT ─────
+
+  static generateCheckout(conversationId: string, customerName: string, customerPhone: string, checkoutPhone: string): string {
+    const cart = conversationCarts.get(conversationId) || [];
+    if (!cart.length) return '🛒 Tu carrito está vacío. Agregá productos antes de finalizar la compra.';
+
+    let total = 0;
+    const itemLines = cart.map((item, i) => {
+      const subtotal = parseFloat(item.price) * item.quantity;
+      total += subtotal;
+      return `${i + 1}. ${item.name} x${item.quantity} - $${subtotal.toLocaleString('es-AR')}`;
+    }).join('\n');
+
+    // Build the pre-filled message for wa.me
+    const message = [
+      `🛒 *Nuevo pedido desde Volt Bot*`,
+      ``,
+      `👤 Cliente: ${customerName || 'Sin nombre'}`,
+      `📱 Tel: ${customerPhone}`,
+      ``,
+      `📦 *Productos:*`,
+      itemLines,
+      ``,
+      `💰 *Total: $${total.toLocaleString('es-AR')}*`,
+      ``,
+      `Generado automáticamente por Volt ChatBot`,
+    ].join('\n');
+
+    const encodedMessage = encodeURIComponent(message);
+    // Clean phone: remove + and spaces
+    const cleanPhone = checkoutPhone.replace(/[\s+\-()]/g, '');
+    const waLink = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+
+    // Clear the cart after checkout
+    conversationCarts.delete(conversationId);
+
+    // Build the response to send to the customer
+    const cartSummary = cart.map((item, i) => {
+      const subtotal = parseFloat(item.price) * item.quantity;
+      return `${i + 1}. *${item.name}* x${item.quantity} — $${subtotal.toLocaleString('es-AR')}`;
+    }).join('\n');
+
+    return `✅ *¡Pedido listo!*\n\n` +
+           `📦 *Resumen:*\n${cartSummary}\n\n` +
+           `━━━━━━━━━━━━━━━\n` +
+           `💰 *Total: $${total.toLocaleString('es-AR')}*\n\n` +
+           `Para confirmar tu compra, hacé click en el siguiente enlace y enviá el mensaje pre-armado:\n\n` +
+           `👉 ${waLink}\n\n` +
+           `¡Gracias por tu compra! Un asesor te va a responder a la brevedad.`;
   }
 
   // ───── INTENT DETECTION (moved here from OpenAI service) ─────
 
   static detectIntent(text: string): { intent: string; query: string; quantity?: number; itemNumber?: number } | null {
     const lower = text.toLowerCase().trim();
+
+    // Cart: checkout / finalize
+    if (/(?:finalizar|cerrar|confirmar|completar)\s*(?:la\s+)?(?:compra|pedido|orden|carrito|el\s+carrito)/i.test(lower) ||
+        /(?:quiero|listo|listos?)\s*(?:para)?\s*(?:comprar|pagar|checkout)/i.test(lower)) {
+      return { intent: 'cart_checkout', query: '' };
+    }
 
     // Cart: clear
     if (/(?:vaciar|limpiar|borrar|eliminar)\s*(?:el\s+)?(?:carrito|carro|cart)/i.test(lower)) {

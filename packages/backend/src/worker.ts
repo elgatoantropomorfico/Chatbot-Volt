@@ -111,6 +111,23 @@ async function processMessage(job: Job<IncomingMessage>) {
         } else if (wooIntent.intent === 'cart_clear' && wooService.settings.enableCart) {
           WooService.clearCart(conversation.id);
           wooDirectResponse = '🗑️ Tu carrito fue vaciado.';
+
+        } else if (wooIntent.intent === 'cart_checkout' && wooService.settings.enableCart) {
+          const checkoutPhone = wooService.settings.checkoutPhone;
+          if (!checkoutPhone) {
+            wooDirectResponse = '⚠️ El checkout no está configurado. Contactá al negocio directamente.';
+          } else if (wooService.settings.checkoutMode === 'wa_human') {
+            const customerName = lead.name || data.profileName || '';
+            wooDirectResponse = WooService.generateCheckout(
+              conversation.id,
+              customerName,
+              data.from,
+              checkoutPhone,
+            );
+          } else {
+            // Future: mercadopago checkout
+            wooDirectResponse = '⚠️ El método de pago aún no está disponible. Contactá al negocio directamente.';
+          }
         }
       }
     }
