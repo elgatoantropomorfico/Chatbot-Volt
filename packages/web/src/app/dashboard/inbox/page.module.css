@@ -376,6 +376,27 @@
   font-weight: 500;
 }
 
+/* ─── Back Button (mobile only) ─── */
+.backBtn {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  flex-shrink: 0;
+}
+
+.backBtn:hover {
+  background: rgba(139, 92, 246, 0.08);
+  color: var(--color-primary-hover);
+}
+
 /* ─── Message Input ─── */
 .messageInput {
   display: flex;
@@ -432,28 +453,134 @@
   box-shadow: none;
 }
 
+/* ─── Mobile: class toggle for view switching ─── */
+.mobileChatOpen {
+  /* used by JS to toggle mobile chat view */
+  position: relative;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .container {
     margin: -20px -16px;
+    height: calc(100vh - 62px);
+    position: relative;
   }
 
+  /* Default mobile: show list, hide chat */
   .conversationList {
     width: 100%;
-    position: absolute;
-    z-index: 5;
-    height: 100%;
+    display: flex;
   }
 
+  .chatArea {
+    display: none;
+  }
+
+  /* When chat is open: hide list, show chat full-screen */
+  .mobileChatOpen .conversationList {
+    display: none;
+  }
+
+  .mobileChatOpen .chatArea {
+    display: flex;
+    width: 100%;
+  }
+
+  /* Show back button on mobile */
+  .backBtn {
+    display: flex;
+  }
+
+  /* Compact chat header for mobile */
+  .chatHeader {
+    padding: 10px 12px;
+  }
+
+  .chatHeaderInfo {
+    gap: 8px;
+  }
+
+  .chatHeaderInfo h3 {
+    font-size: 14px;
+  }
+
+  .chatHeaderInfo span {
+    font-size: 11px;
+  }
+
+  .avatar {
+    width: 36px;
+    height: 36px;
+    font-size: 12px;
+  }
+
+  /* Compact chat actions */
+  .chatActions {
+    gap: 4px;
+  }
+
+  .aiToggle {
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  .actionBtn {
+    padding: 5px 8px;
+    font-size: 11px;
+    gap: 4px;
+  }
+
+  /* Messages area */
   .chatMessages {
-    padding: 16px;
+    padding: 12px;
   }
 
   .message {
     max-width: 85%;
+    font-size: 13px;
+    padding: 9px 14px;
   }
 
+  /* Input area */
   .messageInput {
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .messageInput input {
+    padding: 10px 14px;
+    font-size: 14px;
+  }
+
+  .messageInput button {
+    padding: 10px 14px;
+  }
+
+  /* AI Banner */
+  .aiBanner {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+
+  /* Filter bar scroll */
+  .filterBar {
+    padding: 10px 12px;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+  }
+
+  .filterBtn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .listHeader {
+    padding: 14px 16px;
+  }
+
+  .conversationItem {
     padding: 12px 16px;
   }
 }

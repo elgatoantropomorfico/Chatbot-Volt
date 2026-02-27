@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand } from 'lucide-react';
+import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft } from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
@@ -165,7 +165,7 @@ export default function InboxPage() {
   }
 
   return (
-    <div className={styles.container}>
+    <div className={`${styles.container} ${selectedId ? styles.mobileChatOpen : ''}`}>
       {/* Conversation list */}
       <div className={styles.conversationList}>
         <div className={styles.listHeader}>
@@ -229,6 +229,12 @@ export default function InboxPage() {
           <>
             <div className={styles.chatHeader}>
               <div className={styles.chatHeaderInfo}>
+                <button
+                  className={styles.backBtn}
+                  onClick={() => { setSelectedId(null); setMessages([]); }}
+                >
+                  <ArrowLeft size={20} />
+                </button>
                 <div className={styles.avatar}>
                   {(selectedConv.lead?.name || selectedConv.lead?.phone || '?')[0].toUpperCase()}
                 </div>
