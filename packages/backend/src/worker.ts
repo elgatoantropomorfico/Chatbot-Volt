@@ -62,23 +62,26 @@ async function processMessage(job: Job<IncomingMessage>) {
     }
   }
 
-  // 5. Check for WooCommerce intent
-  const wooIntent = OpenAIService.detectWooIntent(data.text);
+  // 5. Check for WooCommerce intent (wrapped in try/catch to prevent crashes)
   let wooContext = '';
+  try {
+    const wooIntent = OpenAIService.detectWooIntent(data.text);
+    if (wooIntent) {
+      const wooService = await WooService.forTenant(tenant.id);
+      if (wooService) {
+        console.log(`🛒 WooCommerce intent detected: ${wooIntent.intent}`);
 
-  if (wooIntent) {
-    const wooService = await WooService.forTenant(tenant.id);
-    if (wooService) {
-      console.log(`🛒 WooCommerce intent detected: ${wooIntent.intent}`);
-
-      if (wooIntent.intent === 'order_lookup') {
-        const orders = await wooService.searchOrdersByPhone(data.from);
-        wooContext = `\n\n[Información de pedidos del cliente]:\n${wooService.formatOrderResponse(orders)}`;
-      } else if (wooIntent.intent === 'product_search') {
-        const products = await wooService.searchProducts(wooIntent.query);
-        wooContext = `\n\n[Resultados de búsqueda de productos]:\n${wooService.formatProductResponse(products)}`;
+        if (wooIntent.intent === 'order_lookup') {
+          const orders = await wooService.searchOrdersByPhone(data.from);
+          wooContext = `\n\n[Información de pedidos del cliente]:\n${wooService.formatOrderResponse(orders)}`;
+        } else if (wooIntent.intent === 'product_search') {
+          const products = await wooService.searchProducts(wooIntent.query);
+          wooContext = `\n\n[Resultados de búsqueda de productos]:\n${wooService.formatProductResponse(products)}`;
+        }
       }
     }
+  } catch (wooErr) {
+    console.error('⚠️ WooCommerce error (non-fatal):', wooErr);
   }
 
   // 6. Build context and call OpenAI
@@ -139,6 +142,15 @@ worker.on('failed', (job, err) => {
 
 worker.on('error', (err) => {
   console.error('Worker error:', err);
+});
+
+// Handle uncaught errors to prevent worker process from dying
+process.on('uncaughtException', (err) => {
+  console.error('🚨 Uncaught Exception in worker:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  console.error('🚨 Unhandled Rejection in worker:', reason);
 });
 
 console.log('🤖 Volt Worker started - listening for messages...');

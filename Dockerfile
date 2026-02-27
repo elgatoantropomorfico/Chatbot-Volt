@@ -22,5 +22,9 @@ WORKDIR /app/packages/backend
 # Railway injects PORT as env var
 EXPOSE ${PORT:-3001}
 
-# Run API server and worker concurrently
-CMD ["sh", "-c", "npx tsx src/worker.ts & npx tsx src/server.ts"]
+# Copy start script and make executable
+COPY packages/backend/start.sh ./start.sh
+RUN chmod +x start.sh
+
+# Run API server + worker with auto-restart
+CMD ["sh", "./start.sh"]
