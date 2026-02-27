@@ -334,7 +334,9 @@ export class WooService {
   static detectEntry(text: string): string | null {
     const lower = text.toLowerCase().trim();
     if (/^\s*(?:quiero\s+comprar|modo\s+compra|ver\s+(?:productos|catálogo|catalogo)|catálogo|catalogo)\s*$/i.test(lower) ||
-        /^\s*(?:buscar\s+productos?|ver\s+tienda|tienda)\s*$/i.test(lower)) {
+        /^\s*(?:buscar\s+productos?|ver\s+tienda|tienda)\s*$/i.test(lower) ||
+        /(?:puedo|se\s+puede|c[oó]mo\s+(?:puedo|hago\s+para))\s+comprar(?:\s+(?:ac[aá]|por\s+ac[aá]|algo|por\s+(?:ac[aá]|aqui|aqu[ií])))?[?!.]?\s*$/i.test(lower) ||
+        /(?:c[oó]mo|donde|dónde)\s+(?:compro|puedo\s+comprar)/i.test(lower)) {
       return '🛍️ *¡Modo compra activado!*\n\nEscribí el nombre de lo que buscás y te muestro opciones del catálogo.\n\n_Para salir del modo compra, escribí *"salir"*._';
     }
     return null;
@@ -408,6 +410,7 @@ export class WooService {
       /cu[aá]nto (?:cuesta|sale|vale)\s+.{2,}/,
       /(?:tenés|tenes|tienen)\s+.{3,}/,
       /(?:quiero|necesito|me interesa)\s+(?:comprar|ver|un|una|el|la|los|las)\s+.{2,}/,
+      /(?:puedo|se\s+puede)\s+comprar\s+.{3,}/,
     ];
     for (const pattern of strongPatterns) {
       if (pattern.test(lower)) {
@@ -466,12 +469,14 @@ export class WooService {
       /^(?:venden|ofrecen|manejan)\s+/i,
       /^(?:libros?\s+(?:de|del|sobre))\s+/i,
       /^(?:quiero|necesito|me interesa)\s+(?:comprar|ver|saber|un|una|el|la|los|las)\s+/i,
+      /^(?:puedo|se\s+puede)\s+comprar\s+(?:un|una|el|la|los|las)?\s*/i,
       /^(?:el|la|los|las|un|una)\s+/i,
       /^(?:libro)\s+/i,
     ];
     for (const prefix of prefixes) {
       q = q.replace(prefix, '');
     }
+    q = q.replace(/\s+(?:por\s+)?(?:ac[aá]|aqu[ií])\s*$/i, '');
     q = q.replace(/[?!¿¡.,]+$/g, '').trim();
     return q || text;
   }

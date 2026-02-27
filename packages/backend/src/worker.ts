@@ -214,7 +214,7 @@ async function processMessage(job: Job<IncomingMessage>) {
     try {
       const wooCheck = await WooService.forTenant(tenant.id);
       if (wooCheck) {
-        context.systemPrompt += '\n\n[REGLAS SOBRE PRODUCTOS Y COMPRAS]:\n1. NUNCA inventes nombres de productos específicos, precios ni disponibilidad de stock. No tenés acceso al inventario.\n2. NUNCA confirmes una compra ni digas que un pedido fue realizado. Vos NO procesás compras.\n3. Si el cliente pregunta por un producto específico, decile que escriba "Busco [nombre del producto]" para consultar el catálogo.\n4. Si el cliente quiere comprar, decile que escriba "Finalizar compra".\n5. Podés responder preguntas generales sobre el negocio, envíos, formas de pago, horarios, etc. basándote en tu prompt del sistema.';
+        context.systemPrompt += '\n\n[REGLAS SOBRE PRODUCTOS Y COMPRAS]:\n1. NUNCA inventes nombres de productos específicos, precios ni disponibilidad de stock. No tenés acceso al inventario.\n2. NUNCA confirmes una compra ni digas que un pedido fue realizado. Vos NO procesás compras.\n3. Si el cliente pregunta por un producto específico, decile que escriba "Busco [nombre del producto]" para consultar el catálogo.\n4. Si el cliente quiere comprar algo, decile que escriba "Quiero comprar" o "Busco [producto]" para entrar al modo de búsqueda. NUNCA le digas que escriba "Finalizar compra" porque eso es solo para cuando ya tiene productos en el carrito.\n5. NUNCA simules un proceso de compra ni menciones un carrito si el cliente no está en modo compra.\n6. Podés responder preguntas generales sobre el negocio, envíos, formas de pago, horarios, etc. basándote en tu prompt del sistema.';
       }
     } catch {}
     aiResponse = await OpenAIService.generateResponse(context);
