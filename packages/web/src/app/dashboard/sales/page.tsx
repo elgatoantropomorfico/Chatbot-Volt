@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import {
@@ -65,6 +65,20 @@ export default function SalesPage() {
   useEffect(() => {
     loadStats();
   }, [loadStats]);
+
+  // Real-time polling every 10s
+  const loadSalesRef = useRef(loadSales);
+  const loadStatsRef = useRef(loadStats);
+  loadSalesRef.current = loadSales;
+  loadStatsRef.current = loadStats;
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadSalesRef.current();
+      loadStatsRef.current();
+    }, 10000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function handleStatusChange(saleId: string, newStatus: string) {
     try {
