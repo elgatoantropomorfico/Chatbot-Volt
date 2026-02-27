@@ -78,6 +78,17 @@ async function processMessage(job: Job<IncomingMessage>) {
         wooIntent = { intent: 'product_search', query: data.text.replace(/[?!¿¡.,]+$/g, '').trim() };
       }
 
+      // Fallback: if WooCommerce is active and no intent matched, assume product search
+      // UNLESS it's a generic greeting or very short message
+      if (!wooIntent && wooService.settings.enableProductSearch) {
+        const lower = data.text.toLowerCase().trim();
+        const isGeneric = /^\s*(?:hola|buenas?|buenos?\s+d[ií]as?|buenas?\s+tardes?|buenas?\s+noches?|chau|adi[oó]s|gracias|muchas\s+gracias|ok|si|no|ya|bien|dale|listo|lista)\s*[.!,?]*\s*$/i.test(lower);
+        if (!isGeneric && lower.length > 3) {
+          console.log(`🔍 Fallback product search: "${data.text}"`);
+          wooIntent = { intent: 'product_search', query: WooService.extractProductQuery(data.text) };
+        }
+      }
+
       if (wooIntent) {
         console.log(`🛒 WooCommerce intent: ${wooIntent.intent} (query: "${wooIntent.query}")`);
 
