@@ -56,6 +56,7 @@ export default function BotSettingsPage() {
         handoffPhoneE164: settings.handoffPhoneE164,
         handoffMessageTemplate: settings.handoffMessageTemplate,
         handoffTriggersJson: settings.handoffTriggersJson,
+        guardrailsJson: settings.guardrailsJson,
       });
       alert('Configuración guardada');
     } catch (err: any) { alert(err.message); }
@@ -122,6 +123,33 @@ export default function BotSettingsPage() {
               </div>
             </div>
           </div>
+
+          {settings.guardrailsJson && Array.isArray(settings.guardrailsJson) && (
+            <div style={sectionStyle}>
+              <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px' }}>Restricciones del Bot (Guardrails)</h3>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px' }}>Activá las restricciones que quieras aplicar al comportamiento del bot. Se inyectan automáticamente en cada respuesta.</p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {(settings.guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean }>).map((guardrail, idx) => (
+                  <label key={guardrail.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: guardrail.enabled ? 'rgba(139, 92, 246, 0.08)' : 'transparent', border: `1px solid ${guardrail.enabled ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                    <input
+                      type="checkbox"
+                      checked={guardrail.enabled}
+                      onChange={(e) => {
+                        const updated = [...settings.guardrailsJson];
+                        updated[idx] = { ...updated[idx], enabled: e.target.checked };
+                        updateField('guardrailsJson', updated);
+                      }}
+                      style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }}
+                    />
+                    <div>
+                      <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text)' }}>{guardrail.label}</span>
+                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>{guardrail.prompt}</p>
+                    </div>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={sectionStyle}>
             <h3 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '16px' }}>Derivación a humano</h3>

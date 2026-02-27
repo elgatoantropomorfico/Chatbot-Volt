@@ -50,6 +50,16 @@ async function main() {
         outside_business_hours: false,
         force_on_negative_sentiment: false,
       },
+      guardrailsJson: [
+        { id: 'no_competitors', label: 'No recomendar competencia', prompt: 'Nunca menciones, recomiendes ni hagas referencia a productos, servicios o marcas de la competencia. Si te preguntan, redirige amablemente hacia los productos/servicios propios.', enabled: true },
+        { id: 'no_pricing_negotiation', label: 'No negociar precios', prompt: 'No ofrezcas descuentos, rebajas ni negocies precios. Si el cliente pide descuento, indica amablemente que los precios son fijos o que puede consultar las promociones vigentes.', enabled: false },
+        { id: 'no_personal_opinions', label: 'No dar opiniones personales', prompt: 'No des opiniones personales ni subjetivas. Limitate a hechos, datos del negocio e información objetiva sobre los productos/servicios.', enabled: false },
+        { id: 'only_business_topics', label: 'Solo temas del negocio', prompt: 'Responde únicamente sobre temas relacionados al negocio, sus productos y servicios. Si te preguntan sobre otros temas no relacionados, indica amablemente que solo podés ayudar con consultas sobre el negocio.', enabled: true },
+        { id: 'no_external_links', label: 'No compartir links externos', prompt: 'No compartas links, URLs ni referencias a sitios web externos. Solo podés compartir información que te haya sido proporcionada en tu contexto.', enabled: false },
+        { id: 'collect_contact', label: 'Solicitar datos de contacto', prompt: 'Cuando detectes intención de compra o consulta seria, solicita amablemente nombre, email y/o teléfono del cliente para seguimiento.', enabled: false },
+        { id: 'no_medical_legal_advice', label: 'No dar consejos médicos/legales', prompt: 'Nunca des consejos médicos, legales ni financieros. Si te preguntan, sugiere que consulten con un profesional especializado.', enabled: false },
+        { id: 'polite_language', label: 'Lenguaje formal y respetuoso', prompt: 'Mantené siempre un tono formal, respetuoso y profesional. No uses jerga, insultos ni lenguaje inapropiado bajo ninguna circunstancia, incluso si el cliente lo hace.', enabled: true },
+      ],
     },
   });
   console.log('✅ Bot settings created');
