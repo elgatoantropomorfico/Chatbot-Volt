@@ -81,7 +81,6 @@ export class WooService {
           search: query,
           per_page: maxResults,
           status: 'publish',
-          orderby: 'relevance',
         },
       });
 

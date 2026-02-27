@@ -67,7 +67,6 @@ async function processMessage(job: Job<IncomingMessage>) {
 
   // 5. Check for WooCommerce intent (wrapped in try/catch to prevent crashes)
   let wooDirectResponse: string | null = null;
-  let wooContext = '';
   try {
     const wooService = await WooService.forTenant(tenant.id);
     if (wooService) {
@@ -122,14 +121,16 @@ async function processMessage(job: Job<IncomingMessage>) {
   // 6. If WooCommerce handled it directly, send that response
   let aiResponse: string;
   if (wooDirectResponse) {
+    console.log(`📤 WooCommerce direct response (${wooDirectResponse.length} chars)`);
     aiResponse = wooDirectResponse;
   } else {
+    console.log(`🤖 No WooCommerce match, falling back to OpenAI...`);
     // 7. Build context and call OpenAI
     const context = await OpenAIService.buildContext(conversation.id, tenant.id);
     aiResponse = await OpenAIService.generateResponse(context);
   }
 
-  // 7. Send response via WhatsApp
+  // 8. Send response via WhatsApp
   const providerMessageId = await WhatsAppService.sendTextMessage({
     phoneNumberId: channel.phoneNumberId,
     to: data.from,
