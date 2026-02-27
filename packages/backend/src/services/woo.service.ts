@@ -36,6 +36,9 @@ interface CartItem {
 // In-memory carts per conversation (will reset on worker restart)
 const conversationCarts = new Map<string, CartItem[]>();
 
+// Track conversations where last search returned no results (next message = retry)
+const pendingRetrySearch = new Set<string>();
+
 export class WooService {
   private config: WooConfig;
   private client: ReturnType<typeof axios.create>;
@@ -111,7 +114,7 @@ export class WooService {
 
   formatProductResponse(products: WooProduct[], query: string): string {
     if (!products.length) {
-      return `No encontré resultados para "${query}". Probá con otro nombre o palabra clave.`;
+      return `No encontré resultados para "${query}". Probá con el nombre exacto del producto (sin palabras como "libro" o "el").`;
     }
 
     const header = products.length === 1
@@ -365,6 +368,18 @@ export class WooService {
     return null;
   }
 
+  static markNoResults(conversationId: string) {
+    pendingRetrySearch.add(conversationId);
+  }
+
+  static consumeRetrySearch(conversationId: string): boolean {
+    if (pendingRetrySearch.has(conversationId)) {
+      pendingRetrySearch.delete(conversationId);
+      return true;
+    }
+    return false;
+  }
+
   static extractProductQuery(text: string): string {
     let q = text.trim();
     const prefixes = [
@@ -375,6 +390,7 @@ export class WooService {
       /^(?:libros?\s+(?:de|del|sobre))\s+/i,
       /^(?:quiero|necesito|me interesa)\s+(?:comprar|ver|saber|un|una|el|la|los|las)\s+/i,
       /^(?:el|la|los|las|un|una)\s+/i,
+      /^(?:libro)\s+/i,
     ];
     for (const prefix of prefixes) {
       q = q.replace(prefix, '');

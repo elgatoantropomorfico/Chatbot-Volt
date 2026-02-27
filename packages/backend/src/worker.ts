@@ -70,7 +70,14 @@ async function processMessage(job: Job<IncomingMessage>) {
   try {
     const wooService = await WooService.forTenant(tenant.id);
     if (wooService) {
-      const wooIntent = WooService.detectIntent(data.text);
+      let wooIntent = WooService.detectIntent(data.text);
+
+      // If no intent detected but last search returned no results, treat as retry search
+      if (!wooIntent && WooService.consumeRetrySearch(conversation.id)) {
+        console.log(`🔄 Retry search for conversation ${conversation.id}: "${data.text}"`);
+        wooIntent = { intent: 'product_search', query: data.text.replace(/[?!¿¡.,]+$/g, '').trim() };
+      }
+
       if (wooIntent) {
         console.log(`🛒 WooCommerce intent: ${wooIntent.intent} (query: "${wooIntent.query}")`);
 
@@ -79,6 +86,9 @@ async function processMessage(job: Job<IncomingMessage>) {
           // Store last search results for cart_add by number
           if (products.length > 0) {
             lastSearchResults.set(conversation.id, products);
+          } else {
+            // Mark for retry: next message will be treated as search
+            WooService.markNoResults(conversation.id);
           }
           wooDirectResponse = wooService.formatProductResponse(products, wooIntent.query);
 
