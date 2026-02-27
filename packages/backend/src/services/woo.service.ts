@@ -39,6 +39,9 @@ const conversationCarts = new Map<string, CartItem[]>();
 // Track conversations where last search returned no results (next message = retry)
 const pendingRetrySearch = new Set<string>();
 
+// Shopping mode per conversation: true = WooCommerce intercepts, false/absent = OpenAI handles
+const shoppingMode = new Map<string, boolean>();
+
 export class WooService {
   private config: WooConfig;
   private client: ReturnType<typeof axios.create>;
@@ -114,7 +117,7 @@ export class WooService {
 
   formatProductResponse(products: WooProduct[], query: string): string {
     if (!products.length) {
-      return `No encontré resultados para "${query}". Probá con el nombre exacto del producto (sin palabras como "libro" o "el").`;
+      return `No encontré resultados para "${query}". Probá con el nombre exacto del producto.\n\n_Escribí *"salir"* para volver al modo conversación._`;
     }
 
     const header = products.length === 1
@@ -137,11 +140,12 @@ export class WooService {
              `   ${stockIcon} ${stockStr}`;
     }).join('\n\n');
 
-    const footer = this.settings.enableCart
+    const cartHint = this.settings.enableCart
       ? '\n\n💡 Para agregar al carrito escribí: *"Agregar [número] al carrito"* o *"Agregar 2 unidades del [número]"*'
       : '';
+    const exitHint = '\n\n_Escribí *"salir"* para volver al modo conversación._';
 
-    return `${header}\n\n${list}${footer}`;
+    return `${header}\n\n${list}${cartHint}${exitHint}`;
   }
 
   // ───── ORDER LOOKUP ─────
@@ -290,34 +294,85 @@ export class WooService {
            `¡Gracias por tu compra! Un asesor te va a responder a la brevedad.`;
   }
 
-  // ───── INTENT DETECTION (moved here from OpenAI service) ─────
+  // ───── SHOPPING MODE ─────
 
-  static detectIntent(text: string): { intent: string; query: string; quantity?: number; itemNumber?: number } | null {
+  static isShoppingMode(conversationId: string): boolean {
+    return shoppingMode.get(conversationId) === true;
+  }
+
+  static enterShoppingMode(conversationId: string) {
+    shoppingMode.set(conversationId, true);
+    console.log(`🛍️ Shopping mode ON for ${conversationId}`);
+  }
+
+  static exitShoppingMode(conversationId: string) {
+    shoppingMode.delete(conversationId);
+    pendingRetrySearch.delete(conversationId);
+    console.log(`💬 Shopping mode OFF for ${conversationId}`);
+  }
+
+  /**
+   * Check if the message is an explicit exit from shopping mode.
+   * Returns a friendly exit message, or null if not an exit trigger.
+   */
+  static detectExit(text: string): string | null {
     const lower = text.toLowerCase().trim();
+    if (/(?:salir|salgo|exit)\s*(?:del?\s*)?(?:modo\s*)?(?:compra|tienda|catálogo|catalogo|shopping)/i.test(lower) ||
+        /(?:modo\s*)?(?:conversaci[oó]n|chat|normal)/i.test(lower) ||
+        /(?:no\s+quiero\s+(?:comprar|buscar|ver\s+productos))/i.test(lower) ||
+        /(?:volver|volvamos)\s*(?:al?\s*)?(?:chat|conversaci[oó]n|inicio|men[uú])/i.test(lower) ||
+        /^\s*salir\s*$/i.test(lower)) {
+      return '💬 ¡Listo! Saliste del modo compra. Ahora podés hacerme cualquier consulta y te respondo normalmente.\n\n_Para volver a buscar productos, escribí *"quiero comprar"* o *"buscar [producto]"*._';
+    }
+    return null;
+  }
 
-    // Cart: checkout / finalize — wide matching
+  /**
+   * Check if the message is an explicit entry to shopping mode (without a specific product search).
+   * Returns a welcome message, or null if not an entry trigger.
+   */
+  static detectEntry(text: string): string | null {
+    const lower = text.toLowerCase().trim();
+    if (/^\s*(?:quiero\s+comprar|modo\s+compra|ver\s+(?:productos|catálogo|catalogo)|catálogo|catalogo)\s*$/i.test(lower) ||
+        /^\s*(?:buscar\s+productos?|ver\s+tienda|tienda)\s*$/i.test(lower)) {
+      return '🛍️ *¡Modo compra activado!*\n\nEscribí el nombre de lo que buscás y te muestro opciones del catálogo.\n\n_Para salir del modo compra, escribí *"salir"*._';
+    }
+    return null;
+  }
+
+  // ───── INTENT DETECTION ─────
+
+  /**
+   * Detects WooCommerce intent. Only matches product_search patterns when in shopping mode
+   * or when the message is a strong explicit search. Cart/order intents always match.
+   */
+  static detectIntent(text: string, conversationId?: string): { intent: string; query: string; quantity?: number; itemNumber?: number } | null {
+    const lower = text.toLowerCase().trim();
+    const inShopMode = conversationId ? WooService.isShoppingMode(conversationId) : false;
+
+    // Cart: checkout / finalize — always active
     if (/(?:finalizar|cerrar|confirmar|completar)\s*(?:la\s+)?(?:compra|pedido|orden|carrito|el\s+carrito)/i.test(lower) ||
         /(?:quiero|listo|listos?)\s*(?:para)?\s*(?:comprar|pagar|checkout)/i.test(lower) ||
         /^\s*(?:comprar|pagar|checkout|finalizar|confirmar|terminar)\s*$/i.test(lower) ||
         /(?:dale|si|sí)[,!.]?\s*(?:comprar|compro|lo quiero|los quiero|quiero (?:comprar|pagar))/i.test(lower) ||
-        /(?:quiero|deseo|voy a)\s+(?:comprar|pagar|llevar)/i.test(lower) ||
+        /(?:quiero|deseo|voy a)\s+(?:pagar|llevar)/i.test(lower) ||
         /(?:cerrar|finalizar|terminar)\s*(?:el\s+)?(?:pedido|carrito|compra|orden)/i.test(lower) ||
         /^\s*(?:lo|los|la|las)\s+(?:quiero|llevo|compro)\s*$/i.test(lower) ||
         /^\s*(?:listo|lista|dale|ok|confirmo|confirmar)\s*$/i.test(lower)) {
       return { intent: 'cart_checkout', query: '' };
     }
 
-    // Cart: clear
+    // Cart: clear — always active
     if (/(?:vaciar|limpiar|borrar|eliminar)\s*(?:el\s+)?(?:carrito|carro|cart)/i.test(lower)) {
       return { intent: 'cart_clear', query: '' };
     }
 
-    // Cart: view
+    // Cart: view — always active
     if (/(?:ver|mostrar|mi)\s*(?:el\s+)?(?:carrito|carro|cart)/i.test(lower)) {
       return { intent: 'cart_view', query: '' };
     }
 
-    // Cart: add by number from last search - "agregar 2" or "agregar el 3" or "agregar 2 unidades del 1"
+    // Cart: add by number — always active (only works if there were previous search results)
     const addMatch = lower.match(/(?:agregar|añadir|sumar|quiero)\s+(?:(\d+)\s+(?:unidades?|items?)\s+(?:del?|al)\s+(?:n[uú]mero\s+)?(\d+)|(?:el\s+)?(\d+)(?:\s+al\s+carrito)?)/);
     if (addMatch) {
       if (addMatch[1] && addMatch[2]) {
@@ -327,13 +382,13 @@ export class WooService {
       }
     }
 
-    // Also match: "agregar [product name] al carrito"
+    // Cart: add by name — always active
     const addNameMatch = lower.match(/(?:agregar|añadir)\s+(.+?)\s+al\s+carrito/);
     if (addNameMatch) {
       return { intent: 'cart_add_by_name', query: addNameMatch[1] };
     }
 
-    // Order lookup
+    // Order lookup — always active
     const orderPatterns = [
       /(?:estado|rastrear|seguir|tracking|dónde está|donde esta).*(?:pedido|orden|compra|envío|envio)/,
       /(?:pedido|orden|compra).*(?:número|numero|nro|#)\s*(\w+)/,
@@ -345,30 +400,43 @@ export class WooService {
       }
     }
 
-    // Product search - explicit patterns
-    const productPatterns = [
-      /(?:buscar|busco|tenés|tenes|tienen|hay|precio|cuesta|vale)\s+.{2,}/,
+    // ── Strong explicit search patterns: these auto-activate shopping mode ──
+    const strongPatterns = [
+      /(?:buscar|busco)\s+.{2,}/,
       /(?:producto|artículo|articulo).*(?:buscar|busco|precio|cuesta)/,
-      /cu[aá]nto (?:cuesta|sale|vale)/,
-      /(?:quiero|necesito|me interesa)\s+(?:comprar|ver|saber|un|una|el|la|los|las)\s+.{2,}/,
-      /(?:stock|disponib|entrega inmediata)/i,
-      /(?:venden|ofrecen|manejan|trabajan con)\s+.{2,}/,
-      /(?:libros?|ejemplar) (?:de|del|sobre)\s+.{2,}/,
-      /(?:tienen|tenes|tenés)\s+.{2,}/,
-      /(?:consegu[ií]r?|conseguir)\s+.{2,}/,
-      /(?:libro|ejemplar|título|titulo)\s+.{2,}/,
+      /cu[aá]nto (?:cuesta|sale|vale)\s+.{2,}/,
+      /(?:tenés|tenes|tienen)\s+.{3,}/,
     ];
-    for (const pattern of productPatterns) {
+    for (const pattern of strongPatterns) {
       if (pattern.test(lower)) {
+        if (conversationId) WooService.enterShoppingMode(conversationId);
         const cleanedQuery = WooService.extractProductQuery(text);
         return { intent: 'product_search', query: cleanedQuery };
       }
     }
 
-    // Catch-all: if message contains product-related keywords, treat as search
-    if (/(?:libros?|libro|precio|comprar|disponible|stock|catalogo|catálogo)/.test(lower) && lower.length > 5) {
-      const cleanedQuery = WooService.extractProductQuery(text);
-      return { intent: 'product_search', query: cleanedQuery };
+    // ── Weaker patterns: only match when ALREADY in shopping mode ──
+    if (inShopMode) {
+      const weakPatterns = [
+        /(?:hay|precio|cuesta|vale)\s+.{2,}/,
+        /(?:quiero|necesito|me interesa)\s+(?:ver|un|una|el|la|los|las)\s+.{2,}/,
+        /(?:stock|disponib|entrega inmediata)/i,
+        /(?:venden|ofrecen|manejan|trabajan con)\s+.{2,}/,
+        /(?:libros?|ejemplar)\s+(?:de|del|sobre)\s+.{2,}/,
+        /(?:consegu[ií]r?|conseguir)\s+.{2,}/,
+        /(?:libro|ejemplar|título|titulo)\s+.{2,}/,
+      ];
+      for (const pattern of weakPatterns) {
+        if (pattern.test(lower)) {
+          const cleanedQuery = WooService.extractProductQuery(text);
+          return { intent: 'product_search', query: cleanedQuery };
+        }
+      }
+
+      // In shopping mode, treat any unmatched text as a product search (the user is browsing)
+      if (lower.length >= 3 && lower.length <= 80) {
+        return { intent: 'product_search', query: text.replace(/[?!¿¡.,]+$/g, '').trim() };
+      }
     }
 
     return null;

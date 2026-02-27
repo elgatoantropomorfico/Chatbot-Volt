@@ -70,27 +70,51 @@ async function processMessage(job: Job<IncomingMessage>) {
   try {
     const wooService = await WooService.forTenant(tenant.id);
     if (wooService) {
-      let wooIntent = WooService.detectIntent(data.text);
-
-      // If no intent detected but last search returned no results, treat as retry search
-      if (!wooIntent && WooService.consumeRetrySearch(conversation.id)) {
-        console.log(`🔄 Retry search for conversation ${conversation.id}: "${data.text}"`);
-        wooIntent = { intent: 'product_search', query: data.text.replace(/[?!¿¡.,]+$/g, '').trim() };
+      // Check for explicit exit from shopping mode FIRST
+      if (WooService.isShoppingMode(conversation.id)) {
+        const exitMsg = WooService.detectExit(data.text);
+        if (exitMsg) {
+          WooService.exitShoppingMode(conversation.id);
+          wooDirectResponse = exitMsg;
+        }
       }
 
-      if (wooIntent) {
-        console.log(`🛒 WooCommerce intent: ${wooIntent.intent} (query: "${wooIntent.query}")`);
+      // Check for explicit entry to shopping mode (generic "quiero comprar", "catálogo", etc.)
+      if (!wooDirectResponse) {
+        const entryMsg = WooService.detectEntry(data.text);
+        if (entryMsg) {
+          WooService.enterShoppingMode(conversation.id);
+          wooDirectResponse = entryMsg;
+        }
+      }
 
-        if (wooIntent.intent === 'product_search' && wooService.settings.enableProductSearch) {
-          const products = await wooService.searchProducts(wooIntent.query);
-          // Store last search results for cart_add by number
-          if (products.length > 0) {
-            lastSearchResults.set(conversation.id, products);
-          } else {
-            // Mark for retry: next message will be treated as search
-            WooService.markNoResults(conversation.id);
-          }
-          wooDirectResponse = wooService.formatProductResponse(products, wooIntent.query);
+      // Detect WooCommerce intent (pass conversationId for shopping mode awareness)
+      if (!wooDirectResponse) {
+        let wooIntent = WooService.detectIntent(data.text, conversation.id);
+
+        // If no intent detected but in shopping mode and last search returned no results, treat as retry
+        if (!wooIntent && WooService.isShoppingMode(conversation.id) && WooService.consumeRetrySearch(conversation.id)) {
+          console.log(`🔄 Retry search for conversation ${conversation.id}: "${data.text}"`);
+          wooIntent = { intent: 'product_search', query: data.text.replace(/[?!¿¡.,]+$/g, '').trim() };
+        }
+
+        if (wooIntent) {
+          console.log(`🛒 WooCommerce intent: ${wooIntent.intent} (query: "${wooIntent.query}") [shop_mode=${WooService.isShoppingMode(conversation.id)}]`);
+
+          if (wooIntent.intent === 'product_search' && wooService.settings.enableProductSearch) {
+            // Auto-enter shopping mode on product search
+            if (!WooService.isShoppingMode(conversation.id)) {
+              WooService.enterShoppingMode(conversation.id);
+            }
+            const products = await wooService.searchProducts(wooIntent.query);
+            // Store last search results for cart_add by number
+            if (products.length > 0) {
+              lastSearchResults.set(conversation.id, products);
+            } else {
+              // Mark for retry: next message will be treated as search
+              WooService.markNoResults(conversation.id);
+            }
+            wooDirectResponse = wooService.formatProductResponse(products, wooIntent.query);
 
         } else if (wooIntent.intent === 'order_lookup' && wooService.settings.enableOrderLookup) {
           const orders = await wooService.searchOrdersByPhone(data.from);
@@ -139,6 +163,7 @@ async function processMessage(job: Job<IncomingMessage>) {
             wooDirectResponse = '⚠️ El método de pago aún no está disponible. Contactá al negocio directamente.';
           }
         }
+      }
       }
     }
   } catch (wooErr: any) {
