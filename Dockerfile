@@ -1,6 +1,9 @@
-FROM node:18-alpine
+FROM node:18-slim
 
 WORKDIR /app
+
+# Install OpenSSL (required by Prisma)
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 
 # Copy root workspace config
 COPY package.json package-lock.json* tsconfig.base.json ./
