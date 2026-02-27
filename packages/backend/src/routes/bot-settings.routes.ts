@@ -13,6 +13,7 @@ const updateBotSettingsSchema = z.object({
   handoffMessageTemplate: z.string().nullable().optional(),
   handoffTriggersJson: z.any().optional(),
   guardrailsJson: z.any().optional(),
+  promptBuilderJson: z.any().optional(),
 });
 
 export async function botSettingsRoutes(app: FastifyInstance) {

@@ -204,6 +204,7 @@ model BotSettings {
   handoffMessageTemplate  String?  @default("Te derivo con un asesor: {{wa_me_link}}") @map("handoff_message_template")
   handoffTriggersJson     Json?    @map("handoff_triggers_json")
   guardrailsJson          Json?    @map("guardrails_json")
+  promptBuilderJson       Json?    @map("prompt_builder_json")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
