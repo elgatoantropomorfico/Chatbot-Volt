@@ -40,9 +40,14 @@ export async function integrationRoutes(app: FastifyInstance) {
     const user = request.user;
     const where = user.role === 'superadmin' ? {} : { tenantId: user.tenantId! };
 
-    const integrations = await prisma.integration.findMany({
+    const raw = await prisma.integration.findMany({
       where,
-      select: { id: true, tenantId: true, type: true, status: true, createdAt: true },
+      select: { id: true, tenantId: true, type: true, status: true, createdAt: true, configEncrypted: true },
+    });
+    const integrations = raw.map((i) => {
+      let config = {};
+      try { config = JSON.parse(i.configEncrypted); } catch {}
+      return { id: i.id, tenantId: i.tenantId, type: i.type, status: i.status, createdAt: i.createdAt, config };
     });
     return reply.send({ integrations });
   });

@@ -1,47 +1,120 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Plug, Plus } from 'lucide-react';
+import {
+  Plug,
+  Plus,
+  ShoppingCart,
+  Search,
+  Package,
+  MessageSquare,
+  Phone,
+  Save,
+  X,
+  Settings2,
+  ExternalLink,
+  CreditCard,
+} from 'lucide-react';
+
+interface WooConfig {
+  baseUrl: string;
+  consumerKey: string;
+  consumerSecret: string;
+  maxSearchResults: number;
+  enableProductSearch: boolean;
+  enableOrderLookup: boolean;
+  enableCart: boolean;
+  checkoutMode: 'wa_human' | 'mercadopago';
+  checkoutPhone: string;
+}
+
+const defaultConfig: WooConfig = {
+  baseUrl: '',
+  consumerKey: '',
+  consumerSecret: '',
+  maxSearchResults: 10,
+  enableProductSearch: true,
+  enableOrderLookup: true,
+  enableCart: true,
+  checkoutMode: 'wa_human',
+  checkoutPhone: '',
+};
 
 export default function IntegrationsPage() {
   const { user, isSuperAdmin, isTenantAdmin } = useAuth();
   const [integrations, setIntegrations] = useState<any[]>([]);
   const [tenants, setTenants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ tenantId: '', type: 'woocommerce', baseUrl: '', consumerKey: '', consumerSecret: '' });
+  const [saving, setSaving] = useState(false);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [config, setConfig] = useState<WooConfig>({ ...defaultConfig });
+  const [createForm, setCreateForm] = useState({ tenantId: '', type: 'woocommerce' });
+  const [saveMsg, setSaveMsg] = useState('');
+
+  const loadIntegrations = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await api.getIntegrations();
+      setIntegrations(data.integrations);
+    } catch (err) { console.error(err); }
+    finally { setLoading(false); }
+  }, []);
 
   useEffect(() => {
     loadIntegrations();
-    if (isSuperAdmin) loadTenants();
-  }, []);
+    if (isSuperAdmin) {
+      api.getTenants().then(d => setTenants(d.tenants)).catch(console.error);
+    }
+  }, [loadIntegrations, isSuperAdmin]);
 
-  async function loadIntegrations() {
-    setLoading(true);
-    try { const data = await api.getIntegrations(); setIntegrations(data.integrations); }
-    catch (err) { console.error(err); }
-    finally { setLoading(false); }
+  function openEdit(integration: any) {
+    const c = integration.config || {};
+    setConfig({
+      baseUrl: c.baseUrl || '',
+      consumerKey: c.consumerKey || '',
+      consumerSecret: c.consumerSecret || '',
+      maxSearchResults: c.maxSearchResults ?? 10,
+      enableProductSearch: c.enableProductSearch !== false,
+      enableOrderLookup: c.enableOrderLookup !== false,
+      enableCart: c.enableCart !== false,
+      checkoutMode: c.checkoutMode || 'wa_human',
+      checkoutPhone: c.checkoutPhone || '',
+    });
+    setEditingId(integration.id);
+    setShowCreate(false);
+    setSaveMsg('');
   }
 
-  async function loadTenants() {
-    try { const data = await api.getTenants(); setTenants(data.tenants); }
-    catch (err) { console.error(err); }
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
+  async function handleCreate(e: React.FormEvent) {
     e.preventDefault();
+    setSaving(true);
     try {
       await api.createIntegration({
-        tenantId: isTenantAdmin ? user?.tenantId : form.tenantId,
-        type: form.type,
-        config: { baseUrl: form.baseUrl, consumerKey: form.consumerKey, consumerSecret: form.consumerSecret },
+        tenantId: isTenantAdmin ? user?.tenantId : createForm.tenantId,
+        type: createForm.type,
+        config: { ...config },
       });
-      setShowForm(false);
-      setForm({ tenantId: '', type: 'woocommerce', baseUrl: '', consumerKey: '', consumerSecret: '' });
+      setShowCreate(false);
+      setConfig({ ...defaultConfig });
       await loadIntegrations();
     } catch (err: any) { alert(err.message); }
+    finally { setSaving(false); }
+  }
+
+  async function handleSave() {
+    if (!editingId) return;
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      await api.updateIntegration(editingId, { config: { ...config } });
+      setSaveMsg('Guardado correctamente');
+      await loadIntegrations();
+      setTimeout(() => setSaveMsg(''), 3000);
+    } catch (err: any) { setSaveMsg('Error: ' + err.message); }
+    finally { setSaving(false); }
   }
 
   async function toggleStatus(id: string, currentStatus: string) {
@@ -53,88 +126,472 @@ export default function IntegrationsPage() {
 
   if (!isSuperAdmin && !isTenantAdmin) return <p style={{ color: 'var(--color-text-muted)' }}>Acceso denegado</p>;
 
-  const inputStyle = { width: '100%', padding: '8px 12px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text)', fontSize: '14px' };
-  const labelStyle = { display: 'block' as const, fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '4px' };
+  const statusColors: Record<string, string> = { active: 'var(--color-success)', inactive: 'var(--color-text-muted)' };
 
-  const typeLabels: Record<string, string> = { woocommerce: 'WooCommerce' };
-  const statusColors: Record<string, string> = { active: 'var(--color-success)', inactive: 'var(--color-text-muted)', error: 'var(--color-danger)' };
+  const inputStyle: React.CSSProperties = {
+    width: '100%', padding: '10px 12px', background: 'var(--color-bg-secondary)',
+    border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+    color: 'var(--color-text)', fontSize: '14px', outline: 'none',
+  };
+  const labelStyle: React.CSSProperties = {
+    display: 'block', fontSize: '13px', color: 'var(--color-text-secondary)',
+    marginBottom: '6px', fontWeight: 500,
+  };
+  const sectionStyle: React.CSSProperties = {
+    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+    borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '16px',
+  };
+  const sectionTitleStyle: React.CSSProperties = {
+    fontSize: '15px', fontWeight: 600, marginBottom: '16px',
+    display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text)',
+  };
+  const toggleWrapStyle: React.CSSProperties = {
+    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+    padding: '12px 0', borderBottom: '1px solid var(--color-border)',
+  };
+
+  function renderConfigForm(isCreate: boolean) {
+    return (
+      <>
+        {/* Credentials Section */}
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>
+            <ExternalLink size={18} style={{ color: 'var(--color-primary)' }} />
+            Conexion WooCommerce
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>URL de la tienda</label>
+              <input
+                value={config.baseUrl}
+                onChange={(e) => setConfig({ ...config, baseUrl: e.target.value })}
+                required={isCreate}
+                placeholder="https://tu-tienda.com"
+                style={inputStyle}
+              />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <div>
+                <label style={labelStyle}>Consumer Key</label>
+                <input
+                  value={config.consumerKey}
+                  onChange={(e) => setConfig({ ...config, consumerKey: e.target.value })}
+                  required={isCreate}
+                  placeholder="ck_..."
+                  style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+                />
+              </div>
+              <div>
+                <label style={labelStyle}>Consumer Secret</label>
+                <input
+                  type="password"
+                  value={config.consumerSecret}
+                  onChange={(e) => setConfig({ ...config, consumerSecret: e.target.value })}
+                  required={isCreate}
+                  placeholder="cs_..."
+                  style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Features Section */}
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>
+            <Settings2 size={18} style={{ color: 'var(--color-info)' }} />
+            Funcionalidades
+          </div>
+
+          <div style={toggleWrapStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Search size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>Busqueda de productos</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  Permite al bot buscar productos en el catalogo de WooCommerce
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, enableProductSearch: !config.enableProductSearch })}
+              style={{
+                width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                background: config.enableProductSearch ? 'var(--color-success)' : 'var(--color-border)',
+                position: 'relative', transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: '2px', width: '20px', height: '20px', borderRadius: '50%',
+                background: 'white', transition: 'left 0.2s',
+                left: config.enableProductSearch ? '22px' : '2px',
+              }} />
+            </button>
+          </div>
+
+          <div style={toggleWrapStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <Package size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>Consulta de pedidos</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  Permite al cliente consultar el estado de sus pedidos
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, enableOrderLookup: !config.enableOrderLookup })}
+              style={{
+                width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                background: config.enableOrderLookup ? 'var(--color-success)' : 'var(--color-border)',
+                position: 'relative', transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: '2px', width: '20px', height: '20px', borderRadius: '50%',
+                background: 'white', transition: 'left 0.2s',
+                left: config.enableOrderLookup ? '22px' : '2px',
+              }} />
+            </button>
+          </div>
+
+          <div style={toggleWrapStyle}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <ShoppingCart size={16} style={{ color: 'var(--color-text-muted)' }} />
+              <div>
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>Carrito de compras</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                  Permite armar un carrito y finalizar la compra
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setConfig({ ...config, enableCart: !config.enableCart })}
+              style={{
+                width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                background: config.enableCart ? 'var(--color-success)' : 'var(--color-border)',
+                position: 'relative', transition: 'background 0.2s',
+              }}
+            >
+              <span style={{
+                position: 'absolute', top: '2px', width: '20px', height: '20px', borderRadius: '50%',
+                background: 'white', transition: 'left 0.2s',
+                left: config.enableCart ? '22px' : '2px',
+              }} />
+            </button>
+          </div>
+
+          <div style={{ ...toggleWrapStyle, borderBottom: 'none' }}>
+            <div>
+              <label style={labelStyle}>Resultados maximos por busqueda</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <input
+                  type="range"
+                  min={1}
+                  max={20}
+                  value={config.maxSearchResults}
+                  onChange={(e) => setConfig({ ...config, maxSearchResults: parseInt(e.target.value) })}
+                  style={{ flex: 1, accentColor: 'var(--color-primary)' }}
+                />
+                <span style={{
+                  minWidth: '32px', textAlign: 'center', fontSize: '16px', fontWeight: 600,
+                  color: 'var(--color-primary)',
+                }}>
+                  {config.maxSearchResults}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Checkout Section */}
+        {config.enableCart && (
+          <div style={sectionStyle}>
+            <div style={sectionTitleStyle}>
+              <CreditCard size={18} style={{ color: 'var(--color-warning)' }} />
+              Checkout (Cierre de compra)
+            </div>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={labelStyle}>Modo de checkout</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, checkoutMode: 'wa_human' })}
+                  style={{
+                    flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    border: config.checkoutMode === 'wa_human'
+                      ? '2px solid var(--color-primary)'
+                      : '1px solid var(--color-border)',
+                    background: config.checkoutMode === 'wa_human'
+                      ? 'var(--color-primary-light)'
+                      : 'var(--color-bg-secondary)',
+                    color: 'var(--color-text)', textAlign: 'left' as const,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <MessageSquare size={16} style={{ color: 'var(--color-success)' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>Contacto humano (WhatsApp)</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                    Envia un link wa.me con el resumen del pedido a un numero de WhatsApp
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setConfig({ ...config, checkoutMode: 'mercadopago' })}
+                  style={{
+                    flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                    border: config.checkoutMode === 'mercadopago'
+                      ? '2px solid var(--color-primary)'
+                      : '1px solid var(--color-border)',
+                    background: config.checkoutMode === 'mercadopago'
+                      ? 'var(--color-primary-light)'
+                      : 'var(--color-bg-secondary)',
+                    color: 'var(--color-text)', textAlign: 'left' as const,
+                    opacity: 0.5,
+                  }}
+                  disabled
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' }}>
+                    <CreditCard size={16} style={{ color: 'var(--color-info)' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>MercadoPago</span>
+                    <span style={{
+                      fontSize: '10px', padding: '2px 6px', borderRadius: 'var(--radius-sm)',
+                      background: 'var(--color-warning-light)', color: 'var(--color-warning)',
+                      fontWeight: 600,
+                    }}>PROXIMAMENTE</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                    Genera un link de pago de MercadoPago con el carrito
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {config.checkoutMode === 'wa_human' && (
+              <div>
+                <label style={labelStyle}>
+                  <Phone size={14} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '4px' }} />
+                  Numero de WhatsApp para recibir pedidos
+                </label>
+                <input
+                  value={config.checkoutPhone}
+                  onChange={(e) => setConfig({ ...config, checkoutPhone: e.target.value })}
+                  placeholder="5491112345678 (con codigo de pais, sin +)"
+                  style={inputStyle}
+                />
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px' }}>
+                  Cuando el cliente finaliza la compra, recibe un link wa.me con el resumen del pedido hacia este numero.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </>
+    );
+  }
 
   return (
-    <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+    <div style={{ maxWidth: '800px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <h1 style={{ fontSize: '24px', fontWeight: 700 }}>Integraciones</h1>
-        <button onClick={() => setShowForm(!showForm)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 500 }}>
-          <Plus size={16} /> Nueva integración
-        </button>
+        {!showCreate && !editingId && (
+          <button
+            onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultConfig }); }}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px',
+              background: 'var(--color-primary)', color: 'white', border: 'none',
+              borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            <Plus size={16} /> Nueva integracion
+          </button>
+        )}
       </div>
 
-      {showForm && (
-        <form onSubmit={handleSubmit} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-          {isSuperAdmin && (
-            <div>
-              <label style={labelStyle}>Tenant</label>
-              <select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })} required style={inputStyle}>
-                <option value="">Seleccionar...</option>
-                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-              </select>
+      {/* Create Form */}
+      {showCreate && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Nueva integracion WooCommerce</h2>
+            <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+          </div>
+
+          <form onSubmit={handleCreate}>
+            {isSuperAdmin && (
+              <div style={{ ...sectionStyle, marginBottom: '16px' }}>
+                <label style={labelStyle}>Tenant</label>
+                <select
+                  value={createForm.tenantId}
+                  onChange={(e) => setCreateForm({ ...createForm, tenantId: e.target.value })}
+                  required
+                  style={inputStyle}
+                >
+                  <option value="">Seleccionar tenant...</option>
+                  {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+            )}
+
+            {renderConfigForm(true)}
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+              <button
+                type="submit"
+                disabled={saving}
+                style={{
+                  padding: '10px 24px', background: 'var(--color-primary)', color: 'white',
+                  border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '14px',
+                  fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1,
+                  display: 'flex', alignItems: 'center', gap: '6px',
+                }}
+              >
+                <Save size={16} /> {saving ? 'Creando...' : 'Crear integracion'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowCreate(false)}
+                style={{
+                  padding: '10px 18px', background: 'none',
+                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                  color: 'var(--color-text-secondary)', fontSize: '14px', cursor: 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
             </div>
-          )}
-          <div>
-            <label style={labelStyle}>Tipo</label>
-            <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })} style={inputStyle}>
-              <option value="woocommerce">WooCommerce</option>
-            </select>
-          </div>
-          <div style={{ gridColumn: 'span 2' }}>
-            <label style={labelStyle}>URL de la tienda</label>
-            <input value={form.baseUrl} onChange={(e) => setForm({ ...form, baseUrl: e.target.value })} required placeholder="https://tu-tienda.com" style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Consumer Key</label>
-            <input value={form.consumerKey} onChange={(e) => setForm({ ...form, consumerKey: e.target.value })} required placeholder="ck_..." style={inputStyle} />
-          </div>
-          <div>
-            <label style={labelStyle}>Consumer Secret</label>
-            <input type="password" value={form.consumerSecret} onChange={(e) => setForm({ ...form, consumerSecret: e.target.value })} required placeholder="cs_..." style={inputStyle} />
-          </div>
-          <div style={{ gridColumn: 'span 2' }}>
-            <button type="submit" style={{ padding: '8px 20px', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 500 }}>Crear</button>
-          </div>
-        </form>
+          </form>
+        </div>
       )}
 
-      {loading ? <p>Cargando...</p> : integrations.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
-          <Plug size={32} /><p>No hay integraciones configuradas</p>
+      {/* Edit Panel */}
+      {editingId && (
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar WooCommerce</h2>
+            <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
+              <X size={20} />
+            </button>
+          </div>
+
+          {renderConfigForm(false)}
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              style={{
+                padding: '10px 24px', background: 'var(--color-primary)', color: 'white',
+                border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '14px',
+                fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1,
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}
+            >
+              <Save size={16} /> {saving ? 'Guardando...' : 'Guardar cambios'}
+            </button>
+            <button
+              onClick={() => setEditingId(null)}
+              style={{
+                padding: '10px 18px', background: 'none',
+                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                color: 'var(--color-text-secondary)', fontSize: '14px', cursor: 'pointer',
+              }}
+            >
+              Volver
+            </button>
+            {saveMsg && (
+              <span style={{
+                fontSize: '13px', fontWeight: 500,
+                color: saveMsg.startsWith('Error') ? 'var(--color-danger)' : 'var(--color-success)',
+              }}>
+                {saveMsg}
+              </span>
+            )}
+          </div>
         </div>
-      ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>
-            {['Tipo', 'Tenant', 'Estado', 'Creado', 'Acciones'].map((h) => (
-              <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {integrations.map((i) => (
-              <tr key={i.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '12px 14px', fontSize: '14px', fontWeight: 500 }}>{typeLabels[i.type] || i.type}</td>
-                <td style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>{i.tenantId}</td>
-                <td style={{ padding: '12px 14px' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: statusColors[i.status] }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColors[i.status] }} />
-                    {i.status}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 14px', fontSize: '13px', color: 'var(--color-text-secondary)' }}>{new Date(i.createdAt).toLocaleDateString('es-AR')}</td>
-                <td style={{ padding: '12px 14px' }}>
-                  <button onClick={() => toggleStatus(i.id, i.status)} style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer' }}>
-                    {i.status === 'active' ? 'Desactivar' : 'Activar'}
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+      )}
+
+      {/* Integration List */}
+      {!showCreate && !editingId && (
+        <>
+          {loading ? <p style={{ color: 'var(--color-text-muted)' }}>Cargando...</p> : integrations.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-muted)' }}>
+              <Plug size={40} style={{ marginBottom: '12px', opacity: 0.5 }} />
+              <p style={{ fontSize: '16px', marginBottom: '4px' }}>No hay integraciones configuradas</p>
+              <p style={{ fontSize: '13px' }}>Crea una integracion con WooCommerce para conectar tu tienda</p>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {integrations.map((i) => (
+                <div
+                  key={i.id}
+                  style={{
+                    ...sectionStyle, marginBottom: 0, cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                    transition: 'border-color 0.2s',
+                  }}
+                  onClick={() => openEdit(i)}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                    <div style={{
+                      width: '42px', height: '42px', borderRadius: 'var(--radius-sm)',
+                      background: 'var(--color-primary-light)', display: 'flex',
+                      alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <ShoppingCart size={20} style={{ color: 'var(--color-primary)' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '15px', fontWeight: 600 }}>WooCommerce</div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                        {(i.config as any)?.baseUrl || 'Sin URL configurada'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {(i.config as any)?.enableProductSearch !== false && (
+                        <span title="Busqueda de productos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-light)', color: 'var(--color-success)' }}>Productos</span>
+                      )}
+                      {(i.config as any)?.enableCart !== false && (
+                        <span title="Carrito" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-info-light)', color: 'var(--color-info)' }}>Carrito</span>
+                      )}
+                      {(i.config as any)?.enableOrderLookup !== false && (
+                        <span title="Pedidos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-light)', color: 'var(--color-warning)' }}>Pedidos</span>
+                      )}
+                    </div>
+
+                    <span style={{
+                      display: 'inline-flex', alignItems: 'center', gap: '6px',
+                      fontSize: '13px', color: statusColors[i.status],
+                    }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColors[i.status] }} />
+                      {i.status === 'active' ? 'Activa' : 'Inactiva'}
+                    </span>
+
+                    <button
+                      onClick={(e) => { e.stopPropagation(); toggleStatus(i.id, i.status); }}
+                      style={{
+                        padding: '5px 12px', background: 'none',
+                        border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
+                        color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer',
+                      }}
+                    >
+                      {i.status === 'active' ? 'Desactivar' : 'Activar'}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
