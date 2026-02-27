@@ -59,6 +59,10 @@ export default function LeadsPage() {
   }
 
   async function selectLead(id: string) {
+    // Show panel instantly with list data
+    const fromList = leads.find((l) => l.id === id);
+    if (fromList) setSelectedLead(fromList);
+    // Then enrich with full detail (notes, conversations, etc.)
     try {
       const data = await api.getLead(id);
       setSelectedLead(data.lead);
