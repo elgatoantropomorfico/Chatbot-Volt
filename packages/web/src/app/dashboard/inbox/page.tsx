@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, UserX, RotateCcw, X } from 'lucide-react';
+import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand } from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
@@ -11,32 +11,48 @@ export default function InboxPage() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
+  const [convStatus, setConvStatus] = useState<string>('');
   const [filter, setFilter] = useState<ConversationStatus | ''>('');
   const [loading, setLoading] = useState(true);
+  const [inputText, setInputText] = useState('');
+  const [sending, setSending] = useState(false);
+  const [togglingAI, setTogglingAI] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const lastMessageTimeRef = useRef<string | null>(null);
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Load conversations initially and set up polling
   useEffect(() => {
     loadConversations();
+    convPollTimerRef.current = setInterval(loadConversations, 5000);
+    return () => { if (convPollTimerRef.current) clearInterval(convPollTimerRef.current); };
   }, [filter]);
 
+  // Load messages when selecting a conversation + start polling
   useEffect(() => {
-    if (selectedId) loadMessages(selectedId);
+    if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    if (selectedId) {
+      loadMessages(selectedId);
+      pollTimerRef.current = setInterval(() => pollNewMessages(selectedId), 3000);
+    }
+    return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current); };
   }, [selectedId]);
 
+  // Auto-scroll on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
   async function loadConversations() {
-    setLoading(true);
     try {
       const params: Record<string, string> = {};
       if (filter) params.status = filter;
       const data = await api.getConversations(params);
       setConversations(data.conversations);
+      setLoading(false);
     } catch (err) {
       console.error('Error loading conversations:', err);
-    } finally {
       setLoading(false);
     }
   }
@@ -45,28 +61,69 @@ export default function InboxPage() {
     try {
       const data = await api.getConversation(conversationId);
       setMessages(data.conversation.messages);
+      setConvStatus(data.conversation.status);
+      const lastMsg = data.conversation.messages[data.conversation.messages.length - 1];
+      lastMessageTimeRef.current = lastMsg?.createdAt || null;
     } catch (err) {
       console.error('Error loading messages:', err);
     }
   }
 
-  async function handleHandoff(conversationId: string) {
+  async function pollNewMessages(conversationId: string) {
+    if (!lastMessageTimeRef.current) return;
     try {
-      await api.handoffConversation(conversationId, 'Manual handoff from panel');
-      await loadConversations();
-      if (selectedId === conversationId) await loadMessages(conversationId);
-    } catch (err: any) {
-      alert(err.message);
+      const data = await api.pollMessages(conversationId, lastMessageTimeRef.current);
+      if (data.messages.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m: any) => m.id));
+          const newMsgs = data.messages.filter((m: any) => !existingIds.has(m.id));
+          if (newMsgs.length === 0) return prev;
+          const updated = [...prev, ...newMsgs];
+          lastMessageTimeRef.current = updated[updated.length - 1].createdAt;
+          return updated;
+        });
+      }
+      if (data.status !== convStatus) {
+        setConvStatus(data.status);
+        loadConversations();
+      }
+    } catch (err) {
+      // Silent fail on poll
     }
   }
 
-  async function handleReactivate(conversationId: string) {
+  async function handleSendMessage(e: React.FormEvent) {
+    e.preventDefault();
+    if (!selectedId || !inputText.trim() || sending) return;
+    setSending(true);
     try {
-      await api.reactivateConversation(conversationId);
-      await loadConversations();
-      if (selectedId === conversationId) await loadMessages(conversationId);
+      const result = await api.sendAgentMessage(selectedId, inputText.trim());
+      setMessages((prev) => [...prev, result.message]);
+      lastMessageTimeRef.current = result.message.createdAt;
+      setInputText('');
+      if (result.aiPaused) {
+        setConvStatus('pending_human');
+        loadConversations();
+      }
+    } catch (err: any) {
+      alert('Error enviando: ' + err.message);
+    } finally {
+      setSending(false);
+    }
+  }
+
+  async function handleToggleAI() {
+    if (!selectedId || togglingAI) return;
+    setTogglingAI(true);
+    try {
+      const newEnabled = convStatus !== 'open';
+      const result = await api.toggleAI(selectedId, newEnabled);
+      setConvStatus(result.conversation.status);
+      loadConversations();
     } catch (err: any) {
       alert(err.message);
+    } finally {
+      setTogglingAI(false);
     }
   }
 
@@ -82,6 +139,7 @@ export default function InboxPage() {
   }
 
   const selectedConv = conversations.find((c) => c.id === selectedId);
+  const isAIActive = convStatus === 'open';
 
   function getBadgeClass(status: string) {
     switch (status) {
@@ -112,6 +170,7 @@ export default function InboxPage() {
       <div className={styles.conversationList}>
         <div className={styles.listHeader}>
           <h2>Inbox</h2>
+          <span className={styles.liveIndicator}>EN VIVO</span>
         </div>
 
         <div className={styles.filterBar}>
@@ -175,36 +234,37 @@ export default function InboxPage() {
                 </div>
                 <div>
                   <h3>{selectedConv.lead?.name || selectedConv.lead?.phone}</h3>
-                  <span>{selectedConv.lead?.phone} &middot; {getStatusLabel(selectedConv.status)}</span>
+                  <span>{selectedConv.lead?.phone} &middot; {getStatusLabel(convStatus || selectedConv.status)}</span>
                 </div>
               </div>
               <div className={styles.chatActions}>
-                {selectedConv.status === 'open' && (
+                {/* AI Toggle Switch */}
+                {convStatus !== 'closed' && (
                   <button
-                    className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                    onClick={() => handleHandoff(selectedConv.id)}
+                    className={`${styles.aiToggle} ${isAIActive ? styles.aiToggleOn : styles.aiToggleOff}`}
+                    onClick={handleToggleAI}
+                    disabled={togglingAI}
+                    title={isAIActive ? 'IA respondiendo - Click para pausar' : 'IA pausada - Click para activar'}
                   >
-                    <UserX size={14} /> Derivar a humano
+                    {isAIActive ? <Bot size={14} /> : <Hand size={14} />}
+                    {isAIActive ? 'IA Activa' : 'IA Pausada'}
                   </button>
                 )}
-                {selectedConv.status === 'pending_human' && (
-                  <button
-                    className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}
-                    onClick={() => handleReactivate(selectedConv.id)}
-                  >
-                    <RotateCcw size={14} /> Reactivar bot
-                  </button>
-                )}
-                {selectedConv.status !== 'closed' && (
-                  <button
-                    className={styles.actionBtn}
-                    onClick={() => handleClose(selectedConv.id)}
-                  >
+                {convStatus !== 'closed' && (
+                  <button className={styles.actionBtn} onClick={() => handleClose(selectedConv.id)}>
                     <X size={14} /> Cerrar
                   </button>
                 )}
               </div>
             </div>
+
+            {/* AI Status Banner */}
+            {convStatus === 'pending_human' && (
+              <div className={styles.aiBanner}>
+                <Hand size={14} />
+                <span>IA pausada - Estás respondiendo como agente. Los mensajes del cliente no serán procesados por la IA.</span>
+              </div>
+            )}
 
             <div className={styles.chatMessages}>
               {messages.map((msg) => (
@@ -222,6 +282,23 @@ export default function InboxPage() {
               ))}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Message input */}
+            {convStatus !== 'closed' && (
+              <form className={styles.messageInput} onSubmit={handleSendMessage}>
+                <input
+                  type="text"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                  placeholder="Escribí un mensaje como agente..."
+                  disabled={sending}
+                  autoFocus
+                />
+                <button type="submit" disabled={!inputText.trim() || sending}>
+                  <Send size={18} />
+                </button>
+              </form>
+            )}
           </>
         )}
       </div>

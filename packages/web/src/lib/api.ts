@@ -150,6 +150,12 @@ class ApiClient {
   async handoffConversation(id: string, reason?: string) { return this.fetch(`/conversations/${id}/handoff`, { method: 'POST', body: { reason } }); }
   async reactivateConversation(id: string) { return this.fetch(`/conversations/${id}/reactivate`, { method: 'POST' }); }
   async closeConversation(id: string) { return this.fetch(`/conversations/${id}/close`, { method: 'POST' }); }
+  async sendAgentMessage(id: string, text: string) { return this.fetch<{ message: any; aiPaused: boolean }>(`/conversations/${id}/send`, { method: 'POST', body: { text } }); }
+  async toggleAI(id: string, enabled: boolean) { return this.fetch<{ conversation: any; aiEnabled: boolean }>(`/conversations/${id}/toggle-ai`, { method: 'POST', body: { enabled } }); }
+  async pollMessages(id: string, since?: string) {
+    const qs = since ? `?since=${encodeURIComponent(since)}` : '';
+    return this.fetch<{ messages: any[]; status: string }>(`/conversations/${id}/messages${qs}`);
+  }
 
   // Bot Settings
   async getBotSettings(tenantId: string) { return this.fetch<{ settings: any }>(`/bot-settings/${tenantId}`); }
