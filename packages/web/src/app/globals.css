@@ -124,6 +124,12 @@ input, textarea, select {
   border-radius: var(--radius-sm);
 }
 
+/* Textarea resize handle for dark theme */
+textarea::-webkit-resizer {
+  background: linear-gradient(135deg, transparent 60%, var(--color-border) 60%, var(--color-border) 75%, transparent 75%, transparent 85%, var(--color-border) 85%);
+  border-radius: 0 0 var(--radius-md) 0;
+}
+
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }
