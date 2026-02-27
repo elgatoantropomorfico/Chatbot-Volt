@@ -131,10 +131,31 @@ export class OpenAIService {
 
     for (const pattern of productPatterns) {
       if (pattern.test(lowerText)) {
-        return { intent: 'product_search', query: text };
+        const cleanedQuery = this.extractProductQuery(text);
+        return { intent: 'product_search', query: cleanedQuery };
       }
     }
 
     return null;
+  }
+
+  private static extractProductQuery(text: string): string {
+    let q = text.trim();
+    // Remove common prefixes to get just the product name
+    const prefixes = [
+      /^(?:hola[,!.]?\s*)/i,
+      /^(?:tienen|tenes|tenés|hay|busco|buscar|quiero|necesito|me interesa)\s+/i,
+      /^(?:cuánto|cuanto)\s+(?:cuesta|sale|vale)\s+/i,
+      /^(?:venden|ofrecen|manejan)\s+/i,
+      /^(?:libros?\s+(?:de|del|sobre))\s+/i,
+      /^(?:quiero|necesito|me interesa)\s+(?:comprar|ver|saber|un|una|el|la|los|las)\s+/i,
+      /^(?:el|la|los|las|un|una)\s+/i,
+    ];
+    for (const prefix of prefixes) {
+      q = q.replace(prefix, '');
+    }
+    // Remove trailing question marks and punctuation
+    q = q.replace(/[?!¿¡.,]+$/g, '').trim();
+    return q || text;
   }
 }
