@@ -336,7 +336,7 @@ export class WooService {
       }
     }
 
-    // Product search
+    // Product search - explicit patterns
     const productPatterns = [
       /(?:buscar|busco|tenés|tenes|tienen|hay|precio|cuesta|vale)\s+.{2,}/,
       /(?:producto|artículo|articulo).*(?:buscar|busco|precio|cuesta)/,
@@ -346,12 +346,20 @@ export class WooService {
       /(?:venden|ofrecen|manejan|trabajan con)\s+.{2,}/,
       /(?:libros?|ejemplar) (?:de|del|sobre)\s+.{2,}/,
       /(?:tienen|tenes|tenés)\s+.{2,}/,
+      /(?:consegu[ií]r?|conseguir)\s+.{2,}/,
+      /(?:libro|ejemplar|título|titulo)\s+.{2,}/,
     ];
     for (const pattern of productPatterns) {
       if (pattern.test(lower)) {
         const cleanedQuery = WooService.extractProductQuery(text);
         return { intent: 'product_search', query: cleanedQuery };
       }
+    }
+
+    // Catch-all: if message contains product-related keywords, treat as search
+    if (/(?:libros?|libro|precio|comprar|disponible|stock|catalogo|catálogo)/.test(lower) && lower.length > 5) {
+      const cleanedQuery = WooService.extractProductQuery(text);
+      return { intent: 'product_search', query: cleanedQuery };
     }
 
     return null;
