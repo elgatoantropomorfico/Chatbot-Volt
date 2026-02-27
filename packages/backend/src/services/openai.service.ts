@@ -113,10 +113,14 @@ export class OpenAIService {
     ];
 
     const productPatterns = [
-      /(?:buscar|busco|tenés|tenes|tienen|hay|precio|cuesta|vale).*(?:producto|artículo|articulo)/,
+      /(?:buscar|busco|tenés|tenes|tienen|hay|precio|cuesta|vale)\s+.{2,}/,
       /(?:producto|artículo|articulo).*(?:buscar|busco|precio|cuesta)/,
-      /cuánto (?:cuesta|sale|vale)/,
-      /(?:quiero|necesito|me interesa)\s+(?:comprar|ver|saber)/,
+      /cu[aá]nto (?:cuesta|sale|vale)/,
+      /(?:quiero|necesito|me interesa)\s+(?:comprar|ver|saber|un|una|el|la|los|las)\s+.{2,}/,
+      /(?:stock|disponib|entrega inmediata)/,
+      /(?:venden|ofrecen|manejan|trabajan con)\s+.{2,}/,
+      /(?:libros?|ejemplar) (?:de|del|sobre)\s+.{2,}/,
+      /(?:tienen|tenes|tenés)\s+.{2,}/,
     ];
 
     for (const pattern of orderPatterns) {
