@@ -1,0 +1,241 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// ENUMS
+// ============================================
+
+enum UserRole {
+  superadmin
+  tenant_admin
+  agent
+}
+
+enum TenantStatus {
+  active
+  inactive
+  suspended
+}
+
+enum ChannelProvider {
+  whatsapp_cloud
+}
+
+enum LeadStage {
+  nuevo
+  contactado
+  interesado
+  venta
+  perdido
+}
+
+enum ConversationStatus {
+  open
+  pending_human
+  closed
+}
+
+enum MessageDirection {
+  in
+  out
+  system
+}
+
+enum IntegrationType {
+  woocommerce
+}
+
+enum IntegrationStatus {
+  active
+  inactive
+  error
+}
+
+// ============================================
+// MODELS
+// ============================================
+
+model User {
+  id            String     @id @default(cuid())
+  email         String     @unique
+  passwordHash  String     @map("password_hash")
+  role          UserRole   @default(agent)
+  tenantId      String?    @map("tenant_id")
+  createdAt     DateTime   @default(now()) @map("created_at")
+  updatedAt     DateTime   @updatedAt @map("updated_at")
+
+  tenant        Tenant?    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  assignedLeads Lead[]     @relation("AssignedAgent")
+  refreshTokens RefreshToken[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String   @map("user_id")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model Tenant {
+  id        String       @id @default(cuid())
+  name      String
+  status    TenantStatus @default(active)
+  timezone  String       @default("America/Argentina/Buenos_Aires")
+  createdAt DateTime     @default(now()) @map("created_at")
+  updatedAt DateTime     @updatedAt @map("updated_at")
+
+  users         User[]
+  channels      Channel[]
+  leads         Lead[]
+  conversations Conversation[]
+  botSettings   BotSettings?
+  integrations  Integration[]
+  eventsOutbox  EventOutbox[]
+
+  @@map("tenants")
+}
+
+model Channel {
+  id             String          @id @default(cuid())
+  tenantId       String          @map("tenant_id")
+  provider       ChannelProvider @default(whatsapp_cloud)
+  phoneNumberId  String          @unique @map("phone_number_id")
+  wabaId         String          @map("waba_id")
+  displayPhone   String?         @map("display_phone")
+  isActive       Boolean         @default(true) @map("is_active")
+  createdAt      DateTime        @default(now()) @map("created_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  leads          Lead[]
+  conversations  Conversation[]
+
+  @@map("channels")
+}
+
+model Lead {
+  id              String    @id @default(cuid())
+  tenantId        String    @map("tenant_id")
+  channelId       String?   @map("channel_id")
+  phone           String
+  name            String?
+  stage           LeadStage @default(nuevo)
+  assignedUserId  String?   @map("assigned_user_id")
+  lastMessageAt   DateTime? @map("last_message_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channel         Channel?  @relation(fields: [channelId], references: [id])
+  assignedUser    User?     @relation("AssignedAgent", fields: [assignedUserId], references: [id])
+  conversations   Conversation[]
+  notes           LeadNote[]
+
+  @@unique([tenantId, phone])
+  @@map("leads")
+}
+
+model LeadNote {
+  id        String   @id @default(cuid())
+  leadId    String   @map("lead_id")
+  authorId  String?  @map("author_id")
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  lead      Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@map("lead_notes")
+}
+
+model Conversation {
+  id              String             @id @default(cuid())
+  tenantId        String             @map("tenant_id")
+  leadId          String             @map("lead_id")
+  channelId       String             @map("channel_id")
+  status          ConversationStatus @default(open)
+  summary         String?
+  handoffReason   String?            @map("handoff_reason")
+  handoffAt       DateTime?          @map("handoff_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+  updatedAt       DateTime           @updatedAt @map("updated_at")
+
+  tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead            Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  channel         Channel            @relation(fields: [channelId], references: [id])
+  messages        Message[]
+
+  @@map("conversations")
+}
+
+model Message {
+  id                String           @id @default(cuid())
+  conversationId    String           @map("conversation_id")
+  direction         MessageDirection
+  text              String
+  providerMessageId String?          @map("provider_message_id")
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  conversation      Conversation     @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model BotSettings {
+  tenantId                String   @id @map("tenant_id")
+  systemPrompt            String   @default("Eres un asistente virtual amable y profesional.") @map("system_prompt")
+  model                   String   @default("gpt-4o-mini")
+  temperature             Float    @default(0.7)
+  maxContextMessages      Int      @default(15) @map("max_context_messages")
+  handoffEnabled          Boolean  @default(true) @map("handoff_enabled")
+  handoffPhoneE164        String?  @map("handoff_phone_e164")
+  handoffMessageTemplate  String?  @default("Te derivo con un asesor: {{wa_me_link}}") @map("handoff_message_template")
+  handoffTriggersJson     Json?    @map("handoff_triggers_json")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  tenant                  Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("bot_settings")
+}
+
+model Integration {
+  id              String            @id @default(cuid())
+  tenantId        String            @map("tenant_id")
+  type            IntegrationType
+  configEncrypted String            @map("config_encrypted")
+  status          IntegrationStatus @default(inactive)
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+
+  tenant          Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, type])
+  @@map("integrations")
+}
+
+model EventOutbox {
+  id         String   @id @default(cuid())
+  tenantId   String   @map("tenant_id")
+  eventType  String   @map("event_type")
+  payload    Json
+  processed  Boolean  @default(false)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([processed, createdAt])
+  @@map("events_outbox")
+}

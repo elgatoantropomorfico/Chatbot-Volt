@@ -1,0 +1,23 @@
+{
+  "name": "volt-chatbot",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace=@volt/backend",
+    "dev:web": "npm run dev --workspace=@volt/web",
+    "dev:worker": "npm run dev:worker --workspace=@volt/backend",
+    "dev": "npm run dev:backend & npm run dev:web",
+    "build": "npm run build --workspaces",
+    "lint": "npm run lint --workspaces",
+    "db:generate": "npm run db:generate --workspace=@volt/backend",
+    "db:migrate": "npm run db:migrate --workspace=@volt/backend",
+    "db:push": "npm run db:push --workspace=@volt/backend",
+    "db:seed": "npm run db:seed --workspace=@volt/backend"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
