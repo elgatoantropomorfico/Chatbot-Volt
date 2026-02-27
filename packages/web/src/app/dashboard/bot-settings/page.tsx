@@ -712,7 +712,8 @@ export default function BotSettingsPage() {
 
   /* ─── Desktop Layout ─── */
   return (
-    <div style={{ display: 'flex', gap: '0', height: 'calc(100vh - 80px)', maxHeight: 'calc(100vh - 80px)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
+    <div style={{ maxWidth: '900px', margin: '0 auto', height: 'calc(100vh - 80px)' }}>
+    <div style={{ display: 'flex', gap: '0', height: '100%', maxHeight: '100%', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
       {/* Sidebar */}
       <div style={{ width: '220px', minWidth: '220px', background: 'linear-gradient(180deg, #0e0e20, #0a0a18)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', padding: '12px 0' }}>
         {isSuperAdmin && tenants.length > 0 && (
@@ -756,6 +757,7 @@ export default function BotSettingsPage() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }
