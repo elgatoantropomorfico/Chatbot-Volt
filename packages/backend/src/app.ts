@@ -33,6 +33,28 @@ export async function buildApp() {
   // Health check
   app.get('/health', async () => ({ status: 'ok', timestamp: new Date().toISOString() }));
 
+  // Queue diagnostic endpoint
+  app.get('/debug/queue', async () => {
+    const { getMessageQueue } = await import('./queues/message.queue');
+    const queue = getMessageQueue();
+    const [waiting, active, failed, completed, delayed] = await Promise.all([
+      queue.getWaitingCount(),
+      queue.getActiveCount(),
+      queue.getFailedCount(),
+      queue.getCompletedCount(),
+      queue.getDelayedCount(),
+    ]);
+    const failedJobs = await queue.getFailed(0, 5);
+    const recentFailed = failedJobs.map(j => ({
+      id: j.id,
+      data: j.data,
+      failedReason: j.failedReason,
+      attemptsMade: j.attemptsMade,
+      timestamp: j.timestamp,
+    }));
+    return { waiting, active, failed, completed, delayed, recentFailed };
+  });
+
   // Public routes
   app.register(authRoutes, { prefix: '/api/auth' });
   app.register(webhookRoutes, { prefix: '/api/webhook' });
