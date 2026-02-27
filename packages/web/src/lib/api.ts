@@ -169,6 +169,9 @@ class ApiClient {
   async createIntegration(data: any) { return this.fetch<{ integration: any }>('/integrations', { method: 'POST', body: data }); }
   async updateIntegration(id: string, data: any) { return this.fetch<{ integration: any }>(`/integrations/${id}`, { method: 'PATCH', body: data }); }
 
+  // Dashboard
+  async getDashboardStats() { return this.fetch<any>('/dashboard/stats'); }
+
   // Sales
   async getSales(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';

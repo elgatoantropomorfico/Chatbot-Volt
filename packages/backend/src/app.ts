@@ -12,6 +12,7 @@ import { botSettingsRoutes } from './routes/bot-settings.routes';
 import { integrationRoutes } from './routes/integration.routes';
 import { webhookRoutes } from './routes/webhook.routes';
 import { saleRoutes } from './routes/sale.routes';
+import { dashboardRoutes } from './routes/dashboard.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -72,6 +73,7 @@ export async function buildApp() {
     instance.register(botSettingsRoutes, { prefix: '/api/bot-settings' });
     instance.register(integrationRoutes, { prefix: '/api/integrations' });
     instance.register(saleRoutes, { prefix: '/api/sales' });
+    instance.register(dashboardRoutes, { prefix: '/api/dashboard' });
   });
 
   return app;
