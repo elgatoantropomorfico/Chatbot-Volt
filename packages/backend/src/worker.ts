@@ -125,8 +125,14 @@ async function processMessage(job: Job<IncomingMessage>) {
           const results = lastSearchResults.get(conversation.id);
           if (results && wooIntent.itemNumber && wooIntent.itemNumber <= results.length) {
             const product = results[wooIntent.itemNumber - 1];
-            WooService.addToCart(conversation.id, product, wooIntent.quantity || 1);
-            wooDirectResponse = `✅ *${product.name}* x${wooIntent.quantity || 1} agregado al carrito.\n\n${WooService.formatCart(conversation.id)}`;
+            if (!product.inStock) {
+              const contactPhone = (botSettings.promptBuilderJson as any)?.contact?.phone || '';
+              const contactHint = contactPhone ? ` Podés consultar al ${contactPhone} para encargos.` : '';
+              wooDirectResponse = `⚠️ *${product.name}* no tiene stock disponible actualmente.${contactHint}`;
+            } else {
+              WooService.addToCart(conversation.id, product, wooIntent.quantity || 1);
+              wooDirectResponse = `✅ *${product.name}* x${wooIntent.quantity || 1} agregado al carrito.\n\n${WooService.formatCart(conversation.id)}`;
+            }
           } else {
             wooDirectResponse = '❌ No encontré ese producto. Primero buscá un producto y después usá el número de la lista para agregarlo.';
           }
@@ -134,8 +140,14 @@ async function processMessage(job: Job<IncomingMessage>) {
         } else if (wooIntent.intent === 'cart_add_by_name' && wooService.settings.enableCart) {
           const products = await wooService.searchProducts(wooIntent.query);
           if (products.length > 0) {
-            WooService.addToCart(conversation.id, products[0], 1);
-            wooDirectResponse = `✅ *${products[0].name}* agregado al carrito.\n\n${WooService.formatCart(conversation.id)}`;
+            if (!products[0].inStock) {
+              const contactPhone = (botSettings.promptBuilderJson as any)?.contact?.phone || '';
+              const contactHint = contactPhone ? ` Podés consultar al ${contactPhone} para encargos.` : '';
+              wooDirectResponse = `⚠️ *${products[0].name}* no tiene stock disponible actualmente.${contactHint}`;
+            } else {
+              WooService.addToCart(conversation.id, products[0], 1);
+              wooDirectResponse = `✅ *${products[0].name}* agregado al carrito.\n\n${WooService.formatCart(conversation.id)}`;
+            }
           } else {
             wooDirectResponse = `❌ No encontré "${wooIntent.query}" en el catálogo.`;
           }
