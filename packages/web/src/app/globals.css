@@ -1,39 +1,58 @@
 :root {
-  --color-bg: #0a0a0f;
-  --color-bg-secondary: #12121a;
-  --color-bg-tertiary: #1a1a2e;
-  --color-surface: #16162a;
-  --color-surface-hover: #1e1e38;
-  --color-border: #2a2a4a;
-  --color-border-light: #3a3a5a;
-  --color-text: #e8e8f0;
-  --color-text-secondary: #a0a0c0;
-  --color-text-muted: #6a6a8a;
-  --color-primary: #6c5ce7;
-  --color-primary-hover: #7c6cf7;
-  --color-primary-light: rgba(108, 92, 231, 0.15);
-  --color-success: #00b894;
-  --color-success-light: rgba(0, 184, 148, 0.15);
-  --color-warning: #fdcb6e;
-  --color-warning-light: rgba(253, 203, 110, 0.15);
-  --color-danger: #e17055;
-  --color-danger-light: rgba(225, 112, 85, 0.15);
-  --color-info: #74b9ff;
-  --color-info-light: rgba(116, 185, 255, 0.15);
+  --color-bg: #06060c;
+  --color-bg-secondary: #0c0c18;
+  --color-bg-tertiary: #141428;
+  --color-surface: #12122a;
+  --color-surface-hover: #1a1a3a;
+  --color-surface-glass: rgba(18, 18, 42, 0.65);
+  --color-border: rgba(139, 92, 246, 0.12);
+  --color-border-light: rgba(139, 92, 246, 0.2);
+  --color-border-glow: rgba(168, 85, 247, 0.35);
+  --color-text: #f0eef8;
+  --color-text-secondary: #b0a8d0;
+  --color-text-muted: #6e6494;
+  --color-primary: #8b5cf6;
+  --color-primary-hover: #a78bfa;
+  --color-primary-light: rgba(139, 92, 246, 0.12);
+  --color-primary-glow: rgba(139, 92, 246, 0.4);
+  --color-accent: #e879f9;
+  --color-accent-light: rgba(232, 121, 249, 0.12);
+  --color-accent-glow: rgba(232, 121, 249, 0.3);
+  --color-success: #34d399;
+  --color-success-light: rgba(52, 211, 153, 0.12);
+  --color-warning: #fbbf24;
+  --color-warning-light: rgba(251, 191, 36, 0.12);
+  --color-danger: #fb7185;
+  --color-danger-light: rgba(251, 113, 133, 0.12);
+  --color-info: #67e8f9;
+  --color-info-light: rgba(103, 232, 249, 0.12);
 
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
   --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(139, 92, 246, 0.04);
+  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(139, 92, 246, 0.06);
+  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 40px rgba(139, 92, 246, 0.08);
+  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 60px rgba(232, 121, 249, 0.08);
+  --shadow-glow-lg: 0 0 30px rgba(139, 92, 246, 0.2), 0 0 80px rgba(232, 121, 249, 0.12);
+  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 1px rgba(139, 92, 246, 0.15);
+  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(139, 92, 246, 0.12);
 
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --glass-bg: rgba(12, 12, 24, 0.6);
+  --glass-border: rgba(139, 92, 246, 0.1);
+  --glass-blur: blur(20px);
+
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
 
   --sidebar-width: 260px;
+
+  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -49,11 +68,13 @@ html, body {
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
 }
 
 a {
   color: var(--color-primary);
   text-decoration: none;
+  transition: color var(--transition-fast);
 }
 
 a:hover {
@@ -70,10 +91,10 @@ input, textarea, select {
   font-size: inherit;
 }
 
-/* Scrollbar */
+/* Premium scrollbar */
 ::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+  width: 5px;
+  height: 5px;
 }
 
 ::-webkit-scrollbar-track {
@@ -81,10 +102,24 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border);
+  background: rgba(139, 92, 246, 0.2);
   border-radius: var(--radius-full);
+  transition: background var(--transition-fast);
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-light);
+  background: rgba(139, 92, 246, 0.4);
+}
+
+/* Selection */
+::selection {
+  background: rgba(139, 92, 246, 0.3);
+  color: #fff;
+}
+
+/* Global focus ring */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
 }
