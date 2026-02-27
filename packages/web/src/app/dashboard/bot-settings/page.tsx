@@ -577,19 +577,39 @@ export default function BotSettingsPage() {
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Restricciones (Guardrails)</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Reglas que el bot debe cumplir siempre. Se inyectan automáticamente en cada respuesta.</p>
-            {settings.guardrailsJson && Array.isArray(settings.guardrailsJson) ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {(settings.guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean }>).map((guardrail, idx) => (
+            {settings.guardrailsJson && Array.isArray(settings.guardrailsJson) ? (() => {
+              const allGuardrails = settings.guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean; scope?: string }>;
+              const generalGuardrails = allGuardrails.filter(g => !g.scope);
+              const wooGuardrails = allGuardrails.filter(g => g.scope === 'woocommerce');
+              const renderGuardrail = (guardrail: any, idx: number) => {
+                const realIdx = allGuardrails.findIndex(g => g.id === guardrail.id);
+                return (
                   <label key={guardrail.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: guardrail.enabled ? 'rgba(139, 92, 246, 0.08)' : 'transparent', border: `1px solid ${guardrail.enabled ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={guardrail.enabled} onChange={(e) => { const updated = [...settings.guardrailsJson]; updated[idx] = { ...updated[idx], enabled: e.target.checked }; updateField('guardrailsJson', updated); }} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
+                    <input type="checkbox" checked={guardrail.enabled} onChange={(e) => { const updated = [...settings.guardrailsJson]; updated[realIdx] = { ...updated[realIdx], enabled: e.target.checked }; updateField('guardrailsJson', updated); }} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
                     <div>
                       <span style={{ fontSize: '13px', fontWeight: 500 }}>{guardrail.label}</span>
                       <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>{guardrail.prompt}</p>
                     </div>
                   </label>
-                ))}
-              </div>
-            ) : <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>No hay guardrails configurados.</p>}
+                );
+              };
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {generalGuardrails.length > 0 && (
+                    <>
+                      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '-4px' }}>Generales</p>
+                      {generalGuardrails.map(renderGuardrail)}
+                    </>
+                  )}
+                  {wooGuardrails.length > 0 && (
+                    <>
+                      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginTop: '8px', marginBottom: '-4px' }}>🛒 WooCommerce <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(se aplican solo si WooCommerce está activo)</span></p>
+                      {wooGuardrails.map(renderGuardrail)}
+                    </>
+                  )}
+                </div>
+              );
+            })() : <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>No hay guardrails configurados.</p>}
           </div>
         );
 

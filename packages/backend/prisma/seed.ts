@@ -59,6 +59,10 @@ async function main() {
         { id: 'collect_contact', label: 'Solicitar datos de contacto', prompt: 'Cuando detectes intención de compra o consulta seria, solicita amablemente nombre, email y/o teléfono del cliente para seguimiento.', enabled: false },
         { id: 'no_medical_legal_advice', label: 'No dar consejos médicos/legales', prompt: 'Nunca des consejos médicos, legales ni financieros. Si te preguntan, sugiere que consulten con un profesional especializado.', enabled: false },
         { id: 'polite_language', label: 'Lenguaje formal y respetuoso', prompt: 'Mantené siempre un tono formal, respetuoso y profesional. No uses jerga, insultos ni lenguaje inapropiado bajo ninguna circunstancia, incluso si el cliente lo hace.', enabled: true },
+        { id: 'woo_no_invent_products', label: '🛒 No inventar productos ni precios', prompt: 'NUNCA inventes nombres de productos específicos, precios ni disponibilidad de stock. No tenés acceso al inventario.', enabled: true, scope: 'woocommerce' },
+        { id: 'woo_no_confirm_purchase', label: '🛒 No confirmar compras', prompt: 'NUNCA confirmes una compra ni digas que un pedido fue realizado. Vos NO procesás compras.', enabled: true, scope: 'woocommerce' },
+        { id: 'woo_redirect_search', label: '🛒 Redirigir a búsqueda de productos', prompt: 'Si el cliente pregunta por un producto específico, decile que escriba "Busco [nombre del producto]" para consultar el catálogo. Si quiere comprar, decile que escriba "Quiero comprar" o "Busco [producto]".', enabled: true, scope: 'woocommerce' },
+        { id: 'woo_no_fake_cart', label: '🛒 No simular carrito', prompt: 'NUNCA simules un proceso de compra ni menciones un carrito si el cliente no está en modo compra. NUNCA le digas que escriba "Finalizar compra" porque eso es solo para cuando ya tiene productos en el carrito.', enabled: true, scope: 'woocommerce' },
       ],
     },
   });

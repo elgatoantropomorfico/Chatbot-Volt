@@ -168,10 +168,10 @@ export class OpenAIService {
       }
     }
 
-    // Inject active guardrails into the system prompt
-    const guardrails = (botSettings as any).guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean }> | null;
+    // Inject active guardrails into the system prompt (skip woocommerce-scoped ones, they are injected by the worker)
+    const guardrails = (botSettings as any).guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean; scope?: string }> | null;
     if (guardrails && Array.isArray(guardrails)) {
-      const activeRules = guardrails.filter((g) => g.enabled).map((g) => g.prompt);
+      const activeRules = guardrails.filter((g) => g.enabled && !g.scope).map((g) => g.prompt);
       if (activeRules.length > 0) {
         systemPrompt += `\n\n[RESTRICCIONES OBLIGATORIAS - Debes cumplir SIEMPRE estas reglas]:\n${activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`;
       }

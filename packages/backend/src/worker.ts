@@ -210,11 +210,17 @@ async function processMessage(job: Job<IncomingMessage>) {
   } else {
     console.log(`🤖 No WooCommerce match, falling back to OpenAI...`);
     const context = await OpenAIService.buildContext(conversation.id, tenant.id);
-    // If WooCommerce is active, prevent OpenAI from inventing product info
+    // If WooCommerce is active, inject woocommerce-scoped guardrails from config
     try {
       const wooCheck = await WooService.forTenant(tenant.id);
       if (wooCheck) {
-        context.systemPrompt += '\n\n[REGLAS SOBRE PRODUCTOS Y COMPRAS]:\n1. NUNCA inventes nombres de productos específicos, precios ni disponibilidad de stock. No tenés acceso al inventario.\n2. NUNCA confirmes una compra ni digas que un pedido fue realizado. Vos NO procesás compras.\n3. Si el cliente pregunta por un producto específico, decile que escriba "Busco [nombre del producto]" para consultar el catálogo.\n4. Si el cliente quiere comprar algo, decile que escriba "Quiero comprar" o "Busco [producto]" para entrar al modo de búsqueda. NUNCA le digas que escriba "Finalizar compra" porque eso es solo para cuando ya tiene productos en el carrito.\n5. NUNCA simules un proceso de compra ni menciones un carrito si el cliente no está en modo compra.\n6. Podés responder preguntas generales sobre el negocio, envíos, formas de pago, horarios, etc. basándote en tu prompt del sistema.';
+        const guardrails = (botSettings.guardrailsJson as any[]) || [];
+        const wooRules = guardrails
+          .filter((g: any) => g.scope === 'woocommerce' && g.enabled)
+          .map((g: any) => g.prompt);
+        if (wooRules.length > 0) {
+          context.systemPrompt += `\n\n[REGLAS SOBRE PRODUCTOS Y COMPRAS]:\n${wooRules.map((r: string, i: number) => `${i + 1}. ${r}`).join('\n')}\n${wooRules.length + 1}. Podés responder preguntas generales sobre el negocio, envíos, formas de pago, horarios, etc. basándote en tu prompt del sistema.`;
+        }
       }
     } catch {}
     aiResponse = await OpenAIService.generateResponse(context);
