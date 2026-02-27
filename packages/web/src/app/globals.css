@@ -123,3 +123,8 @@ input, textarea, select {
   outline-offset: 2px;
   border-radius: var(--radius-sm);
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

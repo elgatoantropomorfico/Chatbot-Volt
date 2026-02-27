@@ -160,6 +160,9 @@ class ApiClient {
   // Bot Settings
   async getBotSettings(tenantId: string) { return this.fetch<{ settings: any }>(`/bot-settings/${tenantId}`); }
   async updateBotSettings(tenantId: string, data: any) { return this.fetch<{ settings: any }>(`/bot-settings/${tenantId}`, { method: 'PATCH', body: data }); }
+  async generateField(tenantId: string, data: { section: string; field: string; currentValue?: string; promptBuilderJson: any }) {
+    return this.fetch<{ generated: string }>(`/bot-settings/${tenantId}/generate-field`, { method: 'POST', body: data });
+  }
 
   // Integrations
   async getIntegrations() { return this.fetch<{ integrations: any[] }>('/integrations'); }

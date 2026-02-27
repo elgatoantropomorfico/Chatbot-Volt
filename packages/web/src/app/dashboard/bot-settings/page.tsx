@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
-  ChevronDown,
+  ChevronDown, Wand2, Loader2,
 } from 'lucide-react';
 
 interface PromptBuilder {
@@ -73,6 +73,7 @@ export default function BotSettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>('business');
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [generatingField, setGeneratingField] = useState<string | null>(null);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -163,6 +164,53 @@ export default function BotSettingsPage() {
     return false;
   }
 
+  async function handleGenerate(section: string, field: string) {
+    if (!selectedTenantId || generatingField) return;
+    const key = `${section}.${field}`;
+    setGeneratingField(key);
+    try {
+      const currentValue = (pb as any)[section]?.[field] || '';
+      const { generated } = await api.generateField(selectedTenantId, {
+        section,
+        field,
+        currentValue: currentValue || undefined,
+        promptBuilderJson: pb,
+      });
+      if (generated) {
+        updatePBField(section as keyof PromptBuilder, field, generated);
+      }
+    } catch (err: any) {
+      alert(err.message || 'Error al generar con IA');
+    } finally {
+      setGeneratingField(null);
+    }
+  }
+
+  function AIButton({ section, field }: { section: string; field: string }) {
+    const key = `${section}.${field}`;
+    const isGenerating = generatingField === key;
+    return (
+      <button
+        type="button"
+        onClick={(e) => { e.preventDefault(); handleGenerate(section, field); }}
+        disabled={isGenerating || !!generatingField}
+        title="Generar con IA"
+        style={{
+          display: 'inline-flex', alignItems: 'center', gap: '5px',
+          padding: '4px 10px', fontSize: '11px', fontWeight: 600,
+          background: isGenerating ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)',
+          color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.3)',
+          borderRadius: '6px', cursor: isGenerating || generatingField ? 'not-allowed' : 'pointer',
+          opacity: generatingField && !isGenerating ? 0.4 : 1,
+          transition: 'all 0.15s', whiteSpace: 'nowrap',
+        }}
+      >
+        {isGenerating ? <Loader2 size={12} style={{ animation: 'spin 1s linear infinite' }} /> : <Wand2 size={12} />}
+        {isGenerating ? 'Generando...' : 'IA'}
+      </button>
+    );
+  }
+
   function renderContent() {
     if (loading) return <p style={{ padding: '40px', color: 'var(--color-text-muted)' }}>Cargando...</p>;
     if (!settings) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}><Bot size={32} /><p>No hay configuración para este tenant</p></div>;
@@ -182,7 +230,10 @@ export default function BotSettingsPage() {
               <input value={pb.business.industry} onChange={(e) => updatePBField('business', 'industry', e.target.value)} placeholder="Ej: Librería, Restaurante, Veterinaria..." style={inputStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Descripción del negocio</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Descripción del negocio</label>
+                <AIButton section="business" field="description" />
+              </div>
               <textarea value={pb.business.description} onChange={(e) => updatePBField('business', 'description', e.target.value)} placeholder="Contá brevemente qué hace tu negocio, qué lo diferencia..." rows={4} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
@@ -232,7 +283,10 @@ export default function BotSettingsPage() {
               </div>
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Notas adicionales</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Notas adicionales</label>
+                <AIButton section="location" field="notes" />
+              </div>
               <textarea value={pb.location.notes} onChange={(e) => updatePBField('location', 'notes', e.target.value)} placeholder="Ej: Frente a la plaza principal, a media cuadra del banco..." rows={2} style={textareaStyle} />
             </div>
           </div>
@@ -244,7 +298,10 @@ export default function BotSettingsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Horarios</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Horarios de atención. El bot informará estos horarios cuando le pregunten.</p>
             <div style={fieldGap}>
-              <label style={labelStyle}>Horarios de atención</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Horarios de atención</label>
+                <AIButton section="hours" field="schedule" />
+              </div>
               <textarea value={pb.hours.schedule} onChange={(e) => updatePBField('hours', 'schedule', e.target.value)} placeholder={"Ej:\nLunes a Viernes: 8:00 - 12:30 / 16:30 - 20:30\nSábados: 9:00 - 13:00\nDomingos: Cerrado"} rows={5} style={textareaStyle} />
               <p style={hintStyle}>Escribí los horarios como querés que el bot los comunique</p>
             </div>
@@ -301,11 +358,17 @@ export default function BotSettingsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Productos / Servicios</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Descripción general de lo que ofrecés. No es el catálogo (eso va por WooCommerce), sino contexto general.</p>
             <div style={fieldGap}>
-              <label style={labelStyle}>Descripción general</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Descripción general</label>
+                <AIButton section="products" field="description" />
+              </div>
               <textarea value={pb.products.description} onChange={(e) => updatePBField('products', 'description', e.target.value)} placeholder="Ej: Vendemos libros infantiles, juveniles y para adultos. También tenemos juegos didácticos y artículos de librería." rows={4} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Categorías principales</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Categorías principales</label>
+                <AIButton section="products" field="categories" />
+              </div>
               <input value={pb.products.categories} onChange={(e) => updatePBField('products', 'categories', e.target.value)} placeholder="Ej: Libros infantiles, Libros juveniles, Juegos didácticos" style={inputStyle} />
             </div>
             <div style={fieldGap}>
@@ -325,7 +388,10 @@ export default function BotSettingsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Envíos y Pagos</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Información sobre envíos, entregas y medios de pago aceptados.</p>
             <div style={fieldGap}>
-              <label style={labelStyle}>Métodos de envío</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Métodos de envío</label>
+                <AIButton section="shipping" field="methods" />
+              </div>
               <textarea value={pb.shipping.methods} onChange={(e) => updatePBField('shipping', 'methods', e.target.value)} placeholder="Ej: Retiro en local, Envío por OCA, Correo Argentino, Cadete zona centro" rows={3} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
@@ -337,7 +403,10 @@ export default function BotSettingsPage() {
               <input value={pb.shipping.costs} onChange={(e) => updatePBField('shipping', 'costs', e.target.value)} placeholder="Ej: Gratis en compras mayores a $20.000, sino $2.500" style={inputStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Medios de pago</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Medios de pago</label>
+                <AIButton section="shipping" field="paymentMethods" />
+              </div>
               <textarea value={pb.shipping.paymentMethods} onChange={(e) => updatePBField('shipping', 'paymentMethods', e.target.value)} placeholder="Ej: Efectivo, Transferencia, MercadoPago, Tarjeta de crédito (3 cuotas sin interés)" rows={3} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
@@ -353,7 +422,10 @@ export default function BotSettingsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Promociones</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Promociones vigentes que el bot puede comunicar.</p>
             <div style={fieldGap}>
-              <label style={labelStyle}>Promociones activas</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Promociones activas</label>
+                <AIButton section="promotions" field="active" />
+              </div>
               <textarea value={pb.promotions.active} onChange={(e) => updatePBField('promotions', 'active', e.target.value)} placeholder={"Ej:\n- 2x1 en libros infantiles\n- 20% OFF en la segunda unidad\n- Envío gratis comprando 3 o más"} rows={5} style={textareaStyle} />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', ...fieldGap }}>
@@ -375,11 +447,17 @@ export default function BotSettingsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Políticas</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Políticas de devolución, garantía y cambios.</p>
             <div style={fieldGap}>
-              <label style={labelStyle}>Devoluciones</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Devoluciones</label>
+                <AIButton section="policies" field="returns" />
+              </div>
               <textarea value={pb.policies.returns} onChange={(e) => updatePBField('policies', 'returns', e.target.value)} placeholder="Ej: Se aceptan devoluciones dentro de los 7 días con ticket" rows={2} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Cambios</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Cambios</label>
+                <AIButton section="policies" field="exchanges" />
+              </div>
               <textarea value={pb.policies.exchanges} onChange={(e) => updatePBField('policies', 'exchanges', e.target.value)} placeholder="Ej: Cambios dentro de los 30 días, producto sin uso" rows={2} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
@@ -427,19 +505,31 @@ export default function BotSettingsPage() {
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Personalidad</h3>
             <p style={{ ...hintStyle, marginBottom: '20px' }}>Cómo debe comportarse y comunicarse el bot.</p>
             <div style={fieldGap}>
-              <label style={labelStyle}>Saludo inicial</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Saludo inicial</label>
+                <AIButton section="personality" field="greeting" />
+              </div>
               <input value={pb.personality.greeting} onChange={(e) => updatePBField('personality', 'greeting', e.target.value)} placeholder="Ej: ¡Hola! Bienvenido/a a Veo Veo Librería. ¿En qué puedo ayudarte?" style={inputStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Despedida</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Despedida</label>
+                <AIButton section="personality" field="farewell" />
+              </div>
               <input value={pb.personality.farewell} onChange={(e) => updatePBField('personality', 'farewell', e.target.value)} placeholder="Ej: ¡Gracias por tu consulta! Cualquier cosa, estamos acá." style={inputStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Estilo de respuesta</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Estilo de respuesta</label>
+                <AIButton section="personality" field="style" />
+              </div>
               <textarea value={pb.personality.style} onChange={(e) => updatePBField('personality', 'style', e.target.value)} placeholder="Ej: Respuestas cortas y directas, usa emojis, tutea al cliente" rows={3} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Restricciones</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>Restricciones</label>
+                <AIButton section="personality" field="restrictions" />
+              </div>
               <textarea value={pb.personality.restrictions} onChange={(e) => updatePBField('personality', 'restrictions', e.target.value)} placeholder="Ej: No hablar de política, no recomendar competidores, no dar consejos médicos" rows={3} style={textareaStyle} />
             </div>
             <div style={fieldGap}>
