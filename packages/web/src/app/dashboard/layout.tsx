@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
@@ -15,6 +15,8 @@ import {
   UserCircle,
   LogOut,
   LayoutDashboard,
+  Menu,
+  X,
 } from 'lucide-react';
 import styles from './layout.module.css';
 
@@ -40,12 +42,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { user, loading, logout, isSuperAdmin } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
       router.replace('/login');
     }
   }, [user, loading, router]);
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [pathname]);
 
   if (loading || !user) return null;
 
@@ -60,7 +67,20 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.wrapper}>
-      <aside className={styles.sidebar}>
+      {/* Mobile Header */}
+      <div className={styles.mobileHeader}>
+        <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
+          {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
+        <h2 className={styles.mobileTitle}>Volt</h2>
+      </div>
+
+      {/* Backdrop */}
+      {mobileMenuOpen && (
+        <div className={styles.backdrop} onClick={() => setMobileMenuOpen(false)} />
+      )}
+
+      <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <h2>Volt</h2>
           <span>{isSuperAdmin ? 'Super Admin Panel' : user.tenant?.name || 'Panel'}</span>
