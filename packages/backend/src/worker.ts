@@ -7,6 +7,9 @@ import { WooService } from './services/woo.service';
 import { HandoffService } from './services/handoff.service';
 import { prisma } from './config/database';
 
+// Store last search results per conversation for "agregar el 2" cart operations
+const lastSearchResults = new Map<string, any[]>();
+
 interface IncomingMessage {
   phoneNumberId: string;
   from: string;
@@ -63,35 +66,68 @@ async function processMessage(job: Job<IncomingMessage>) {
   }
 
   // 5. Check for WooCommerce intent (wrapped in try/catch to prevent crashes)
+  let wooDirectResponse: string | null = null;
   let wooContext = '';
   try {
-    const wooIntent = OpenAIService.detectWooIntent(data.text);
-    if (wooIntent) {
-      const wooService = await WooService.forTenant(tenant.id);
-      if (wooService) {
-        console.log(`🛒 WooCommerce intent detected: ${wooIntent.intent}`);
+    const wooService = await WooService.forTenant(tenant.id);
+    if (wooService) {
+      const wooIntent = WooService.detectIntent(data.text);
+      if (wooIntent) {
+        console.log(`🛒 WooCommerce intent: ${wooIntent.intent} (query: "${wooIntent.query}")`);
 
-        if (wooIntent.intent === 'order_lookup') {
-          const orders = await wooService.searchOrdersByPhone(data.from);
-          wooContext = `\n\n[Información de pedidos del cliente]:\n${wooService.formatOrderResponse(orders)}`;
-        } else if (wooIntent.intent === 'product_search') {
+        if (wooIntent.intent === 'product_search' && wooService.settings.enableProductSearch) {
           const products = await wooService.searchProducts(wooIntent.query);
-          wooContext = `\n\n[Resultados de búsqueda de productos]:\n${wooService.formatProductResponse(products)}`;
+          // Store last search results for cart_add by number
+          if (products.length > 0) {
+            lastSearchResults.set(conversation.id, products);
+          }
+          wooDirectResponse = wooService.formatProductResponse(products, wooIntent.query);
+
+        } else if (wooIntent.intent === 'order_lookup' && wooService.settings.enableOrderLookup) {
+          const orders = await wooService.searchOrdersByPhone(data.from);
+          wooDirectResponse = wooService.formatOrderResponse(orders);
+
+        } else if (wooIntent.intent === 'cart_add' && wooService.settings.enableCart) {
+          const results = lastSearchResults.get(conversation.id);
+          if (results && wooIntent.itemNumber && wooIntent.itemNumber <= results.length) {
+            const product = results[wooIntent.itemNumber - 1];
+            WooService.addToCart(conversation.id, product, wooIntent.quantity || 1);
+            wooDirectResponse = `✅ *${product.name}* x${wooIntent.quantity || 1} agregado al carrito.\n\n${WooService.formatCart(conversation.id)}`;
+          } else {
+            wooDirectResponse = '❌ No encontré ese producto. Primero buscá un producto y después usá el número de la lista para agregarlo.';
+          }
+
+        } else if (wooIntent.intent === 'cart_add_by_name' && wooService.settings.enableCart) {
+          const products = await wooService.searchProducts(wooIntent.query);
+          if (products.length > 0) {
+            WooService.addToCart(conversation.id, products[0], 1);
+            wooDirectResponse = `✅ *${products[0].name}* agregado al carrito.\n\n${WooService.formatCart(conversation.id)}`;
+          } else {
+            wooDirectResponse = `❌ No encontré "${wooIntent.query}" en el catálogo.`;
+          }
+
+        } else if (wooIntent.intent === 'cart_view' && wooService.settings.enableCart) {
+          wooDirectResponse = WooService.formatCart(conversation.id);
+
+        } else if (wooIntent.intent === 'cart_clear' && wooService.settings.enableCart) {
+          WooService.clearCart(conversation.id);
+          wooDirectResponse = '🗑️ Tu carrito fue vaciado.';
         }
       }
     }
-  } catch (wooErr) {
-    console.error('⚠️ WooCommerce error (non-fatal):', wooErr);
+  } catch (wooErr: any) {
+    console.error('⚠️ WooCommerce error (non-fatal):', wooErr.message || wooErr);
   }
 
-  // 6. Build context and call OpenAI
-  const context = await OpenAIService.buildContext(conversation.id, tenant.id);
-
-  if (wooContext) {
-    context.systemPrompt += wooContext;
+  // 6. If WooCommerce handled it directly, send that response
+  let aiResponse: string;
+  if (wooDirectResponse) {
+    aiResponse = wooDirectResponse;
+  } else {
+    // 7. Build context and call OpenAI
+    const context = await OpenAIService.buildContext(conversation.id, tenant.id);
+    aiResponse = await OpenAIService.generateResponse(context);
   }
-
-  const aiResponse = await OpenAIService.generateResponse(context);
 
   // 7. Send response via WhatsApp
   const providerMessageId = await WhatsAppService.sendTextMessage({

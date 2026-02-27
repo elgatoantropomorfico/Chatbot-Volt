@@ -10,6 +10,10 @@ const createIntegrationSchema = z.object({
     baseUrl: z.string().url(),
     consumerKey: z.string(),
     consumerSecret: z.string(),
+    maxSearchResults: z.number().min(1).max(20).optional(),
+    enableProductSearch: z.boolean().optional(),
+    enableOrderLookup: z.boolean().optional(),
+    enableCart: z.boolean().optional(),
   }),
 });
 
@@ -18,6 +22,10 @@ const updateIntegrationSchema = z.object({
     baseUrl: z.string().url(),
     consumerKey: z.string(),
     consumerSecret: z.string(),
+    maxSearchResults: z.number().min(1).max(20).optional(),
+    enableProductSearch: z.boolean().optional(),
+    enableOrderLookup: z.boolean().optional(),
+    enableCart: z.boolean().optional(),
   }).optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });
