@@ -218,7 +218,8 @@ async function processMessage(job: Job<IncomingMessage>) {
     try {
       const wooCheck = await WooService.forTenant(tenant.id);
       if (wooCheck) {
-        const guardrails = (botSettings.guardrailsJson as any[]) || [];
+        const raw = botSettings.guardrailsJson;
+        const guardrails = Array.isArray(raw) ? raw : [];
         const wooRules = guardrails
           .filter((g: any) => g.scope === 'woocommerce' && g.enabled)
           .map((g: any) => g.prompt);

@@ -293,7 +293,8 @@ export class WooService {
            `💰 *Total: $${total.toLocaleString('es-AR')}*\n\n` +
            `Para confirmar tu compra, hacé click en el siguiente enlace y enviá el mensaje pre-armado:\n\n` +
            `👉 ${waLink}\n\n` +
-           `¡Gracias por tu compra! Un asesor te va a responder a la brevedad.`;
+           `¡Gracias por tu compra! Un asesor te va a responder a la brevedad.\n\n` +
+           `_Si querés seguir buscando productos, escribí *"Busco [producto]"* o *"Quiero comprar"*._`;
   }
 
   // ───── SHOPPING MODE ─────
