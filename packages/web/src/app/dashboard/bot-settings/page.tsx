@@ -6,6 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
+  ChevronDown,
 } from 'lucide-react';
 
 interface PromptBuilder {
@@ -70,6 +71,15 @@ export default function BotSettingsPage() {
   const [tenants, setTenants] = useState<any[]>([]);
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('business');
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   const pb: PromptBuilder = settings?.promptBuilderJson || defaultPB;
 
@@ -524,7 +534,93 @@ export default function BotSettingsPage() {
   }
 
   const groups = [...new Set(TABS.map((t) => t.group))];
+  const activeTabData = TABS.find((t) => t.id === activeTab);
+  const ActiveIcon = activeTabData?.icon;
 
+  /* ─── Mobile Layout ─── */
+  if (isMobile) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)' }}>
+        {/* Mobile Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          <h1 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Bot / IA</h1>
+          <button onClick={handleSave} disabled={saving || !settings} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, opacity: saving ? 0.5 : 1, boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', cursor: saving ? 'not-allowed' : 'pointer' }}>
+            <Save size={14} /> {saving ? 'Guardando...' : 'Guardar'}
+          </button>
+        </div>
+
+        {/* Tenant selector */}
+        {isSuperAdmin && tenants.length > 0 && (
+          <div style={{ marginBottom: '12px' }}>
+            <label style={{ ...labelStyle, fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Tenant</label>
+            <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '13px' }}>
+              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+        )}
+
+        {/* Mobile Tab Dropdown */}
+        <div style={{ position: 'relative', marginBottom: '16px' }}>
+          <button
+            onClick={() => setMobileNavOpen(!mobileNavOpen)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 16px',
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+              borderRadius: mobileNavOpen ? 'var(--radius-md) var(--radius-md) 0 0' : 'var(--radius-md)',
+              color: '#a78bfa', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)',
+              transition: 'all 0.15s',
+            }}
+          >
+            {ActiveIcon && <ActiveIcon size={16} />}
+            <span style={{ flex: 1, textAlign: 'left' }}>{activeTabData?.label}</span>
+            <ChevronDown size={16} style={{ transition: 'transform 0.2s', transform: mobileNavOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
+          </button>
+
+          {mobileNavOpen && (
+            <div style={{
+              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+              background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderTop: 'none',
+              borderRadius: '0 0 var(--radius-md) var(--radius-md)',
+              boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+              maxHeight: '60vh', overflowY: 'auto',
+            }}>
+              {groups.map((group) => (
+                <div key={group}>
+                  <div style={{ padding: '10px 16px 4px', fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{group}</div>
+                  {TABS.filter((t) => t.group === group).map((tab) => {
+                    const Icon = tab.icon;
+                    const isActive = activeTab === tab.id;
+                    const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
+                    return (
+                      <button key={tab.id} onClick={() => { setActiveTab(tab.id); setMobileNavOpen(false); }} style={{
+                        display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px',
+                        background: isActive ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
+                        color: isActive ? '#a78bfa' : 'var(--color-text-secondary)',
+                        border: 'none', fontSize: '13px', fontWeight: isActive ? 600 : 400,
+                        textAlign: 'left' as const, cursor: 'pointer', transition: 'all 0.1s',
+                      }}>
+                        <Icon size={15} />
+                        <span style={{ flex: 1 }}>{tab.label}</span>
+                        {hasContent && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 4px rgba(52, 211, 153, 0.4)' }} />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Mobile Content */}
+        <div style={{ flex: 1 }}>
+          {renderContent()}
+        </div>
+      </div>
+    );
+  }
+
+  /* ─── Desktop Layout ─── */
   return (
     <div style={{ display: 'flex', gap: '0', height: 'calc(100vh - 80px)', maxHeight: 'calc(100vh - 80px)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
       {/* Sidebar */}
