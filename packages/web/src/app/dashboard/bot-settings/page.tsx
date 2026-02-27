@@ -140,11 +140,11 @@ export default function BotSettingsPage() {
 
   if (!isSuperAdmin && !isTenantAdmin) return <p style={{ color: 'var(--color-text-muted)' }}>Acceso denegado</p>;
 
-  const inputStyle: React.CSSProperties = { width: '100%', padding: '8px 12px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text)', fontSize: '14px', outline: 'none' };
-  const labelStyle: React.CSSProperties = { display: 'block', fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '4px', fontWeight: 500 };
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', fontSize: '14px', outline: 'none', transition: 'all 0.15s' };
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px', fontWeight: 600, letterSpacing: '0.01em' };
   const textareaStyle: React.CSSProperties = { ...inputStyle, resize: 'vertical', minHeight: '80px' };
-  const hintStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '3px' };
-  const fieldGap: React.CSSProperties = { marginBottom: '14px' };
+  const hintStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '4px', lineHeight: 1.4 };
+  const fieldGap: React.CSSProperties = { marginBottom: '16px' };
 
   function sectionHasContent(section: keyof PromptBuilder): boolean {
     const val = pb[section];
@@ -526,29 +526,29 @@ export default function BotSettingsPage() {
   const groups = [...new Set(TABS.map((t) => t.group))];
 
   return (
-    <div style={{ display: 'flex', gap: '0', height: 'calc(100vh - 80px)', maxHeight: 'calc(100vh - 80px)' }}>
+    <div style={{ display: 'flex', gap: '0', height: 'calc(100vh - 80px)', maxHeight: 'calc(100vh - 80px)', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
       {/* Sidebar */}
-      <div style={{ width: '220px', minWidth: '220px', background: 'var(--color-surface)', borderRight: '1px solid var(--color-border)', borderRadius: 'var(--radius-md) 0 0 var(--radius-md)', overflowY: 'auto', padding: '12px 0' }}>
+      <div style={{ width: '220px', minWidth: '220px', background: 'linear-gradient(180deg, #0e0e20, #0a0a18)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', padding: '12px 0' }}>
         {isSuperAdmin && tenants.length > 0 && (
           <div style={{ padding: '0 12px 12px', borderBottom: '1px solid var(--color-border)', marginBottom: '8px' }}>
-            <label style={{ ...labelStyle, fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Tenant</label>
-            <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '12px', padding: '5px 8px' }}>
+            <label style={{ ...labelStyle, fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Tenant</label>
+            <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '12px', padding: '6px 10px' }}>
               {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
             </select>
           </div>
         )}
         {groups.map((group) => (
           <div key={group}>
-            <div style={{ padding: '8px 16px 4px', fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '0.5px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{group}</div>
+            <div style={{ padding: '12px 16px 6px', fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{group}</div>
             {TABS.filter((t) => t.group === group).map((tab) => {
               const Icon = tab.icon;
               const isActive = activeTab === tab.id;
               const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
               return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '7px 16px', background: isActive ? 'var(--color-primary-light)' : 'transparent', color: isActive ? 'var(--color-primary)' : 'var(--color-text-secondary)', border: 'none', borderLeft: isActive ? '3px solid var(--color-primary)' : '3px solid transparent', fontSize: '13px', fontWeight: isActive ? 600 : 400, textAlign: 'left' as const, transition: 'all 0.1s' }}>
+                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '8px 16px', background: isActive ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(232, 121, 249, 0.06))' : 'transparent', color: isActive ? '#a78bfa' : 'var(--color-text-secondary)', border: 'none', borderLeft: isActive ? '3px solid #8b5cf6' : '3px solid transparent', fontSize: '13px', fontWeight: isActive ? 600 : 400, textAlign: 'left' as const, transition: 'all 0.15s', cursor: 'pointer', position: 'relative' as const }}>
                   <Icon size={15} />
                   <span style={{ flex: 1 }}>{tab.label}</span>
-                  {hasContent && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--color-success)' }} />}
+                  {hasContent && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 4px rgba(52, 211, 153, 0.4)' }} />}
                 </button>
               );
             })}
@@ -557,14 +557,14 @@ export default function BotSettingsPage() {
       </div>
 
       {/* Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 24px', borderBottom: '1px solid var(--color-border)', background: 'var(--color-surface)' }}>
-          <h1 style={{ fontSize: '18px', fontWeight: 700 }}>Configuración del Bot</h1>
-          <button onClick={handleSave} disabled={saving || !settings} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '7px 16px', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 500, opacity: saving ? 0.6 : 1 }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--color-bg)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: '1px solid var(--color-border)', background: 'rgba(139, 92, 246, 0.02)' }}>
+          <h1 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.01em' }}>Configuración del Bot</h1>
+          <button onClick={handleSave} disabled={saving || !settings} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 18px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, opacity: saving ? 0.5 : 1, boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s', cursor: saving ? 'not-allowed' : 'pointer' }}>
             <Save size={15} /> {saving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+        <div style={{ flex: 1, overflowY: 'auto', padding: '28px', maxWidth: '720px' }}>
           {renderContent()}
         </div>
       </div>

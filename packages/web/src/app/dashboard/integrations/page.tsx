@@ -126,28 +126,31 @@ export default function IntegrationsPage() {
 
   if (!isSuperAdmin && !isTenantAdmin) return <p style={{ color: 'var(--color-text-muted)' }}>Acceso denegado</p>;
 
-  const statusColors: Record<string, string> = { active: 'var(--color-success)', inactive: 'var(--color-text-muted)' };
+  const statusColors: Record<string, string> = { active: '#34d399', inactive: 'var(--color-text-muted)' };
 
   const inputStyle: React.CSSProperties = {
-    width: '100%', padding: '10px 12px', background: 'var(--color-bg-secondary)',
-    border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-    color: 'var(--color-text)', fontSize: '14px', outline: 'none',
+    width: '100%', padding: '10px 14px', background: 'var(--color-bg-secondary)',
+    border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
+    color: 'var(--color-text)', fontSize: '14px', outline: 'none', transition: 'all 0.15s',
   };
   const labelStyle: React.CSSProperties = {
-    display: 'block', fontSize: '13px', color: 'var(--color-text-secondary)',
-    marginBottom: '6px', fontWeight: 500,
+    display: 'block', fontSize: '12px', color: 'var(--color-text-muted)',
+    marginBottom: '6px', fontWeight: 600, letterSpacing: '0.01em',
   };
   const sectionStyle: React.CSSProperties = {
     background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '16px',
+    borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '16px',
+    boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)',
+    position: 'relative', overflow: 'hidden',
   };
   const sectionTitleStyle: React.CSSProperties = {
-    fontSize: '15px', fontWeight: 600, marginBottom: '16px',
-    display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text)',
+    fontSize: '15px', fontWeight: 700, marginBottom: '18px',
+    display: 'flex', alignItems: 'center', gap: '10px', color: 'var(--color-text)',
+    letterSpacing: '-0.01em',
   };
   const toggleWrapStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '12px 0', borderBottom: '1px solid var(--color-border)',
+    padding: '14px 0', borderBottom: '1px solid rgba(139, 92, 246, 0.06)',
   };
 
   function renderConfigForm(isCreate: boolean) {
@@ -399,14 +402,15 @@ export default function IntegrationsPage() {
   return (
     <div style={{ maxWidth: '800px' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700 }}>Integraciones</h1>
+        <h1 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Integraciones</h1>
         {!showCreate && !editingId && (
           <button
             onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultConfig }); }}
             style={{
-              display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 18px',
-              background: 'var(--color-primary)', color: 'white', border: 'none',
+              display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px',
+              background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none',
               borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s',
             }}
           >
             <Plus size={16} /> Nueva integracion
@@ -447,10 +451,11 @@ export default function IntegrationsPage() {
                 type="submit"
                 disabled={saving}
                 style={{
-                  padding: '10px 24px', background: 'var(--color-primary)', color: 'white',
+                  padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
                   border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '14px',
-                  fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1,
-                  display: 'flex', alignItems: 'center', gap: '6px',
+                  fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.5 : 1,
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s',
                 }}
               >
                 <Save size={16} /> {saving ? 'Creando...' : 'Crear integracion'}
@@ -459,9 +464,10 @@ export default function IntegrationsPage() {
                 type="button"
                 onClick={() => setShowCreate(false)}
                 style={{
-                  padding: '10px 18px', background: 'none',
+                  padding: '10px 18px', background: 'transparent',
                   border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
                   color: 'var(--color-text-secondary)', fontSize: '14px', cursor: 'pointer',
+                  transition: 'all 0.15s',
                 }}
               >
                 Cancelar
@@ -488,10 +494,11 @@ export default function IntegrationsPage() {
               onClick={handleSave}
               disabled={saving}
               style={{
-                padding: '10px 24px', background: 'var(--color-primary)', color: 'white',
+                padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
                 border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '14px',
-                fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.6 : 1,
-                display: 'flex', alignItems: 'center', gap: '6px',
+                fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.5 : 1,
+                display: 'flex', alignItems: 'center', gap: '8px',
+                boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s',
               }}
             >
               <Save size={16} /> {saving ? 'Guardando...' : 'Guardar cambios'}
@@ -499,9 +506,10 @@ export default function IntegrationsPage() {
             <button
               onClick={() => setEditingId(null)}
               style={{
-                padding: '10px 18px', background: 'none',
+                padding: '10px 18px', background: 'transparent',
                 border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
                 color: 'var(--color-text-secondary)', fontSize: '14px', cursor: 'pointer',
+                transition: 'all 0.15s',
               }}
             >
               Volver
@@ -521,9 +529,9 @@ export default function IntegrationsPage() {
       {/* Integration List */}
       {!showCreate && !editingId && (
         <>
-          {loading ? <p style={{ color: 'var(--color-text-muted)' }}>Cargando...</p> : integrations.length === 0 ? (
+          {loading ? <p style={{ color: 'var(--color-text-muted)', padding: '40px', textAlign: 'center' }}>Cargando...</p> : integrations.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-muted)' }}>
-              <Plug size={40} style={{ marginBottom: '12px', opacity: 0.5 }} />
+              <Plug size={40} style={{ marginBottom: '12px', opacity: 0.4 }} />
               <p style={{ fontSize: '16px', marginBottom: '4px' }}>No hay integraciones configuradas</p>
               <p style={{ fontSize: '13px' }}>Crea una integracion con WooCommerce para conectar tu tienda</p>
             </div>
@@ -535,17 +543,20 @@ export default function IntegrationsPage() {
                   style={{
                     ...sectionStyle, marginBottom: 0, cursor: 'pointer',
                     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    transition: 'border-color 0.2s',
+                    transition: 'all 0.2s',
                   }}
                   onClick={() => openEdit(i)}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4), 0 0 12px rgba(139, 92, 246, 0.1)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)'; }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{
-                      width: '42px', height: '42px', borderRadius: 'var(--radius-sm)',
-                      background: 'var(--color-primary-light)', display: 'flex',
+                      width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
+                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))', display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
+                      border: '1px solid rgba(139, 92, 246, 0.12)',
                     }}>
-                      <ShoppingCart size={20} style={{ color: 'var(--color-primary)' }} />
+                      <ShoppingCart size={20} style={{ color: '#a78bfa' }} />
                     </div>
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: 600 }}>WooCommerce</div>
@@ -570,18 +581,19 @@ export default function IntegrationsPage() {
 
                     <span style={{
                       display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      fontSize: '13px', color: statusColors[i.status],
+                      fontSize: '13px', color: statusColors[i.status], fontWeight: 500,
                     }}>
-                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: statusColors[i.status] }} />
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: statusColors[i.status], boxShadow: i.status === 'active' ? '0 0 6px rgba(52, 211, 153, 0.4)' : 'none' }} />
                       {i.status === 'active' ? 'Activa' : 'Inactiva'}
                     </span>
 
                     <button
                       onClick={(e) => { e.stopPropagation(); toggleStatus(i.id, i.status); }}
                       style={{
-                        padding: '5px 12px', background: 'none',
+                        padding: '5px 12px', background: 'transparent',
                         border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
                         color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer',
+                        fontWeight: 500, transition: 'all 0.15s',
                       }}
                     >
                       {i.status === 'active' ? 'Desactivar' : 'Activar'}

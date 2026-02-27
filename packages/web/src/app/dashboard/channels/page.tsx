@@ -47,22 +47,24 @@ export default function ChannelsPage() {
     } catch (err: any) { alert(err.message); }
   }
 
-  const inputStyle = { width: '100%', padding: '8px 12px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text)', fontSize: '14px' };
-  const labelStyle = { display: 'block' as const, fontSize: '12px', color: 'var(--color-text-secondary)', marginBottom: '4px' };
+  const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', fontSize: '14px', outline: 'none', transition: 'all 0.15s' };
+  const labelStyle: React.CSSProperties = { display: 'block', fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '6px', fontWeight: 600, letterSpacing: '0.01em' };
+  const thStyle: React.CSSProperties = { textAlign: 'left', padding: '12px 16px', fontSize: '11px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.8px', fontWeight: 600, borderBottom: '1px solid var(--color-border)', background: 'rgba(139, 92, 246, 0.03)' };
+  const tdStyle: React.CSSProperties = { padding: '14px 16px', fontSize: '13.5px', borderBottom: '1px solid rgba(139, 92, 246, 0.05)' };
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: 700 }}>Channels</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+        <h1 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Channels</h1>
         {isSuperAdmin && (
-          <button onClick={() => setShowForm(!showForm)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 500 }}>
+          <button onClick={() => setShowForm(!showForm)} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s' }}>
             <Plus size={16} /> Nuevo channel
           </button>
         )}
       </div>
 
       {showForm && isSuperAdmin && (
-        <form onSubmit={handleSubmit} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '20px', marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <form onSubmit={handleSubmit} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
           <div>
             <label style={labelStyle}>Tenant</label>
             <select value={form.tenantId} onChange={(e) => setForm({ ...form, tenantId: e.target.value })} required style={inputStyle}>
@@ -83,46 +85,48 @@ export default function ChannelsPage() {
             <input value={form.displayPhone} onChange={(e) => setForm({ ...form, displayPhone: e.target.value })} style={inputStyle} placeholder="Ej: +54 9 11 1234-5678" />
           </div>
           <div style={{ gridColumn: 'span 2' }}>
-            <button type="submit" style={{ padding: '8px 20px', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 500 }}>Crear</button>
+            <button type="submit" style={{ padding: '10px 22px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)' }}>Crear</button>
           </div>
         </form>
       )}
 
-      {loading ? <p>Cargando...</p> : channels.length === 0 ? (
-        <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>
-          <Phone size={32} /><p>No hay channels configurados</p>
+      {loading ? <p style={{ color: 'var(--color-text-muted)', padding: '40px', textAlign: 'center' }}>Cargando...</p> : channels.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '60px 40px', color: 'var(--color-text-muted)' }}>
+          <Phone size={36} style={{ marginBottom: '12px', opacity: 0.5 }} /><p>No hay channels configurados</p>
         </div>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead><tr>
-            {['Tenant', 'Phone Number ID', 'WABA ID', 'Display', 'Estado', 'Acciones'].map((h) => (
-              <th key={h} style={{ textAlign: 'left', padding: '10px 14px', fontSize: '12px', color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '1px solid var(--color-border)' }}>{h}</th>
-            ))}
-          </tr></thead>
-          <tbody>
-            {channels.map((ch) => (
-              <tr key={ch.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '12px 14px', fontSize: '14px' }}>{ch.tenant?.name || ch.tenantId}</td>
-                <td style={{ padding: '12px 14px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{ch.phoneNumberId}</td>
-                <td style={{ padding: '12px 14px', fontSize: '13px', fontFamily: 'var(--font-mono)' }}>{ch.wabaId}</td>
-                <td style={{ padding: '12px 14px', fontSize: '13px' }}>{ch.displayPhone || '—'}</td>
-                <td style={{ padding: '12px 14px' }}>
-                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: ch.isActive ? 'var(--color-success)' : 'var(--color-text-muted)' }}>
-                    <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: ch.isActive ? 'var(--color-success)' : 'var(--color-text-muted)' }} />
-                    {ch.isActive ? 'Activo' : 'Inactivo'}
-                  </span>
-                </td>
-                <td style={{ padding: '12px 14px' }}>
-                  {isSuperAdmin && (
-                    <button onClick={() => toggleActive(ch.id, ch.isActive)} style={{ padding: '4px 10px', background: 'none', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer' }}>
-                      {ch.isActive ? 'Desactivar' : 'Activar'}
-                    </button>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead><tr>
+              {['Tenant', 'Phone Number ID', 'WABA ID', 'Display', 'Estado', 'Acciones'].map((h) => (
+                <th key={h} style={thStyle}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {channels.map((ch) => (
+                <tr key={ch.id} style={{ transition: 'background 0.15s' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.04)'} onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                  <td style={{ ...tdStyle, fontWeight: 600 }}>{ch.tenant?.name || ch.tenantId}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-text-muted)' }}>{ch.phoneNumberId}</td>
+                  <td style={{ ...tdStyle, fontFamily: 'var(--font-mono)', fontSize: '12px', color: 'var(--color-text-muted)' }}>{ch.wabaId}</td>
+                  <td style={tdStyle}>{ch.displayPhone || '—'}</td>
+                  <td style={tdStyle}>
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', color: ch.isActive ? '#34d399' : 'var(--color-text-muted)', fontWeight: 500 }}>
+                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: ch.isActive ? '#34d399' : 'var(--color-text-muted)', boxShadow: ch.isActive ? '0 0 6px rgba(52, 211, 153, 0.4)' : 'none' }} />
+                      {ch.isActive ? 'Activo' : 'Inactivo'}
+                    </span>
+                  </td>
+                  <td style={tdStyle}>
+                    {isSuperAdmin && (
+                      <button onClick={() => toggleActive(ch.id, ch.isActive)} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s' }}>
+                        {ch.isActive ? 'Desactivar' : 'Activar'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );
