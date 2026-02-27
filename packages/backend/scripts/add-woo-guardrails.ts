@@ -3,10 +3,10 @@ import { PrismaClient } from '@prisma/client';
 const prisma = new PrismaClient();
 
 const WOO_GUARDRAILS = [
-  { id: 'woo_no_invent_products', label: '🛒 No inventar productos ni precios', prompt: 'NUNCA inventes nombres de productos específicos, precios ni disponibilidad de stock. No tenés acceso al inventario.', enabled: true, scope: 'woocommerce' },
-  { id: 'woo_no_confirm_purchase', label: '🛒 No confirmar compras', prompt: 'NUNCA confirmes una compra ni digas que un pedido fue realizado. Vos NO procesás compras.', enabled: true, scope: 'woocommerce' },
-  { id: 'woo_redirect_search', label: '🛒 Redirigir a búsqueda de productos', prompt: 'Si el cliente pregunta por un producto específico, decile que escriba "Busco [nombre del producto]" para consultar el catálogo. Si quiere comprar, decile que escriba "Quiero comprar" o "Busco [producto]".', enabled: true, scope: 'woocommerce' },
-  { id: 'woo_no_fake_cart', label: '🛒 No simular carrito', prompt: 'NUNCA simules un proceso de compra ni menciones un carrito si el cliente no está en modo compra. NUNCA le digas que escriba "Finalizar compra" porque eso es solo para cuando ya tiene productos en el carrito.', enabled: true, scope: 'woocommerce' },
+  { id: 'woo_no_invent_products', label: '🛒 No inventar productos ni precios', prompt: 'Cuando respondés fuera del modo compra, NUNCA inventes nombres de productos, precios ni disponibilidad. No tenés acceso al inventario. Si el cliente pregunta por algo específico, guialo al catálogo.', enabled: true, scope: 'woocommerce' },
+  { id: 'woo_no_confirm_purchase', label: '🛒 No simular ventas ni confirmar pedidos', prompt: 'NUNCA digas que una compra fue realizada ni que un pedido está confirmado. Vos solo respondés consultas; las compras las maneja el sistema de carrito automáticamente.', enabled: true, scope: 'woocommerce' },
+  { id: 'woo_redirect_search', label: '🛒 Guiar al cliente al catálogo', prompt: 'Si el cliente quiere ver o comprar un producto, indicale que escriba "Busco [producto]" o "Quiero comprar" para que el sistema le muestre opciones del catálogo real.', enabled: true, scope: 'woocommerce' },
+  { id: 'woo_no_fake_cart', label: '🛒 No mencionar carrito fuera del modo compra', prompt: 'No menciones el carrito ni sugieras "Finalizar compra" a menos que el cliente ya esté comprando y tenga productos agregados. Esa función solo existe dentro del modo compra.', enabled: true, scope: 'woocommerce' },
 ];
 
 async function main() {
@@ -14,17 +14,14 @@ async function main() {
   for (const bs of allSettings) {
     const raw = bs.guardrailsJson;
     const guardrails = Array.isArray(raw) ? raw : [];
-    const hasWoo = guardrails.some((g: any) => g.scope === 'woocommerce');
-    if (hasWoo) {
-      console.log(`⏭️  Tenant ${bs.tenantId} already has WooCommerce guardrails, skipping.`);
-      continue;
-    }
-    const updated = [...guardrails, ...WOO_GUARDRAILS];
+    // Remove old WooCommerce guardrails and replace with updated ones
+    const withoutWoo = guardrails.filter((g: any) => g.scope !== 'woocommerce');
+    const updated = [...withoutWoo, ...WOO_GUARDRAILS];
     await prisma.botSettings.update({
       where: { tenantId: bs.tenantId },
       data: { guardrailsJson: updated },
     });
-    console.log(`✅ Added WooCommerce guardrails to tenant ${bs.tenantId}`);
+    console.log(`✅ Updated WooCommerce guardrails for tenant ${bs.tenantId}`);
   }
 }
 

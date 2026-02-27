@@ -603,7 +603,7 @@ export default function BotSettingsPage() {
                   )}
                   {wooGuardrails.length > 0 && (
                     <>
-                      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginTop: '8px', marginBottom: '-4px' }}>🛒 WooCommerce <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(se aplican solo si WooCommerce está activo)</span></p>
+                      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginTop: '8px', marginBottom: '-4px' }}>🛒 WooCommerce <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(restringen a la IA cuando responde fuera del modo compra)</span></p>
                       {wooGuardrails.map(renderGuardrail)}
                     </>
                   )}
