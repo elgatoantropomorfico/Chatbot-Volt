@@ -189,6 +189,10 @@ async function processMessage(job: Job<IncomingMessage>) {
               } catch (saleErr: any) {
                 console.error('⚠️ Failed to record sale:', saleErr.message);
               }
+              // Auto-exit shopping mode if configured
+              if (wooService.settings.exitShopOnCheckout !== false) {
+                WooService.exitShoppingMode(conversation.id);
+              }
             } else {
               // Future: mercadopago checkout
               wooDirectResponse = '⚠️ El método de pago aún no está disponible. Contactá al negocio directamente.';

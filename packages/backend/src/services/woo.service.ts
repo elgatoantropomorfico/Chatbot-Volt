@@ -9,6 +9,7 @@ interface WooConfig {
   enableProductSearch?: boolean;
   enableOrderLookup?: boolean;
   enableCart?: boolean;
+  exitShopOnCheckout?: boolean;
   checkoutMode?: 'wa_human' | 'mercadopago';
   checkoutPhone?: string;
 }
@@ -64,6 +65,7 @@ export class WooService {
       enableProductSearch: this.config.enableProductSearch !== false,
       enableOrderLookup: this.config.enableOrderLookup !== false,
       enableCart: this.config.enableCart !== false,
+      exitShopOnCheckout: this.config.exitShopOnCheckout !== false,
       checkoutMode: this.config.checkoutMode || 'wa_human',
       checkoutPhone: this.config.checkoutPhone || '',
     };

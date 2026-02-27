@@ -26,6 +26,7 @@ interface WooConfig {
   enableProductSearch: boolean;
   enableOrderLookup: boolean;
   enableCart: boolean;
+  exitShopOnCheckout: boolean;
   checkoutMode: 'wa_human' | 'mercadopago';
   checkoutPhone: string;
 }
@@ -38,6 +39,7 @@ const defaultConfig: WooConfig = {
   enableProductSearch: true,
   enableOrderLookup: true,
   enableCart: true,
+  exitShopOnCheckout: true,
   checkoutMode: 'wa_human',
   checkoutPhone: '',
 };
@@ -80,6 +82,7 @@ export default function IntegrationsPage() {
       enableProductSearch: c.enableProductSearch !== false,
       enableOrderLookup: c.enableOrderLookup !== false,
       enableCart: c.enableCart !== false,
+      exitShopOnCheckout: c.exitShopOnCheckout !== false,
       checkoutMode: c.checkoutMode || 'wa_human',
       checkoutPhone: c.checkoutPhone || '',
     });
@@ -393,6 +396,31 @@ export default function IntegrationsPage() {
                 </div>
               </div>
             )}
+
+            {/* Exit shopping mode on checkout */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', padding: '12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+              <div>
+                <div style={{ fontSize: '13px', fontWeight: 500 }}>Salir del modo compra al finalizar</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px' }}>
+                  Cuando el cliente completa el checkout, se desactiva automáticamente el modo compra y vuelve al chat normal.
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setConfig({ ...config, exitShopOnCheckout: !config.exitShopOnCheckout })}
+                style={{
+                  width: '44px', height: '24px', borderRadius: '12px', border: 'none', cursor: 'pointer',
+                  background: config.exitShopOnCheckout ? 'var(--color-success)' : 'var(--color-border)',
+                  position: 'relative', transition: 'background 0.2s', flexShrink: 0, marginLeft: '12px',
+                }}
+              >
+                <span style={{
+                  position: 'absolute', top: '2px', width: '20px', height: '20px', borderRadius: '50%',
+                  background: 'white', transition: 'left 0.2s',
+                  left: config.exitShopOnCheckout ? '22px' : '2px',
+                }} />
+              </button>
+            </div>
           </div>
         )}
       </>
