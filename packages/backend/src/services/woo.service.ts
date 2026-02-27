@@ -298,7 +298,7 @@ export class WooService {
     // Cart: checkout / finalize — wide matching
     if (/(?:finalizar|cerrar|confirmar|completar)\s*(?:la\s+)?(?:compra|pedido|orden|carrito|el\s+carrito)/i.test(lower) ||
         /(?:quiero|listo|listos?)\s*(?:para)?\s*(?:comprar|pagar|checkout)/i.test(lower) ||
-        /^\s*(?:comprar|pagar|checkout)\s*$/i.test(lower) ||
+        /^\s*(?:comprar|pagar|checkout|finalizar|confirmar|terminar)\s*$/i.test(lower) ||
         /(?:dale|si|sí)[,!.]?\s*(?:comprar|compro|lo quiero|los quiero|quiero (?:comprar|pagar))/i.test(lower) ||
         /(?:quiero|deseo|voy a)\s+(?:comprar|pagar|llevar)/i.test(lower) ||
         /(?:cerrar|finalizar|terminar)\s*(?:el\s+)?(?:pedido|carrito|compra|orden)/i.test(lower) ||
