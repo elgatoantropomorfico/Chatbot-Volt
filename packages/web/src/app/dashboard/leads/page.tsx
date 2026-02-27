@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Users } from 'lucide-react';
+import { Users, X } from 'lucide-react';
 import styles from './page.module.css';
 
 const STAGES = ['', 'nuevo', 'contactado', 'interesado', 'venta', 'perdido'];
@@ -180,13 +180,20 @@ export default function LeadsPage() {
         )}
       </div>
 
-      {/* Detail panel */}
+      {/* Detail panel overlay */}
       {selectedLead && (
-        <div className={styles.detailPanel}>
-          <div className={styles.detailHeader}>
-            <h2>{selectedLead.name || selectedLead.phone}</h2>
-            <p>{selectedLead.phone}</p>
-          </div>
+        <>
+          <div className={styles.detailBackdrop} onClick={() => setSelectedLead(null)} />
+          <div className={styles.detailPanel}>
+            <div className={styles.detailHeader}>
+              <div>
+                <h2>{selectedLead.name || selectedLead.phone}</h2>
+                <p>{selectedLead.phone}</p>
+              </div>
+              <button className={styles.detailCloseBtn} onClick={() => setSelectedLead(null)}>
+                <X size={18} />
+              </button>
+            </div>
 
           <div className={styles.detailSection}>
             <h3>Información</h3>
@@ -245,6 +252,7 @@ export default function LeadsPage() {
             ))}
           </div>
         </div>
+        </>
       )}
     </div>
   );
