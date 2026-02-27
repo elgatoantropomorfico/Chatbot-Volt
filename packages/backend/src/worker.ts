@@ -157,7 +157,7 @@ async function processMessage(job: Job<IncomingMessage>) {
     try {
       const wooCheck = await WooService.forTenant(tenant.id);
       if (wooCheck) {
-        context.systemPrompt += '\n\n[REGLA CRÍTICA]: NUNCA inventes nombres de productos, precios ni disponibilidad de stock. No tenés acceso directo al inventario. Si el cliente pregunta por productos, decile que busque usando frases como "Tienen [nombre del producto]?" o "Busco [nombre]" para que el sistema consulte el catálogo real. Solo puede buscar un producto a la vez.';
+        context.systemPrompt += '\n\n[REGLAS CRÍTICAS - CUMPLIR SIEMPRE]:\n1. NUNCA inventes nombres de productos, precios ni disponibilidad de stock.\n2. NUNCA confirmes una compra ni digas que el pedido fue realizado. Vos NO procesás compras.\n3. NUNCA inventes direcciones de envío, horarios de entrega ni datos de contacto del negocio.\n4. Si el cliente quiere buscar productos, decile que escriba "Busco [nombre del producto]".\n5. Si el cliente quiere comprar, decile que escriba "Finalizar compra" para generar el pedido.\n6. Solo puede buscar un producto a la vez.';
       }
     } catch {}
     aiResponse = await OpenAIService.generateResponse(context);

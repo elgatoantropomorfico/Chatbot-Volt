@@ -295,9 +295,15 @@ export class WooService {
   static detectIntent(text: string): { intent: string; query: string; quantity?: number; itemNumber?: number } | null {
     const lower = text.toLowerCase().trim();
 
-    // Cart: checkout / finalize
+    // Cart: checkout / finalize — wide matching
     if (/(?:finalizar|cerrar|confirmar|completar)\s*(?:la\s+)?(?:compra|pedido|orden|carrito|el\s+carrito)/i.test(lower) ||
-        /(?:quiero|listo|listos?)\s*(?:para)?\s*(?:comprar|pagar|checkout)/i.test(lower)) {
+        /(?:quiero|listo|listos?)\s*(?:para)?\s*(?:comprar|pagar|checkout)/i.test(lower) ||
+        /^\s*(?:comprar|pagar|checkout)\s*$/i.test(lower) ||
+        /(?:dale|si|sí)[,!.]?\s*(?:comprar|compro|lo quiero|los quiero|quiero (?:comprar|pagar))/i.test(lower) ||
+        /(?:quiero|deseo|voy a)\s+(?:comprar|pagar|llevar)/i.test(lower) ||
+        /(?:cerrar|finalizar|terminar)\s*(?:el\s+)?(?:pedido|carrito|compra|orden)/i.test(lower) ||
+        /^\s*(?:lo|los|la|las)\s+(?:quiero|llevo|compro)\s*$/i.test(lower) ||
+        /^\s*(?:listo|lista|dale|ok|confirmo|confirmar)\s*$/i.test(lower)) {
       return { intent: 'cart_checkout', query: '' };
     }
 
