@@ -78,17 +78,6 @@ async function processMessage(job: Job<IncomingMessage>) {
         wooIntent = { intent: 'product_search', query: data.text.replace(/[?!¿¡.,]+$/g, '').trim() };
       }
 
-      // Fallback: if WooCommerce is active and no intent matched, assume product search
-      // UNLESS it's a generic greeting or very short message
-      if (!wooIntent && wooService.settings.enableProductSearch) {
-        const lower = data.text.toLowerCase().trim();
-        const isGeneric = /^\s*(?:hola|buenas?|buenos?\s+d[ií]as?|buenas?\s+tardes?|buenas?\s+noches?|chau|adi[oó]s|gracias|muchas\s+gracias|ok|si|no|ya|bien|dale|listo|lista)\s*[.!,?]*\s*$/i.test(lower);
-        if (!isGeneric && lower.length > 3) {
-          console.log(`🔍 Fallback product search: "${data.text}"`);
-          wooIntent = { intent: 'product_search', query: WooService.extractProductQuery(data.text) };
-        }
-      }
-
       if (wooIntent) {
         console.log(`🛒 WooCommerce intent: ${wooIntent.intent} (query: "${wooIntent.query}")`);
 
@@ -168,7 +157,7 @@ async function processMessage(job: Job<IncomingMessage>) {
     try {
       const wooCheck = await WooService.forTenant(tenant.id);
       if (wooCheck) {
-        context.systemPrompt += '\n\n[REGLAS CRÍTICAS - CUMPLIR SIEMPRE]:\n1. NUNCA inventes nombres de productos, precios ni disponibilidad de stock.\n2. NUNCA confirmes una compra ni digas que el pedido fue realizado. Vos NO procesás compras.\n3. NUNCA inventes direcciones de envío, horarios de entrega ni datos de contacto del negocio.\n4. Si el cliente quiere buscar productos, decile que escriba "Busco [nombre del producto]".\n5. Si el cliente quiere comprar, decile que escriba "Finalizar compra" para generar el pedido.\n6. Solo puede buscar un producto a la vez.';
+        context.systemPrompt += '\n\n[REGLAS SOBRE PRODUCTOS Y COMPRAS]:\n1. NUNCA inventes nombres de productos específicos, precios ni disponibilidad de stock. No tenés acceso al inventario.\n2. NUNCA confirmes una compra ni digas que un pedido fue realizado. Vos NO procesás compras.\n3. Si el cliente pregunta por un producto específico, decile que escriba "Busco [nombre del producto]" para consultar el catálogo.\n4. Si el cliente quiere comprar, decile que escriba "Finalizar compra".\n5. Podés responder preguntas generales sobre el negocio, envíos, formas de pago, horarios, etc. basándote en tu prompt del sistema.';
       }
     } catch {}
     aiResponse = await OpenAIService.generateResponse(context);
