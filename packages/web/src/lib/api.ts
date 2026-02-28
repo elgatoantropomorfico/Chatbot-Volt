@@ -180,6 +180,7 @@ class ApiClient {
   async getSaleStats() { return this.fetch<{ stats: any }>('/sales/stats'); }
   async getSale(id: string) { return this.fetch<{ sale: any }>(`/sales/${id}`); }
   async updateSale(id: string, data: any) { return this.fetch<{ sale: any }>(`/sales/${id}`, { method: 'PATCH', body: data }); }
+  async deleteSale(id: string) { return this.fetch<{ message: string }>(`/sales/${id}`, { method: 'DELETE' }); }
 }
 
 export const api = new ApiClient();

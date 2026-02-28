@@ -10,6 +10,7 @@ import {
   XCircle,
   Clock,
   Search,
+  Trash2,
   ChevronLeft,
   ChevronRight,
   X,
@@ -90,6 +91,18 @@ export default function SalesPage() {
       }
     } catch (err) {
       console.error('Error updating sale:', err);
+    }
+  }
+
+  async function handleDelete(saleId: string) {
+    if (!confirm('¿Estás seguro de eliminar esta venta? Esta acción no se puede deshacer.')) return;
+    try {
+      await api.deleteSale(saleId);
+      await loadSales();
+      await loadStats();
+      if (selectedSale?.id === saleId) setSelectedSale(null);
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar la venta');
     }
   }
 
@@ -293,6 +306,15 @@ export default function SalesPage() {
                           {sale.status === 'completed' && (
                             <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Finalizada</span>
                           )}
+                          {sale.checkoutMode === 'wa_human' && (
+                            <button
+                              className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
+                              onClick={() => handleDelete(sale.id)}
+                              title="Eliminar venta"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -400,6 +422,16 @@ export default function SalesPage() {
                   onClick={() => handleStatusChange(selectedSale.id, 'cancelled')}
                 >
                   <XCircle size={14} /> Cancelar
+                </button>
+              </div>
+            )}
+            {selectedSale.checkoutMode === 'wa_human' && (
+              <div className={styles.detailActions} style={{ marginTop: 8 }}>
+                <button
+                  className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
+                  onClick={() => handleDelete(selectedSale.id)}
+                >
+                  <Trash2 size={14} /> Eliminar venta
                 </button>
               </div>
             )}

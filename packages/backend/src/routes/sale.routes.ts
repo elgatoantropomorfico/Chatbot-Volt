@@ -1,6 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { SaleService } from '../services/sale.service';
+import { prisma } from '../config/database';
 
 const updateStatusSchema = z.object({
   status: z.enum(['pending', 'completed', 'cancelled']),
@@ -79,5 +80,23 @@ export async function saleRoutes(app: FastifyInstance) {
       body.data.notes,
     );
     return reply.send({ sale });
+  });
+
+  // Delete sale (only wa_human checkout mode)
+  app.delete('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const sale = await SaleService.getSale(request.params.id);
+    if (!sale) return reply.status(404).send({ error: 'Sale not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && sale.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    if (sale.checkoutMode !== 'wa_human') {
+      return reply.status(400).send({ error: 'Solo se pueden eliminar ventas con checkout manual (WhatsApp Humano)' });
+    }
+
+    await prisma.sale.delete({ where: { id: request.params.id } });
+    return reply.send({ message: 'Sale deleted' });
   });
 }
