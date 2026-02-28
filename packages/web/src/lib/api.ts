@@ -150,8 +150,8 @@ class ApiClient {
   async handoffConversation(id: string, reason?: string) { return this.fetch(`/conversations/${id}/handoff`, { method: 'POST', body: { reason } }); }
   async reactivateConversation(id: string) { return this.fetch(`/conversations/${id}/reactivate`, { method: 'POST' }); }
   async closeConversation(id: string) { return this.fetch(`/conversations/${id}/close`, { method: 'POST' }); }
-  async archiveConversation(id: string) { return this.fetch(`/conversations/${id}/archive`, { method: 'POST' }); }
-  async unarchiveConversation(id: string) { return this.fetch(`/conversations/${id}/unarchive`, { method: 'POST' }); }
+  async archiveConversation(id: string) { return this.fetch(`/conversations/${id}/archive`, { method: 'POST', body: {} }); }
+  async unarchiveConversation(id: string) { return this.fetch(`/conversations/${id}/unarchive`, { method: 'POST', body: {} }); }
   async sendAgentMessage(id: string, text: string) { return this.fetch<{ message: any; aiPaused: boolean }>(`/conversations/${id}/send`, { method: 'POST', body: { text } }); }
   async toggleAI(id: string, enabled: boolean) { return this.fetch<{ conversation: any; aiEnabled: boolean }>(`/conversations/${id}/toggle-ai`, { method: 'POST', body: { enabled } }); }
   async pollMessages(id: string, since?: string) {
