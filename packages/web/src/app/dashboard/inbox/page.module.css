@@ -9,6 +9,7 @@
 /* ─── Conversation List ─── */
 .conversationList {
   width: 360px;
+  min-width: 0;
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -577,13 +578,6 @@
   /* Filter bar scroll */
   .filterBar {
     padding: 10px 12px;
-    overflow-x: auto;
-    flex-wrap: nowrap;
-  }
-
-  .filterBtn {
-    white-space: nowrap;
-    flex-shrink: 0;
   }
 
   .listHeader {
