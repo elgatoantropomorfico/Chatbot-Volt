@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore } from 'lucide-react';
 import styles from './page.module.css';
@@ -8,13 +8,13 @@ import styles from './page.module.css';
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
 
 export default function InboxPage() {
-  const [conversations, setConversations] = useState<any[]>([]);
+  const [allConversations, setAllConversations] = useState<any[]>([]);
+  const [archivedConversations, setArchivedConversations] = useState<any[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [convStatus, setConvStatus] = useState<string>('');
   const [filter, setFilter] = useState<ConversationStatus | ''>('');
   const [showArchived, setShowArchived] = useState(false);
-  const [archivedCount, setArchivedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
@@ -24,13 +24,21 @@ export default function InboxPage() {
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Derived: client-side filtered conversations (instant)
+  const conversations = useMemo(() => {
+    const source = showArchived ? archivedConversations : allConversations;
+    if (!filter) return source;
+    return source.filter((c: any) => c.status === filter);
+  }, [allConversations, archivedConversations, showArchived, filter]);
 
-  // Load conversations initially and set up polling
+  const archivedCount = archivedConversations.length;
+
+  // Fetch all conversations (both active + archived) once, then poll
   useEffect(() => {
-    loadConversations();
-    convPollTimerRef.current = setInterval(loadConversations, 5000);
+    fetchAll();
+    convPollTimerRef.current = setInterval(fetchAll, 5000);
     return () => { if (convPollTimerRef.current) clearInterval(convPollTimerRef.current); };
-  }, [filter, showArchived]);
+  }, []);
 
   // Load messages when selecting a conversation + start polling
   useEffect(() => {
@@ -47,18 +55,15 @@ export default function InboxPage() {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  async function loadConversations() {
+  async function fetchAll() {
     try {
-      const params: Record<string, string> = {};
-      if (filter) params.status = filter;
-      if (showArchived) params.archived = 'true';
-      const data = await api.getConversations(params);
-      setConversations(data.conversations);
+      const [active, archived] = await Promise.all([
+        api.getConversations({}),
+        api.getConversations({ archived: 'true' }),
+      ]);
+      setAllConversations(active.conversations);
+      setArchivedConversations(archived.conversations);
       setLoading(false);
-      // Fetch archived count in background
-      if (!showArchived) {
-        api.getConversations({ archived: 'true' }).then(d => setArchivedCount(d.total)).catch(() => {});
-      }
     } catch (err) {
       console.error('Error loading conversations:', err);
       setLoading(false);
@@ -93,7 +98,7 @@ export default function InboxPage() {
       }
       if (data.status !== convStatus) {
         setConvStatus(data.status);
-        loadConversations();
+        fetchAll();
       }
     } catch (err) {
       // Silent fail on poll
@@ -111,7 +116,7 @@ export default function InboxPage() {
       setInputText('');
       if (result.aiPaused) {
         setConvStatus('pending_human');
-        loadConversations();
+        fetchAll();
       }
     } catch (err: any) {
       alert('Error enviando: ' + err.message);
@@ -127,7 +132,7 @@ export default function InboxPage() {
       const newEnabled = convStatus !== 'open';
       const result = await api.toggleAI(selectedId, newEnabled);
       setConvStatus(result.conversation.status);
-      loadConversations();
+      fetchAll();
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -138,7 +143,7 @@ export default function InboxPage() {
   async function handleClose(conversationId: string) {
     try {
       await api.closeConversation(conversationId);
-      await loadConversations();
+      await fetchAll();
       setSelectedId(null);
       setMessages([]);
     } catch (err: any) {
@@ -149,7 +154,7 @@ export default function InboxPage() {
   async function handleArchive(conversationId: string) {
     try {
       await api.archiveConversation(conversationId);
-      await loadConversations();
+      await fetchAll();
       setSelectedId(null);
       setMessages([]);
     } catch (err: any) {
@@ -160,7 +165,7 @@ export default function InboxPage() {
   async function handleUnarchive(conversationId: string) {
     try {
       await api.unarchiveConversation(conversationId);
-      await loadConversations();
+      await fetchAll();
       setSelectedId(null);
       setMessages([]);
     } catch (err: any) {
@@ -168,7 +173,7 @@ export default function InboxPage() {
     }
   }
 
-  const selectedConv = conversations.find((c) => c.id === selectedId);
+  const selectedConv = conversations.find((c: any) => c.id === selectedId);
   const isAIActive = convStatus === 'open';
 
   function getBadgeClass(status: string) {
