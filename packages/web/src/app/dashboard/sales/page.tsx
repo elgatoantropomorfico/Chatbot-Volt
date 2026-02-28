@@ -243,6 +243,7 @@ export default function SalesPage() {
                   <th>Total</th>
                   <th>Estado</th>
                   <th>Acciones</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -306,6 +307,10 @@ export default function SalesPage() {
                           {sale.status === 'completed' && (
                             <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Finalizada</span>
                           )}
+                        </div>
+                      </td>
+                      <td>
+                        <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
                           {sale.checkoutMode === 'wa_human' && (
                             <button
                               className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
