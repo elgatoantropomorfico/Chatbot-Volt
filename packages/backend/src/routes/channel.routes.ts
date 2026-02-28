@@ -11,6 +11,8 @@ const createChannelSchema = z.object({
 });
 
 const updateChannelSchema = z.object({
+  phoneNumberId: z.string().optional(),
+  wabaId: z.string().optional(),
   isActive: z.boolean().optional(),
   displayPhone: z.string().optional(),
 });
