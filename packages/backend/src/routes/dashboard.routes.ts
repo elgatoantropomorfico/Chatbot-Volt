@@ -132,4 +132,114 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       reply.status(500).send({ error: 'Failed to load dashboard stats' });
     }
   });
+
+  // GET /api/dashboard/actions — pending action items for tenant
+  fastify.get('/actions', async (request, reply) => {
+    try {
+      const user = request.user as any;
+      const tenantId = user.tenantId;
+      if (!tenantId) return reply.send({ actions: [] });
+
+      const actions: any[] = [];
+
+      // 1. Pending sales (wa_human only)
+      try {
+        const pendingSales: any[] = await prisma.$queryRawUnsafe(
+          `SELECT COUNT(*)::int as count FROM sales WHERE tenant_id = $1 AND status = 'pending'`,
+          tenantId
+        );
+        const count = pendingSales[0]?.count || 0;
+        if (count > 0) {
+          actions.push({
+            id: 'pending_sales',
+            type: 'warning',
+            title: 'Ventas pendientes',
+            description: `Tenés ${count} venta${count > 1 ? 's' : ''} esperando confirmación.`,
+            link: '/dashboard/sales',
+            linkLabel: 'Ir a Ventas',
+          });
+        }
+      } catch {}
+
+      // 2. Leads without label (stage = nuevo, with activity)
+      const unlabeledLeads = await prisma.lead.count({
+        where: { tenantId, stage: 'nuevo' },
+      });
+      if (unlabeledLeads > 0) {
+        actions.push({
+          id: 'unlabeled_leads',
+          type: 'info',
+          title: 'Leads sin clasificar',
+          description: `${unlabeledLeads} lead${unlabeledLeads > 1 ? 's' : ''} en estado "nuevo" sin etiqueta asignada.`,
+          link: '/dashboard/leads',
+          linkLabel: 'Ir a Leads',
+        });
+      }
+
+      // 3. Conversations pending human attention
+      const pendingHuman = await prisma.conversation.count({
+        where: { tenantId, status: 'pending_human' },
+      });
+      if (pendingHuman > 0) {
+        actions.push({
+          id: 'pending_human',
+          type: 'urgent',
+          title: 'Atención humana requerida',
+          description: `${pendingHuman} conversación${pendingHuman > 1 ? 'es' : ''} esperando respuesta de un agente.`,
+          link: '/dashboard/inbox',
+          linkLabel: 'Ir a Inbox',
+        });
+      }
+
+      // 4. Missing WhatsApp channel
+      const channel = await prisma.channel.findFirst({
+        where: { tenant: { id: tenantId } },
+      });
+      if (!channel || !channel.phoneNumberId) {
+        actions.push({
+          id: 'missing_channel',
+          type: 'config',
+          title: 'Canal de WhatsApp no configurado',
+          description: 'Configurá tu canal de WhatsApp para empezar a recibir mensajes.',
+          link: '/dashboard/settings',
+          linkLabel: 'Ir a Configuración',
+        });
+      }
+
+      // 5. Missing bot settings / prompt builder
+      const botSettings = await prisma.botSettings.findFirst({
+        where: { tenantId },
+      });
+      if (!botSettings || !botSettings.promptBuilderJson) {
+        actions.push({
+          id: 'missing_bot_config',
+          type: 'config',
+          title: 'Bot sin configurar',
+          description: 'Completá la configuración del bot con datos de tu negocio para mejorar las respuestas.',
+          link: '/dashboard/bot',
+          linkLabel: 'Ir a Bot / IA',
+        });
+      }
+
+      // 6. Missing WooCommerce integration (if no integration at all)
+      const integration = await prisma.integration.findFirst({
+        where: { tenantId, type: 'woocommerce', status: 'active' },
+      });
+      if (!integration) {
+        actions.push({
+          id: 'missing_woo',
+          type: 'info',
+          title: 'Tienda online no conectada',
+          description: 'Conectá WooCommerce para habilitar la venta de productos por WhatsApp.',
+          link: '/dashboard/integrations',
+          linkLabel: 'Ir a Integraciones',
+        });
+      }
+
+      reply.send({ actions });
+    } catch (error) {
+      console.error('Dashboard actions error:', error);
+      reply.status(500).send({ error: 'Failed to load dashboard actions' });
+    }
+  });
 }

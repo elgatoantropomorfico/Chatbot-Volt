@@ -173,6 +173,7 @@ class ApiClient {
 
   // Dashboard
   async getDashboardStats() { return this.fetch<any>('/dashboard/stats'); }
+  async getDashboardActions() { return this.fetch<{ actions: any[] }>('/dashboard/actions'); }
 
   // Sales
   async getSales(params?: Record<string, string>) {

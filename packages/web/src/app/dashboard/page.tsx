@@ -6,7 +6,9 @@ import { useState, useEffect } from 'react';
 import { 
   MessageSquare, Users, Clock, TrendingUp, ShoppingCart, Phone, Bot,
   Building2, Plus, X, Hash, Plug, UserCircle, ChevronRight, Edit3, Trash2, Check, Save,
+  AlertTriangle, Info, Settings, ArrowRight,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import styles from './layout.module.css';
 
 // ════════════════════════════════════════════
@@ -539,16 +541,42 @@ interface DashboardStats {
 
 function TenantDashboard() {
   const { user } = useAuth();
+  const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [actions, setActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
-      try { const data = await api.getDashboardStats(); setStats(data); }
-      catch (err) { console.error(err); }
+      try {
+        const [statsData, actionsData] = await Promise.all([
+          api.getDashboardStats(),
+          api.getDashboardActions().catch(() => ({ actions: [] })),
+        ]);
+        setStats(statsData);
+        setActions(actionsData.actions);
+      } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
   }, []);
+
+  const actionIcon = (type: string) => {
+    switch (type) {
+      case 'urgent': return <AlertTriangle size={18} />;
+      case 'warning': return <Clock size={18} />;
+      case 'config': return <Settings size={18} />;
+      default: return <Info size={18} />;
+    }
+  };
+
+  const actionColor = (type: string) => {
+    switch (type) {
+      case 'urgent': return { bg: 'rgba(251, 113, 133, 0.08)', border: 'rgba(251, 113, 133, 0.2)', color: '#fb7185', accent: 'rgba(251, 113, 133, 0.15)' };
+      case 'warning': return { bg: 'rgba(251, 191, 36, 0.08)', border: 'rgba(251, 191, 36, 0.2)', color: '#fbbf24', accent: 'rgba(251, 191, 36, 0.15)' };
+      case 'config': return { bg: 'rgba(139, 92, 246, 0.08)', border: 'rgba(139, 92, 246, 0.2)', color: '#8b5cf6', accent: 'rgba(139, 92, 246, 0.15)' };
+      default: return { bg: 'rgba(6, 182, 212, 0.08)', border: 'rgba(6, 182, 212, 0.2)', color: '#06b6d4', accent: 'rgba(6, 182, 212, 0.15)' };
+    }
+  };
 
   if (loading) {
     return (
@@ -596,6 +624,62 @@ function TenantDashboard() {
           <StatCard icon={<TrendingUp size={20} />} label="Tiempo de respuesta" value={stats.messages.avgResponseTime < 60 ? `${Math.round(stats.messages.avgResponseTime)}s` : `${Math.round(stats.messages.avgResponseTime / 60)}min`} subtitle="Promedio de respuesta del bot" color="#8b5cf6" glow="rgba(139, 92, 246, 0.15)" />
         ) : null}
       </div>
+
+      {/* Action Items */}
+      {actions.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <h2 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <AlertTriangle size={18} style={{ color: '#fbbf24' }} />
+            Tareas pendientes
+          </h2>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {actions.map((action: any) => {
+              const colors = actionColor(action.type);
+              return (
+                <div
+                  key={action.id}
+                  onClick={() => router.push(action.link)}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: '16px',
+                    padding: '16px 20px',
+                    background: colors.bg,
+                    border: `1px solid ${colors.border}`,
+                    borderRadius: 'var(--radius-md)',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateX(4px)'; e.currentTarget.style.boxShadow = `0 4px 16px ${colors.accent}`; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateX(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+                >
+                  <div style={{
+                    width: '36px', height: '36px', borderRadius: 'var(--radius-sm)',
+                    background: colors.accent, display: 'flex', alignItems: 'center',
+                    justifyContent: 'center', color: colors.color, flexShrink: 0,
+                  }}>
+                    {actionIcon(action.type)}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: '13.5px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '2px' }}>
+                      {action.title}
+                    </div>
+                    <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
+                      {action.description}
+                    </div>
+                  </div>
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '6px',
+                    fontSize: '12px', fontWeight: 600, color: colors.color,
+                    whiteSpace: 'nowrap', flexShrink: 0,
+                  }}>
+                    {action.linkLabel}
+                    <ArrowRight size={14} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
