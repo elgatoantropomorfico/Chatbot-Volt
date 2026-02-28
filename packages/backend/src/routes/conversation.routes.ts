@@ -20,22 +20,37 @@ export async function conversationRoutes(app: FastifyInstance) {
 
     const where: any = { ...getTenantFilter(user) };
     if (query.status) where.status = query.status;
-    where.isArchived = query.archived === 'true';
 
-    const [conversations, total] = await Promise.all([
-      prisma.conversation.findMany({
-        where,
-        include: {
-          lead: { select: { id: true, name: true, phone: true, stage: true } },
-          channel: { select: { id: true, displayPhone: true } },
-          messages: { orderBy: { createdAt: 'desc' }, take: 1 },
-        },
-        orderBy: { updatedAt: 'desc' },
-        skip,
-        take: limit,
-      }),
-      prisma.conversation.count({ where }),
-    ]);
+    const isArchived = query.archived === 'true';
+
+    // Build tenant condition for raw query
+    const tenantCondition = user.role === 'superadmin' ? '' : ` AND tenant_id = '${user.tenantId}'`;
+    const statusCondition = query.status ? ` AND status = '${query.status}'` : '';
+
+    // Get IDs of matching conversations using raw SQL (is_archived may not be in Prisma client yet)
+    const rawRows: any[] = await prisma.$queryRawUnsafe(
+      `SELECT id FROM conversations WHERE is_archived = $1${tenantCondition}${statusCondition} ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
+      isArchived, limit, skip
+    );
+    const ids = rawRows.map((r: any) => r.id);
+
+    const countResult: any[] = await prisma.$queryRawUnsafe(
+      `SELECT COUNT(*)::int as count FROM conversations WHERE is_archived = $1${tenantCondition}${statusCondition}`,
+      isArchived
+    );
+    const total = countResult[0]?.count || 0;
+
+    const conversations = ids.length > 0
+      ? await prisma.conversation.findMany({
+          where: { id: { in: ids } },
+          include: {
+            lead: { select: { id: true, name: true, phone: true, stage: true } },
+            channel: { select: { id: true, displayPhone: true } },
+            messages: { orderBy: { createdAt: 'desc' }, take: 1 },
+          },
+          orderBy: { updatedAt: 'desc' },
+        })
+      : [];
 
     return reply.send({ conversations, total, page, limit, totalPages: Math.ceil(total / limit) });
   });
@@ -97,19 +112,21 @@ export async function conversationRoutes(app: FastifyInstance) {
 
   // Archive conversation
   app.post('/:id/archive', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const conversation = await prisma.conversation.update({
-      where: { id: request.params.id },
-      data: { isArchived: true },
-    });
+    await prisma.$executeRawUnsafe(
+      `UPDATE conversations SET is_archived = true WHERE id = $1`,
+      request.params.id
+    );
+    const conversation = await prisma.conversation.findUnique({ where: { id: request.params.id } });
     return reply.send({ conversation, message: 'Conversation archived' });
   });
 
   // Unarchive conversation
   app.post('/:id/unarchive', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    const conversation = await prisma.conversation.update({
-      where: { id: request.params.id },
-      data: { isArchived: false },
-    });
+    await prisma.$executeRawUnsafe(
+      `UPDATE conversations SET is_archived = false WHERE id = $1`,
+      request.params.id
+    );
+    const conversation = await prisma.conversation.findUnique({ where: { id: request.params.id } });
     return reply.send({ conversation, message: 'Conversation unarchived' });
   });
 

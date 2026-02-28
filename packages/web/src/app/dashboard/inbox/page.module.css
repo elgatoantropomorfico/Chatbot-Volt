@@ -58,6 +58,8 @@
   transition: all var(--transition-fast);
   white-space: nowrap;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 
 .filterBtn:hover {
