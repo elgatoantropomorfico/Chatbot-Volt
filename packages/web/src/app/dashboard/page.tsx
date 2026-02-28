@@ -331,9 +331,11 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
   const [wabaId, setWabaId] = useState(channel?.wabaId || '');
   const [displayPhone, setDisplayPhone] = useState(channel?.displayPhone || '');
   const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   async function handleSave() {
     setSaving(true);
+    setSaveMsg(null);
     try {
       if (channel) {
         await api.updateChannel(channel.id, { phoneNumberId, wabaId, displayPhone });
@@ -341,7 +343,10 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
         await api.createChannel({ tenantId: tenant.id, phoneNumberId, wabaId, displayPhone });
       }
       await onRefresh();
-    } catch (err: any) { alert(err.message); }
+      setSaveMsg({ type: 'ok', text: '✅ Canal guardado correctamente' });
+    } catch (err: any) {
+      setSaveMsg({ type: 'err', text: `❌ Error: ${err.message}` });
+    }
     finally { setSaving(false); }
   }
 
@@ -370,7 +375,10 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
         <label style={labelStyle}>Teléfono visible</label>
         <input value={displayPhone} onChange={(e) => setDisplayPhone(e.target.value)} style={inputStyle} placeholder="Ej: +54 9 11 1234-5678" />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
+        {saveMsg && (
+          <span style={{ fontSize: '13px', color: saveMsg.type === 'ok' ? '#34d399' : '#f87171' }}>{saveMsg.text}</span>
+        )}
         <button onClick={handleSave} disabled={saving} style={{
           display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 22px',
           background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
