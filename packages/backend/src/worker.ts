@@ -89,6 +89,56 @@ async function processMessage(job: Job<IncomingMessage>) {
         }
       }
 
+      // Check for promo intent BEFORE product search (only in shopping mode)
+      if (!wooDirectResponse && WooService.isShoppingMode(conversation.id)) {
+        if (WooService.detectPromoIntent(data.text)) {
+          console.log(`🏷️ Promo intent detected in shopping mode for ${conversation.id}`);
+          const pb = (botSettings as any).promptBuilderJson as Record<string, any> | null;
+          const promos = pb?.promotions;
+          if (promos && (promos.active || promos.conditions || promos.validUntil)) {
+            // Build raw promo block from tenant config
+            const promoParts: string[] = [];
+            if (promos.active) promoParts.push(promos.active);
+            if (promos.conditions) promoParts.push(`Condiciones: ${promos.conditions}`);
+            if (promos.validUntil) promoParts.push(`Válido hasta: ${promos.validUntil}`);
+            const promoBlock = promoParts.join('\n');
+
+            // Business name for context
+            const businessName = pb?.business?.name || 'el negocio';
+
+            // Focused OpenAI call to format the promo response conversationally
+            try {
+              const promoSystemPrompt =
+                `Sos un asistente de ventas de ${businessName}. El cliente está comprando y preguntó sobre promociones o medios de pago.\n` +
+                `Respondé SOLO usando la información de promociones que te paso abajo. Sé claro, amigable y usá formato WhatsApp (*bold*, listas).\n` +
+                `Si el cliente pregunta por un banco o medio de pago específico que NO está en la lista, decí que no lo tenés en las promos actuales.\n` +
+                `No inventes datos ni agregues promos que no estén listadas.\n` +
+                `IMPORTANTE: Cerrá tu respuesta siempre con esta frase exacta en itálica:\n_Si querés, sigo con la búsqueda de productos._\n\n` +
+                `PROMOCIONES ACTUALES DE ${businessName.toUpperCase()}:\n${promoBlock}`;
+
+              const OpenAI = (await import('openai')).default;
+              const openaiClient = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+              const completion = await openaiClient.chat.completions.create({
+                model: botSettings.model || 'gpt-4o-mini',
+                temperature: 0.4,
+                messages: [
+                  { role: 'system', content: promoSystemPrompt },
+                  { role: 'user', content: data.text },
+                ],
+                max_tokens: 512,
+              });
+              wooDirectResponse = completion.choices[0]?.message?.content?.trim() || null;
+            } catch (promoErr: any) {
+              console.error('⚠️ Promo OpenAI error:', promoErr.message);
+            }
+          }
+          // Fallback if no promos configured or OpenAI failed
+          if (!wooDirectResponse) {
+            wooDirectResponse = 'No tenemos promociones cargadas en este momento. Podés consultar directamente con un asesor.\n\n_Si querés, sigo con la búsqueda de productos._';
+          }
+        }
+      }
+
       // Detect WooCommerce intent (pass conversationId for shopping mode awareness)
       if (!wooDirectResponse) {
         let wooIntent = WooService.detectIntent(data.text, conversation.id);

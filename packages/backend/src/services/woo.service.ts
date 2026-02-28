@@ -505,6 +505,65 @@ export class WooService {
     return q || text;
   }
 
+  // ───── PROMO INTENT DETECTION ─────
+
+  /**
+   * Detects if the user is asking about promotions, discounts, payment plans, etc.
+   * Pure keyword matcher — no AI needed. Works inside shopping mode only (checked by caller).
+   */
+  static detectPromoIntent(text: string): boolean {
+    const lower = text.toLowerCase().trim();
+
+    // Strong keywords — single match is enough
+    const strongKeywords = [
+      'promo', 'promoción', 'promocion', 'promociones',
+      'descuento', 'descuentos', 'reintegro', 'reintegros',
+      'cuotas', 'sin interés', 'sin interes',
+      'financiación', 'financiacion',
+      'oferta', 'ofertas',
+    ];
+
+    for (const kw of strongKeywords) {
+      if (lower.includes(kw)) return true;
+    }
+
+    // Bank / payment method keywords — match if combined with payment context
+    const bankKeywords = [
+      'visa', 'mastercard', 'american express', 'amex',
+      'naranja', 'naranjax', 'naranja x',
+      'plan z', 'modo', 'bna', 'bna+',
+      'locred', 'gocuotas', 'go cuotas',
+      'mercado pago', 'mercadopago',
+      'banco', 'bancos', 'tarjeta', 'tarjetas',
+      'débito', 'debito', 'crédito', 'credito',
+    ];
+
+    const paymentContext = /(?:promo|cuota|pago|pagar|abon|descuento|financ|inter[eé]s|tope|reintegro|hay|tienen|aceptan|con\s)/i;
+
+    for (const kw of bankKeywords) {
+      if (lower.includes(kw) && (paymentContext.test(lower) || lower.length < 40)) return true;
+    }
+
+    // Pattern-based detection
+    const promoPatterns = [
+      /(?:hay|tienen?)\s+(?:promo|descuento|oferta|cuota)/i,
+      /(?:cuotas?|promo|descuento)\s+(?:con|de|en|para)\s+/i,
+      /(?:qu[eé])\s+(?:promo|descuento|oferta|banco|tarjeta|cuota)/i,
+      /(?:qu[eé])\s+(?:d[ií]as?|bancos?)\s/i,
+      /(?:aceptan|reciben)\s+(?:tarjeta|d[eé]bito|cr[eé]dito|visa|master|mercado)/i,
+      /(?:formas?|medios?|m[eé]todos?)\s+de\s+pago/i,
+      /(?:c[oó]mo|puedo)\s+pagar/i,
+      /(?:pago|pagar)\s+(?:con|en)\s+(?:cuotas|tarjeta|d[eé]bito|cr[eé]dito)/i,
+      /(?:tope|l[ií]mite)\s+(?:de\s+)?(?:reintegro|descuento)/i,
+    ];
+
+    for (const pattern of promoPatterns) {
+      if (pattern.test(lower)) return true;
+    }
+
+    return false;
+  }
+
   // ───── HELPERS ─────
 
   private formatPrice(price: string): string {
