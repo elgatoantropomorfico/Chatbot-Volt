@@ -22,22 +22,26 @@ import {
 import { api } from '@/lib/api';
 import styles from './layout.module.css';
 
+// Super admin: only tenant management
+const superAdminItems = [
+  { href: '/dashboard', label: 'Tenants', icon: Building2 },
+];
+
+// Tenant users navigation
 const navItems = [
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['superadmin', 'tenant_admin', 'agent'] },
-  { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, roles: ['superadmin', 'tenant_admin', 'agent'] },
-  { href: '/dashboard/leads', label: 'Leads', icon: Users, roles: ['superadmin', 'tenant_admin', 'agent'] },
+  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['tenant_admin', 'agent'] },
+  { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, roles: ['tenant_admin', 'agent'] },
+  { href: '/dashboard/leads', label: 'Leads', icon: Users, roles: ['tenant_admin', 'agent'] },
 ];
 
 const adminItems = [
-  { href: '/dashboard/tenants', label: 'Tenants', icon: Building2, roles: ['superadmin'] },
-  { href: '/dashboard/channels', label: 'Channels', icon: Phone, roles: ['superadmin'] },
-  { href: '/dashboard/users', label: 'Usuarios', icon: UserCircle, roles: ['superadmin', 'tenant_admin'] },
+  { href: '/dashboard/users', label: 'Usuarios', icon: UserCircle, roles: ['tenant_admin'] },
 ];
 
 const configItems = [
-  { href: '/dashboard/bot-settings', label: 'Bot / IA', icon: Bot, roles: ['superadmin', 'tenant_admin'] },
-  { href: '/dashboard/integrations', label: 'Integraciones', icon: Plug, roles: ['superadmin', 'tenant_admin'] },
-  { href: '/dashboard/settings', label: 'Configuración', icon: Settings, roles: ['superadmin', 'tenant_admin'] },
+  { href: '/dashboard/bot-settings', label: 'Bot / IA', icon: Bot, roles: ['tenant_admin'] },
+  { href: '/dashboard/integrations', label: 'Integraciones', icon: Plug, roles: ['tenant_admin'] },
+  { href: '/dashboard/settings', label: 'Configuración', icon: Settings, roles: ['tenant_admin'] },
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -105,31 +109,22 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
 
         <nav className={styles.nav}>
-          {filterByRole(navItems).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
-            >
-              <item.icon size={18} />
-              {item.label}
-            </Link>
-          ))}
-
-          {showSales && (
-            <Link
-              href="/dashboard/sales"
-              className={`${styles.navItem} ${pathname === '/dashboard/sales' ? styles.navItemActive : ''}`}
-            >
-              <DollarSign size={18} />
-              Ventas
-            </Link>
-          )}
-
-          {filterByRole(adminItems).length > 0 && (
+          {isSuperAdmin ? (
+            /* Super Admin: only tenant management */
+            superAdminItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
+              >
+                <item.icon size={18} />
+                {item.label}
+              </Link>
+            ))
+          ) : (
+            /* Tenant users: full navigation */
             <>
-              <div className={styles.navSection}>Administración</div>
-              {filterByRole(adminItems).map((item) => (
+              {filterByRole(navItems).map((item) => (
                 <Link
                   key={item.href}
                   href={item.href}
@@ -139,22 +134,48 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   {item.label}
                 </Link>
               ))}
-            </>
-          )}
 
-          {filterByRole(configItems).length > 0 && (
-            <>
-              <div className={styles.navSection}>Configuración</div>
-              {filterByRole(configItems).map((item) => (
+              {showSales && (
                 <Link
-                  key={item.href}
-                  href={item.href}
-                  className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
+                  href="/dashboard/sales"
+                  className={`${styles.navItem} ${pathname === '/dashboard/sales' ? styles.navItemActive : ''}`}
                 >
-                  <item.icon size={18} />
-                  {item.label}
+                  <DollarSign size={18} />
+                  Ventas
                 </Link>
-              ))}
+              )}
+
+              {filterByRole(adminItems).length > 0 && (
+                <>
+                  <div className={styles.navSection}>Administración</div>
+                  {filterByRole(adminItems).map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
+                    >
+                      <item.icon size={18} />
+                      {item.label}
+                    </Link>
+                  ))}
+                </>
+              )}
+
+              {filterByRole(configItems).length > 0 && (
+                <>
+                  <div className={styles.navSection}>Configuración</div>
+                  {filterByRole(configItems).map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
+                    >
+                      <item.icon size={18} />
+                      {item.label}
+                    </Link>
+                  ))}
+                </>
+              )}
             </>
           )}
         </nav>
