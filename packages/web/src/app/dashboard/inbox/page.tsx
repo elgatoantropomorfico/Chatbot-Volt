@@ -23,6 +23,39 @@ export default function InboxPage() {
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Drag-to-scroll for filter pills
+  const filterBarRef = useRef<HTMLDivElement>(null);
+  const isDragging = useRef(false);
+  const dragStartX = useRef(0);
+  const scrollStartX = useRef(0);
+  const didDrag = useRef(false);
+
+  function onFilterMouseDown(e: React.MouseEvent) {
+    isDragging.current = true;
+    didDrag.current = false;
+    dragStartX.current = e.clientX;
+    scrollStartX.current = filterBarRef.current?.scrollLeft || 0;
+    e.preventDefault();
+  }
+
+  useEffect(() => {
+    function onMouseMove(e: MouseEvent) {
+      if (!isDragging.current || !filterBarRef.current) return;
+      const dx = e.clientX - dragStartX.current;
+      if (Math.abs(dx) > 3) didDrag.current = true;
+      filterBarRef.current.scrollLeft = scrollStartX.current - dx;
+    }
+    function onMouseUp() {
+      isDragging.current = false;
+    }
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+  }, []);
+
   // Load conversations initially and set up polling
   useEffect(() => {
     loadConversations();
@@ -197,19 +230,24 @@ export default function InboxPage() {
           <span className={styles.liveIndicator}>EN VIVO</span>
         </div>
 
-        <div className={styles.filterBar}>
+        <div
+          className={styles.filterBar}
+          ref={filterBarRef}
+          onMouseDown={onFilterMouseDown}
+          style={{ cursor: 'grab' }}
+        >
           {['', 'open', 'pending_human', 'closed'].map((f) => (
             <button
               key={f}
               className={`${styles.filterBtn} ${!showArchived && filter === f ? styles.filterBtnActive : ''}`}
-              onClick={() => { setFilter(f as any); setShowArchived(false); }}
+              onClick={() => { if (!didDrag.current) { setFilter(f as any); setShowArchived(false); } }}
             >
               {f === '' ? 'Todas' : getStatusLabel(f)}
             </button>
           ))}
           <button
             className={`${styles.filterBtn} ${showArchived ? styles.filterBtnActive : ''}`}
-            onClick={() => { setShowArchived(true); setFilter(''); }}
+            onClick={() => { if (!didDrag.current) { setShowArchived(true); setFilter(''); } }}
           >
             <Archive size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
             Archivados
