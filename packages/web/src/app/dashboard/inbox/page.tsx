@@ -14,6 +14,7 @@ export default function InboxPage() {
   const [convStatus, setConvStatus] = useState<string>('');
   const [filter, setFilter] = useState<ConversationStatus | ''>('');
   const [showArchived, setShowArchived] = useState(false);
+  const [archivedCount, setArchivedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
@@ -23,38 +24,6 @@ export default function InboxPage() {
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Drag-to-scroll for filter pills
-  const filterBarRef = useRef<HTMLDivElement>(null);
-  const isDragging = useRef(false);
-  const dragStartX = useRef(0);
-  const scrollStartX = useRef(0);
-  const didDrag = useRef(false);
-
-  function onFilterMouseDown(e: React.MouseEvent) {
-    isDragging.current = true;
-    didDrag.current = false;
-    dragStartX.current = e.clientX;
-    scrollStartX.current = filterBarRef.current?.scrollLeft || 0;
-    e.preventDefault();
-  }
-
-  useEffect(() => {
-    function onMouseMove(e: MouseEvent) {
-      if (!isDragging.current || !filterBarRef.current) return;
-      const dx = e.clientX - dragStartX.current;
-      if (Math.abs(dx) > 3) didDrag.current = true;
-      filterBarRef.current.scrollLeft = scrollStartX.current - dx;
-    }
-    function onMouseUp() {
-      isDragging.current = false;
-    }
-    window.addEventListener('mousemove', onMouseMove);
-    window.addEventListener('mouseup', onMouseUp);
-    return () => {
-      window.removeEventListener('mousemove', onMouseMove);
-      window.removeEventListener('mouseup', onMouseUp);
-    };
-  }, []);
 
   // Load conversations initially and set up polling
   useEffect(() => {
@@ -86,6 +55,10 @@ export default function InboxPage() {
       const data = await api.getConversations(params);
       setConversations(data.conversations);
       setLoading(false);
+      // Fetch archived count in background
+      if (!showArchived) {
+        api.getConversations({ archived: 'true' }).then(d => setArchivedCount(d.total)).catch(() => {});
+      }
     } catch (err) {
       console.error('Error loading conversations:', err);
       setLoading(false);
@@ -230,31 +203,42 @@ export default function InboxPage() {
           <span className={styles.liveIndicator}>EN VIVO</span>
         </div>
 
-        <div
-          className={styles.filterBar}
-          ref={filterBarRef}
-          onMouseDown={onFilterMouseDown}
-          style={{ cursor: 'grab' }}
-        >
-          {['', 'open', 'pending_human', 'closed'].map((f) => (
+        {showArchived ? (
+          <div className={styles.archivedHeader}>
             <button
-              key={f}
-              className={`${styles.filterBtn} ${!showArchived && filter === f ? styles.filterBtnActive : ''}`}
-              onClick={() => { if (!didDrag.current) { setFilter(f as any); setShowArchived(false); } }}
+              className={styles.archivedBackBtn}
+              onClick={() => setShowArchived(false)}
             >
-              {f === '' ? 'Todas' : getStatusLabel(f)}
+              <ArrowLeft size={18} />
             </button>
-          ))}
-          <button
-            className={`${styles.filterBtn} ${showArchived ? styles.filterBtnActive : ''}`}
-            onClick={() => { if (!didDrag.current) { setShowArchived(true); setFilter(''); } }}
-          >
-            <Archive size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
-            Archivados
-          </button>
-        </div>
+            <Archive size={16} />
+            <span>Archivados</span>
+          </div>
+        ) : (
+          <div className={styles.filterBar}>
+            {['', 'open', 'pending_human', 'closed'].map((f) => (
+              <button
+                key={f}
+                className={`${styles.filterBtn} ${filter === f ? styles.filterBtnActive : ''}`}
+                onClick={() => setFilter(f as any)}
+              >
+                {f === '' ? 'Todas' : getStatusLabel(f)}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className={styles.listItems}>
+          {!showArchived && archivedCount > 0 && (
+            <div
+              className={styles.archiveBanner}
+              onClick={() => { setShowArchived(true); setFilter(''); setSelectedId(null); setMessages([]); }}
+            >
+              <Archive size={16} />
+              <span>Archivados</span>
+              <span className={styles.archiveCount}>{archivedCount}</span>
+            </div>
+          )}
           {loading && <div className={styles.emptyState}><p>Cargando...</p></div>}
           {!loading && conversations.length === 0 && (
             <div className={styles.emptyState}><p>Sin conversaciones</p></div>
