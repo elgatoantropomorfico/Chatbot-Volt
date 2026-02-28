@@ -275,6 +275,12 @@ function TenantGeneralTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
   const [timezone, setTimezone] = useState(tenant.timezone || 'America/Argentina/Buenos_Aires');
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    setName(tenant.name);
+    setStatus(tenant.status);
+    setTimezone(tenant.timezone || 'America/Argentina/Buenos_Aires');
+  }, [tenant]);
+
   async function handleSave() {
     setSaving(true);
     try {
@@ -332,6 +338,13 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
   const [displayPhone, setDisplayPhone] = useState(channel?.displayPhone || '');
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    const ch = tenant.channels?.[0];
+    setPhoneNumberId(ch?.phoneNumberId || '');
+    setWabaId(ch?.wabaId || '');
+    setDisplayPhone(ch?.displayPhone || '');
+  }, [tenant]);
 
   async function handleSave() {
     setSaving(true);
