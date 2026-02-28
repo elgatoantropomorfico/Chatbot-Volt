@@ -337,7 +337,7 @@ export class WooService {
   static detectEntry(text: string): string | null {
     const lower = text.toLowerCase().trim();
     if (/^\s*(?:quiero\s+comprar|modo\s+compra|ver\s+(?:productos|catálogo|catalogo)|catálogo|catalogo)\s*$/i.test(lower) ||
-        /^\s*(?:buscar\s+productos?|ver\s+tienda|tienda)\s*$/i.test(lower) ||
+        /^\s*(?:buscar(?:\s+productos?)?|ver\s+tienda|tienda|comprar)\s*$/i.test(lower) ||
         /(?:puedo|se\s+puede|c[oó]mo\s+(?:puedo|hago\s+para))\s+comprar(?:\s+(?:ac[aá]|por\s+ac[aá]|algo|por\s+(?:ac[aá]|aqui|aqu[ií])))?[?!.]?\s*$/i.test(lower) ||
         /(?:c[oó]mo|donde|dónde)\s+(?:compro|puedo\s+comprar)/i.test(lower)) {
       return '🛍️ *¡Modo compra activado!*\n\nEscribí el nombre de lo que buscás y te muestro opciones del catálogo.\n\n_Para salir del modo compra, escribí *"salir"*._';
@@ -461,7 +461,9 @@ export class WooService {
       }
 
       // In shopping mode, treat any unmatched text as a product search (the user is browsing)
-      if (lower.length >= 3 && lower.length <= 80) {
+      // Skip generic words that aren't real product searches
+      const skipWords = /^\s*(?:buscar|comprar|ver|hola|chau|gracias|ok|si|sí|no|dale|bueno|listo)\s*[?!.]*\s*$/i;
+      if (lower.length >= 3 && lower.length <= 80 && !skipWords.test(lower)) {
         return { intent: 'product_search', query: text.replace(/[?!¿¡.,]+$/g, '').trim() };
       }
     }
