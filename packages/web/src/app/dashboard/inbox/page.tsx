@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft } from 'lucide-react';
+import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore } from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
@@ -13,6 +13,7 @@ export default function InboxPage() {
   const [messages, setMessages] = useState<any[]>([]);
   const [convStatus, setConvStatus] = useState<string>('');
   const [filter, setFilter] = useState<ConversationStatus | ''>('');
+  const [showArchived, setShowArchived] = useState(false);
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
@@ -27,7 +28,7 @@ export default function InboxPage() {
     loadConversations();
     convPollTimerRef.current = setInterval(loadConversations, 5000);
     return () => { if (convPollTimerRef.current) clearInterval(convPollTimerRef.current); };
-  }, [filter]);
+  }, [filter, showArchived]);
 
   // Load messages when selecting a conversation + start polling
   useEffect(() => {
@@ -48,6 +49,7 @@ export default function InboxPage() {
     try {
       const params: Record<string, string> = {};
       if (filter) params.status = filter;
+      if (showArchived) params.archived = 'true';
       const data = await api.getConversations(params);
       setConversations(data.conversations);
       setLoading(false);
@@ -138,6 +140,28 @@ export default function InboxPage() {
     }
   }
 
+  async function handleArchive(conversationId: string) {
+    try {
+      await api.archiveConversation(conversationId);
+      await loadConversations();
+      setSelectedId(null);
+      setMessages([]);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
+  async function handleUnarchive(conversationId: string) {
+    try {
+      await api.unarchiveConversation(conversationId);
+      await loadConversations();
+      setSelectedId(null);
+      setMessages([]);
+    } catch (err: any) {
+      alert(err.message);
+    }
+  }
+
   const selectedConv = conversations.find((c) => c.id === selectedId);
   const isAIActive = convStatus === 'open';
 
@@ -177,12 +201,19 @@ export default function InboxPage() {
           {['', 'open', 'pending_human', 'closed'].map((f) => (
             <button
               key={f}
-              className={`${styles.filterBtn} ${filter === f ? styles.filterBtnActive : ''}`}
-              onClick={() => setFilter(f as any)}
+              className={`${styles.filterBtn} ${!showArchived && filter === f ? styles.filterBtnActive : ''}`}
+              onClick={() => { setFilter(f as any); setShowArchived(false); }}
             >
               {f === '' ? 'Todas' : getStatusLabel(f)}
             </button>
           ))}
+          <button
+            className={`${styles.filterBtn} ${showArchived ? styles.filterBtnActive : ''}`}
+            onClick={() => { setShowArchived(true); setFilter(''); }}
+          >
+            <Archive size={12} style={{ marginRight: 4, verticalAlign: 'middle' }} />
+            Archivados
+          </button>
         </div>
 
         <div className={styles.listItems}>
@@ -259,6 +290,15 @@ export default function InboxPage() {
                 {convStatus !== 'closed' && (
                   <button className={styles.actionBtn} onClick={() => handleClose(selectedConv.id)}>
                     <X size={14} /> Cerrar
+                  </button>
+                )}
+                {!showArchived ? (
+                  <button className={styles.actionBtn} onClick={() => handleArchive(selectedConv.id)} title="Archivar">
+                    <Archive size={14} />
+                  </button>
+                ) : (
+                  <button className={styles.actionBtn} onClick={() => handleUnarchive(selectedConv.id)} title="Desarchivar">
+                    <ArchiveRestore size={14} />
                   </button>
                 )}
               </div>

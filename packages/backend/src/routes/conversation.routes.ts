@@ -13,13 +13,14 @@ export async function conversationRoutes(app: FastifyInstance) {
   // List conversations (inbox)
   app.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
-    const query = request.query as { status?: string; page?: string; limit?: string };
+    const query = request.query as { status?: string; page?: string; limit?: string; archived?: string };
     const page = parseInt(query.page || '1');
     const limit = parseInt(query.limit || '20');
     const skip = (page - 1) * limit;
 
     const where: any = { ...getTenantFilter(user) };
     if (query.status) where.status = query.status;
+    where.isArchived = query.archived === 'true';
 
     const [conversations, total] = await Promise.all([
       prisma.conversation.findMany({
@@ -92,6 +93,24 @@ export async function conversationRoutes(app: FastifyInstance) {
       data: { status: 'closed' },
     });
     return reply.send({ conversation, message: 'Conversation closed' });
+  });
+
+  // Archive conversation
+  app.post('/:id/archive', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const conversation = await prisma.conversation.update({
+      where: { id: request.params.id },
+      data: { isArchived: true },
+    });
+    return reply.send({ conversation, message: 'Conversation archived' });
+  });
+
+  // Unarchive conversation
+  app.post('/:id/unarchive', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const conversation = await prisma.conversation.update({
+      where: { id: request.params.id },
+      data: { isArchived: false },
+    });
+    return reply.send({ conversation, message: 'Conversation unarchived' });
   });
 
   // Send message as agent (auto-pauses AI)
