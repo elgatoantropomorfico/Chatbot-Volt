@@ -414,7 +414,7 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
   const [form, setForm] = useState({ name: '', email: '', password: '', role: 'tenant_admin' });
   const [creating, setCreating] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [editForm, setEditForm] = useState({ name: '', password: '' });
+  const [editForm, setEditForm] = useState({ name: '', email: '', password: '' });
   const [saving, setSaving] = useState(false);
 
   useEffect(() => { loadUsers(); }, []);
@@ -444,19 +444,20 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
 
   function startEdit(u: any) {
     setEditingId(u.id);
-    setEditForm({ name: u.name || '', password: '' });
+    setEditForm({ name: u.name || '', email: u.email || '', password: '' });
   }
 
   function cancelEdit() {
     setEditingId(null);
-    setEditForm({ name: '', password: '' });
+    setEditForm({ name: '', email: '', password: '' });
   }
 
-  async function saveEdit(userId: string) {
+  async function saveEdit(userId: string, originalEmail: string) {
     setSaving(true);
     try {
       const data: any = {};
       if (editForm.name.trim()) data.name = editForm.name.trim();
+      if (editForm.email.trim() && editForm.email.trim() !== originalEmail) data.email = editForm.email.trim();
       if (editForm.password.trim()) data.password = editForm.password.trim();
       if (Object.keys(data).length === 0) { cancelEdit(); setSaving(false); return; }
       await api.updateUser(userId, data);
@@ -553,14 +554,18 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
                       <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Nombre" style={inlineInputStyle} />
                     </div>
                     <div>
+                      <label style={{ ...labelStyle, marginBottom: '4px' }}>Email</label>
+                      <input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} placeholder="email@ejemplo.com" style={inlineInputStyle} />
+                    </div>
+                    <div style={{ gridColumn: 'span 2' }}>
                       <label style={{ ...labelStyle, marginBottom: '4px' }}>Nueva contraseña</label>
                       <input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Dejar vacío para no cambiar" style={inlineInputStyle} />
                     </div>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{u.email} · {u.role === 'tenant_admin' ? 'Admin' : 'Agente'}</span>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{u.role === 'tenant_admin' ? 'Admin' : 'Agente'}</span>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button onClick={() => saveEdit(u.id)} disabled={saving} style={{ ...iconBtnStyle, color: 'var(--color-success)' }} title="Guardar">
+                      <button onClick={() => saveEdit(u.id, u.email)} disabled={saving} style={{ ...iconBtnStyle, color: 'var(--color-success)' }} title="Guardar">
                         <Check size={16} />
                       </button>
                       <button onClick={cancelEdit} style={{ ...iconBtnStyle, color: 'var(--color-danger)' }} title="Cancelar">
