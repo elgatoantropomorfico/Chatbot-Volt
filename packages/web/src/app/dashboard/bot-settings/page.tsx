@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
-  ChevronDown, WandSparkles, Loader2,
+  ChevronDown, WandSparkles, Loader2, X,
 } from 'lucide-react';
 
 interface PromptBuilder {
@@ -573,43 +573,87 @@ export default function BotSettingsPage() {
         );
 
       case 'guardrails':
+        const DEFAULT_GENERAL_GUARDRAILS = [
+          { id: 'g_context', label: 'Mantenerse en contexto', prompt: 'Respondé ÚNICAMENTE sobre temas relacionados con el negocio. Si el usuario pregunta sobre algo que no tiene que ver con el negocio, indicale amablemente que solo podés ayudarlo con consultas sobre los productos/servicios del negocio.', enabled: true },
+          { id: 'g_no_invent', label: 'No inventar información', prompt: 'NUNCA inventes datos, precios, horarios, direcciones ni información que no esté explícitamente en tu contexto. Si no tenés la información, decí que no la tenés y sugerí contactar directamente al negocio.', enabled: true },
+          { id: 'g_no_competitors', label: 'No hablar de competencia', prompt: 'No menciones, compares ni recomiendes productos o servicios de la competencia. Enfocate exclusivamente en lo que ofrece este negocio.', enabled: true },
+          { id: 'g_tone', label: 'Mantener tono profesional', prompt: 'Mantené siempre un tono amigable, profesional y respetuoso. No uses lenguaje ofensivo, sarcástico ni inapropiado bajo ninguna circunstancia.', enabled: true },
+          { id: 'g_no_personal', label: 'No dar opiniones personales', prompt: 'No des opiniones personales, recomendaciones médicas, legales ni financieras. Limitáte a la información del negocio.', enabled: true },
+          { id: 'g_short', label: 'Respuestas concisas', prompt: 'Mantené las respuestas breves y al punto. Evitá textos largos innecesarios. Usá formato WhatsApp (*bold*, listas) para claridad.', enabled: true },
+        ];
+
+        const ensureGeneralGuardrails = () => {
+          const current = Array.isArray(settings.guardrailsJson) ? settings.guardrailsJson : [];
+          const hasGeneral = current.some((g: any) => !g.scope);
+          if (!hasGeneral) {
+            const updated = [...DEFAULT_GENERAL_GUARDRAILS, ...current];
+            updateField('guardrailsJson', updated);
+            return updated;
+          }
+          return current;
+        };
+
+        const allGuardrails = ensureGeneralGuardrails() as Array<{ id: string; label: string; prompt: string; enabled: boolean; scope?: string }>;
+        const generalGuardrails = allGuardrails.filter(g => !g.scope);
+        const wooGuardrails = allGuardrails.filter(g => g.scope === 'woocommerce');
+
+        const renderGuardrail = (guardrail: any) => {
+          const realIdx = allGuardrails.findIndex(g => g.id === guardrail.id);
+          const isCustom = !guardrail.id.startsWith('g_') && guardrail.id !== 'woo_no_prices' && guardrail.id !== 'woo_no_stock' && guardrail.id !== 'woo_catalogue_only';
+          return (
+            <label key={guardrail.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: guardrail.enabled ? 'rgba(139, 92, 246, 0.08)' : 'transparent', border: `1px solid ${guardrail.enabled ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
+              <input type="checkbox" checked={guardrail.enabled} onChange={(e) => { const updated = [...allGuardrails]; updated[realIdx] = { ...updated[realIdx], enabled: e.target.checked }; updateField('guardrailsJson', updated); }} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
+              <div style={{ flex: 1 }}>
+                <span style={{ fontSize: '13px', fontWeight: 500 }}>{guardrail.label}</span>
+                <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>{guardrail.prompt}</p>
+              </div>
+              {isCustom && (
+                <button onClick={(e) => { e.preventDefault(); const updated = allGuardrails.filter(g => g.id !== guardrail.id); updateField('guardrailsJson', updated); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', padding: '2px', flexShrink: 0 }} title="Eliminar">
+                  <X size={14} />
+                </button>
+              )}
+            </label>
+          );
+        };
+
         return (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Restricciones (Guardrails)</h3>
-            <p style={{ ...hintStyle, marginBottom: '20px' }}>Reglas que el bot debe cumplir siempre. Se inyectan automáticamente en cada respuesta.</p>
-            {settings.guardrailsJson && Array.isArray(settings.guardrailsJson) ? (() => {
-              const allGuardrails = settings.guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean; scope?: string }>;
-              const generalGuardrails = allGuardrails.filter(g => !g.scope);
-              const wooGuardrails = allGuardrails.filter(g => g.scope === 'woocommerce');
-              const renderGuardrail = (guardrail: any, idx: number) => {
-                const realIdx = allGuardrails.findIndex(g => g.id === guardrail.id);
-                return (
-                  <label key={guardrail.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: guardrail.enabled ? 'rgba(139, 92, 246, 0.08)' : 'transparent', border: `1px solid ${guardrail.enabled ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={guardrail.enabled} onChange={(e) => { const updated = [...settings.guardrailsJson]; updated[realIdx] = { ...updated[realIdx], enabled: e.target.checked }; updateField('guardrailsJson', updated); }} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
-                    <div>
-                      <span style={{ fontSize: '13px', fontWeight: 500 }}>{guardrail.label}</span>
-                      <p style={{ fontSize: '11px', color: 'var(--color-text-muted)', marginTop: '2px', lineHeight: 1.4 }}>{guardrail.prompt}</p>
-                    </div>
-                  </label>
-                );
-              };
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                  {generalGuardrails.length > 0 && (
-                    <>
-                      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '-4px' }}>Generales</p>
-                      {generalGuardrails.map(renderGuardrail)}
-                    </>
-                  )}
-                  {wooGuardrails.length > 0 && (
-                    <>
-                      <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginTop: '8px', marginBottom: '-4px' }}>🛒 WooCommerce <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(restringen a la IA cuando responde fuera del modo compra)</span></p>
-                      {wooGuardrails.map(renderGuardrail)}
-                    </>
-                  )}
+            <p style={{ ...hintStyle, marginBottom: '20px' }}>Reglas que el bot debe cumplir siempre. Se inyectan con máxima prioridad en cada respuesta (técnica sandwich: al inicio y al final del prompt).</p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginBottom: '-4px' }}>🛡️ Generales <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(aplican siempre en cada respuesta del bot)</span></p>
+              {generalGuardrails.map(renderGuardrail)}
+
+              {/* Add custom guardrail form */}
+              <details style={{ marginTop: '4px' }}>
+                <summary style={{ fontSize: '12px', color: 'var(--color-primary)', cursor: 'pointer', fontWeight: 500 }}>+ Agregar restricción personalizada</summary>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '10px', padding: '12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+                  <input id="new-guardrail-label" type="text" placeholder="Nombre (ej: No hablar de política)" style={inputStyle} />
+                  <textarea id="new-guardrail-prompt" placeholder="Instrucción para el bot (ej: Bajo ninguna circunstancia hables de temas políticos, religiosos o deportivos)" style={{ ...inputStyle, minHeight: '60px', resize: 'vertical' as const }} />
+                  <button onClick={() => {
+                    const labelEl = document.getElementById('new-guardrail-label') as HTMLInputElement;
+                    const promptEl = document.getElementById('new-guardrail-prompt') as HTMLTextAreaElement;
+                    if (!labelEl?.value.trim() || !promptEl?.value.trim()) return;
+                    const newG = { id: `custom_${Date.now()}`, label: labelEl.value.trim(), prompt: promptEl.value.trim(), enabled: true };
+                    const updated = [...allGuardrails];
+                    const lastGeneralIdx = updated.reduce((acc, g, i) => !g.scope ? i : acc, -1);
+                    updated.splice(lastGeneralIdx + 1, 0, newG);
+                    updateField('guardrailsJson', updated);
+                    labelEl.value = ''; promptEl.value = '';
+                  }} style={{ alignSelf: 'flex-start', padding: '6px 14px', fontSize: '12px', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: 500 }}>
+                    Agregar
+                  </button>
                 </div>
-              );
-            })() : <p style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>No hay guardrails configurados.</p>}
+              </details>
+
+              {wooGuardrails.length > 0 && (
+                <>
+                  <p style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase' as const, letterSpacing: '0.5px', marginTop: '12px', marginBottom: '-4px' }}>🛒 WooCommerce <span style={{ fontWeight: 400, textTransform: 'none' as const }}>(restringen a la IA cuando responde fuera del modo compra)</span></p>
+                  {wooGuardrails.map(renderGuardrail)}
+                </>
+              )}
+            </div>
           </div>
         );
 
