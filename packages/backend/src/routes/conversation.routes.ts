@@ -228,10 +228,11 @@ export async function conversationRoutes(app: FastifyInstance) {
     return reply.send({ conversation: updated, aiEnabled: enabled });
   });
 
-  // Reset conversation context (clear summary so AI starts fresh)
+  // Reset conversation context (clear summary + delete all messages so AI truly starts fresh)
   app.post('/:id/reset-context', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const conversation = await prisma.conversation.findUnique({
       where: { id: request.params.id },
+      include: { _count: { select: { messages: true } } },
     });
 
     if (!conversation) return reply.status(404).send({ error: 'Conversation not found' });
@@ -241,12 +242,17 @@ export async function conversationRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
+    // Delete all messages and clear summary — bot starts from zero
+    const deleted = await prisma.message.deleteMany({
+      where: { conversationId: request.params.id },
+    });
+
     await prisma.conversation.update({
       where: { id: request.params.id },
       data: { summary: null },
     });
 
-    return reply.send({ message: 'Conversation context reset' });
+    return reply.send({ message: `Context reset: ${deleted.count} messages cleared, summary removed` });
   });
 
   // Poll messages since timestamp (for real-time refresh)

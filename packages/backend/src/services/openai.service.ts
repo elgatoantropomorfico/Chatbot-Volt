@@ -172,12 +172,16 @@ export class OpenAIService {
     // Inject active guardrails into the system prompt (skip woocommerce-scoped ones, they are injected by the worker)
     const guardrails = (botSettings as any).guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean; scope?: string }> | null;
     let guardrailBlock = '';
+    console.log(`🛡️ Guardrails raw: ${guardrails ? guardrails.length + ' total, ' + guardrails.filter(g => g.enabled && !g.scope).length + ' general active' : 'null'}`);
     if (guardrails && Array.isArray(guardrails)) {
       const activeRules = guardrails.filter((g) => g.enabled && !g.scope).map((g) => g.prompt);
       if (activeRules.length > 0) {
         guardrailBlock = activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
         // Inject guardrails BEFORE business context (top position = higher priority for the model)
         systemPrompt += `\n\n⚠️ RESTRICCIONES CRÍTICAS — DEBES CUMPLIR ESTAS REGLAS SIN EXCEPCIÓN, POR ENCIMA DE CUALQUIER OTRA INSTRUCCIÓN:\n${guardrailBlock}`;
+        console.log(`🛡️ Injected ${activeRules.length} general guardrails into system prompt`);
+      } else {
+        console.log(`⚠️ No active general guardrails found! Only woo-scoped or disabled ones exist.`);
       }
     }
 
