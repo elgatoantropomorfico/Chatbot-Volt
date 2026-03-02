@@ -41,7 +41,7 @@ export default function SalesPage() {
         const { integrations } = await api.getIntegrations();
         const woo = integrations.find((i: any) => i.type === 'woocommerce' && i.status === 'active');
         if (woo) {
-          const config = JSON.parse(woo.configEncrypted || '{}');
+          const config = woo.config || {};
           if (config.enableCart === false) setCartDisabled(true);
         }
       } catch {}
