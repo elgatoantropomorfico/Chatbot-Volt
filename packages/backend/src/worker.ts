@@ -171,6 +171,12 @@ async function processMessage(job: Job<IncomingMessage>) {
           const orders = await wooService.searchOrdersByPhone(data.from);
           wooDirectResponse = wooService.formatOrderResponse(orders);
 
+        // ── Cart disabled: block ALL cart actions with friendly info-only message ──
+        } else if (['cart_add', 'cart_add_by_name', 'cart_view', 'cart_clear', 'cart_checkout'].includes(wooIntent.intent) && !wooService.settings.enableCart) {
+          wooDirectResponse = '🛒 La opción de compra está deshabilitada en este momento.\n\n' +
+            'Podés consultar precios y productos, pero no es posible armar un carrito ni realizar compras por este medio.\n\n' +
+            '_Si necesitás comprar, contactá directamente al negocio. Para seguir viendo productos, escribí *"buscar [producto]"*._';
+
         } else if (wooIntent.intent === 'cart_add' && wooService.settings.enableCart) {
           const results = lastSearchResults.get(conversation.id);
           if (results && wooIntent.itemNumber && wooIntent.itemNumber <= results.length) {

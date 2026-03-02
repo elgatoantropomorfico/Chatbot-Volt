@@ -15,6 +15,7 @@ import {
   ChevronRight,
   X,
   TrendingUp,
+  AlertTriangle,
 } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -31,6 +32,21 @@ export default function SalesPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [selectedSale, setSelectedSale] = useState<any>(null);
+  const [cartDisabled, setCartDisabled] = useState(false);
+
+  // Check if cart is disabled in WooCommerce config
+  useEffect(() => {
+    (async () => {
+      try {
+        const { integrations } = await api.getIntegrations();
+        const woo = integrations.find((i: any) => i.type === 'woocommerce' && i.status === 'active');
+        if (woo) {
+          const config = JSON.parse(woo.configEncrypted || '{}');
+          if (config.enableCart === false) setCartDisabled(true);
+        }
+      } catch {}
+    })();
+  }, []);
 
   const loadSales = useCallback(async () => {
     try {
@@ -148,6 +164,23 @@ export default function SalesPage() {
       <div className={styles.header}>
         <h1>Ventas</h1>
       </div>
+
+      {/* Cart disabled banner */}
+      {cartDisabled && (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '10px', padding: '14px 18px',
+          background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)',
+          borderRadius: 'var(--radius-md)', marginBottom: '20px', fontSize: '13px', color: '#f59e0b',
+        }}>
+          <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+          <div>
+            <strong>Carrito de compras deshabilitado.</strong>{' '}
+            Los clientes pueden consultar precios y productos, pero no pueden realizar compras.
+            Las ventas que se muestran son anteriores a la desactivación.
+            Para habilitar las compras, activá el carrito en Integraciones → WooCommerce.
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       {stats && (

@@ -61,7 +61,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     setMobileMenuOpen(false);
   }, [pathname]);
 
-  // Check if WooCommerce + cart is enabled to show Sales nav item
+  // Show Sales nav whenever WooCommerce integration is active (regardless of cart toggle)
   useEffect(() => {
     if (!user || user.role === 'superadmin') return;
     (async () => {
@@ -69,8 +69,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const { integrations } = await api.getIntegrations();
         const woo = integrations.find((i: any) => i.type === 'woocommerce' && i.status === 'active');
         if (woo) {
-          const config = JSON.parse(woo.configEncrypted || '{}');
-          setShowSales(config.enableCart !== false);
+          setShowSales(true);
         }
       } catch {}
     })();
