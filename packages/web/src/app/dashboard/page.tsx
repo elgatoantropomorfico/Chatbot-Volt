@@ -5,7 +5,7 @@ import { api } from '@/lib/api';
 import { useState, useEffect } from 'react';
 import { 
   MessageSquare, Users, Clock, TrendingUp, ShoppingCart, Phone, Bot,
-  Building2, Plus, X, Hash, Plug, UserCircle, ChevronRight, Edit3, Trash2, Check, Save,
+  Building2, Plus, X, Hash, Plug, UserCircle, ChevronRight, Edit3, Trash2, Check, Save, Pencil,
   AlertTriangle, Info, Settings, ArrowRight,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -411,8 +411,11 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [showNewUser, setShowNewUser] = useState(false);
-  const [form, setForm] = useState({ email: '', password: '', role: 'tenant_admin' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'tenant_admin' });
   const [creating, setCreating] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', password: '' });
+  const [saving, setSaving] = useState(false);
 
   useEffect(() => { loadUsers(); }, []);
 
@@ -432,12 +435,48 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
     setCreating(true);
     try {
       await api.createUser({ ...form, tenantId: tenant.id });
-      setForm({ email: '', password: '', role: 'tenant_admin' });
+      setForm({ name: '', email: '', password: '', role: 'tenant_admin' });
       setShowNewUser(false);
       await loadUsers();
     } catch (err: any) { alert(err.message); }
     finally { setCreating(false); }
   }
+
+  function startEdit(u: any) {
+    setEditingId(u.id);
+    setEditForm({ name: u.name || '', password: '' });
+  }
+
+  function cancelEdit() {
+    setEditingId(null);
+    setEditForm({ name: '', password: '' });
+  }
+
+  async function saveEdit(userId: string) {
+    setSaving(true);
+    try {
+      const data: any = {};
+      if (editForm.name.trim()) data.name = editForm.name.trim();
+      if (editForm.password.trim()) data.password = editForm.password.trim();
+      if (Object.keys(data).length === 0) { cancelEdit(); setSaving(false); return; }
+      await api.updateUser(userId, data);
+      await loadUsers();
+      cancelEdit();
+    } catch (err: any) { alert(err.message); }
+    finally { setSaving(false); }
+  }
+
+  const inlineInputStyle: React.CSSProperties = {
+    padding: '6px 10px', background: 'var(--color-bg-secondary)',
+    border: '1px solid var(--color-border-light)', borderRadius: 'var(--radius-sm)',
+    color: 'var(--color-text)', fontSize: '12px', outline: 'none', width: '100%',
+  };
+
+  const iconBtnStyle: React.CSSProperties = {
+    background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
+    borderRadius: 'var(--radius-sm)', transition: 'all 0.15s',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+  };
 
   if (loading) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}>Cargando usuarios...</div>;
 
@@ -460,6 +499,10 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
           display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px',
         }}>
           <div>
+            <label style={labelStyle}>Nombre</label>
+            <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} type="text" style={inputStyle} placeholder="Nombre del usuario" />
+          </div>
+          <div>
             <label style={labelStyle}>Email</label>
             <input value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} type="email" required style={inputStyle} placeholder="email@ejemplo.com" />
           </div>
@@ -474,7 +517,7 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
               <option value="agent">Agente</option>
             </select>
           </div>
-          <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px' }}>
+          <div style={{ gridColumn: 'span 2', display: 'flex', gap: '8px' }}>
             <button type="submit" disabled={creating} style={{
               padding: '10px 18px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
               border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '12px', fontWeight: 600, cursor: 'pointer',
@@ -499,26 +542,52 @@ function TenantUsersTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
           {users.map((u) => (
             <div key={u.id} style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
               padding: '12px 16px', background: 'var(--color-bg-secondary)',
               borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)',
             }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <UserCircle size={18} style={{ color: 'var(--color-text-muted)' }} />
-                <div>
-                  <div style={{ fontSize: '13px', fontWeight: 500 }}>{u.email}</div>
-                  <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
-                    {u.role === 'tenant_admin' ? 'Admin' : 'Agente'}
+              {editingId === u.id ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    <div>
+                      <label style={{ ...labelStyle, marginBottom: '4px' }}>Nombre</label>
+                      <input type="text" value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} placeholder="Nombre" style={inlineInputStyle} />
+                    </div>
+                    <div>
+                      <label style={{ ...labelStyle, marginBottom: '4px' }}>Nueva contraseña</label>
+                      <input type="password" value={editForm.password} onChange={(e) => setEditForm({ ...editForm, password: e.target.value })} placeholder="Dejar vacío para no cambiar" style={inlineInputStyle} />
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>{u.email} · {u.role === 'tenant_admin' ? 'Admin' : 'Agente'}</span>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button onClick={() => saveEdit(u.id)} disabled={saving} style={{ ...iconBtnStyle, color: 'var(--color-success)' }} title="Guardar">
+                        <Check size={16} />
+                      </button>
+                      <button onClick={cancelEdit} style={{ ...iconBtnStyle, color: 'var(--color-danger)' }} title="Cancelar">
+                        <X size={16} />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
-              <span style={{
-                fontSize: '11px', padding: '2px 8px', borderRadius: '10px',
-                background: u.isActive !== false ? 'rgba(52, 211, 153, 0.1)' : 'rgba(245, 158, 11, 0.1)',
-                color: u.isActive !== false ? '#34d399' : '#f59e0b',
-              }}>
-                {u.isActive !== false ? 'Activo' : 'Inactivo'}
-              </span>
+              ) : (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <UserCircle size={18} style={{ color: 'var(--color-text-muted)' }} />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 500 }}>
+                        {u.name || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin nombre</span>}
+                        <span style={{ color: 'var(--color-text-muted)', fontWeight: 400, marginLeft: '8px', fontSize: '12px' }}>{u.email}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>
+                        {u.role === 'tenant_admin' ? 'Admin' : 'Agente'}
+                      </div>
+                    </div>
+                  </div>
+                  <button onClick={() => startEdit(u)} style={{ ...iconBtnStyle, color: 'var(--color-primary)' }} title="Editar nombre / contraseña">
+                    <Pencil size={14} />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
