@@ -3,8 +3,8 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 
 export const metadata: Metadata = {
-  title: 'Volt ChatBot',
-  description: 'Plataforma SaaS de chatbot conversacional con IA',
+  title: 'Volt IA Agents — Automatizá tu atención con IA',
+  description: 'Plataforma de agentes inteligentes para WhatsApp. Automatizá ventas, atención al cliente y seguimiento de leads con inteligencia artificial.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -88,7 +88,7 @@ function Navbar() {
           </div>
           <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.03em' }}>
             <span style={{ color: '#fff' }}>Volt</span>
-            <span style={{ color: 'var(--color-text-muted)' }}> ChatBot</span>
+            <span style={{ color: 'var(--color-text-muted)' }}> IA Agents</span>
           </span>
         </div>
 
@@ -184,7 +184,7 @@ function Hero() {
           lineHeight: 1.6, maxWidth: 600, margin: '0 auto 40px',
           animation: 'fade-in-up 0.6s ease-out 0.2s both',
         }}>
-          Volt ChatBot conecta tu negocio con tus clientes 24/7.
+          Volt IA Agents conecta tu negocio con tus clientes 24/7.
           Respondé consultas, vendé productos y hacé seguimiento de leads
           con inteligencia artificial — todo desde WhatsApp.
         </p>
@@ -600,7 +600,7 @@ function CTASection() {
           ¿Listo para automatizar?
         </h2>
         <p style={{ fontSize: 16, color: 'var(--color-text-secondary)', lineHeight: 1.6, marginBottom: 32 }}>
-          Unite a los negocios que ya están vendiendo más y atendiendo mejor con Volt ChatBot.
+          Unite a los negocios que ya están vendiendo más y atendiendo mejor con Volt IA Agents.
         </p>
         <a href={PLATFORM_LOGIN} className="landing-cta-btn" style={{
           display: 'inline-flex', alignItems: 'center', gap: 8,
@@ -637,12 +637,24 @@ function Footer() {
             <Zap size={14} color="#fff" />
           </div>
           <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-secondary)' }}>
-            Volt ChatBot
+            Volt IA Agents
           </span>
         </div>
-        <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
-          © {new Date().getFullYear()} Volt ChatBot. Todos los derechos reservados.
-        </span>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
+          <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>
+            Volt IA Agents — Marca operada por Ignacio Prado
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+            CUIT: XX-XXXXXXXX-X · Corrientes, Argentina
+          </span>
+          <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
+            pradoignacio.utn@icloud.com
+          </span>
+          <div style={{ display: 'flex', gap: 16, marginTop: 4 }}>
+            <a href="/privacy" style={{ fontSize: 11, color: 'var(--color-primary)', textDecoration: 'none' }}>Política de Privacidad</a>
+            <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>© {new Date().getFullYear()} Volt IA Agents</span>
+          </div>
+        </div>
       </div>
     </footer>
   );
