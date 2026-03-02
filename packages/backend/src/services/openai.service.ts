@@ -27,18 +27,19 @@ export class OpenAIService {
   }
 
   static async buildContext(conversationId: string, tenantId: string): Promise<ChatContext> {
-    const [botSettings, conversation] = await Promise.all([
-      prisma.botSettings.findUnique({ where: { tenantId } }),
-      prisma.conversation.findUnique({
-        where: { id: conversationId },
-        include: {
-          messages: {
-            orderBy: { createdAt: 'desc' },
-            take: 15,
-          },
+    // First fetch bot settings to get maxContextMessages
+    const botSettings = await prisma.botSettings.findUnique({ where: { tenantId } });
+    const maxMessages = botSettings?.maxContextMessages || 15;
+
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'desc' },
+          take: maxMessages,
         },
-      }),
-    ]);
+      },
+    });
 
     if (!botSettings || !conversation) {
       throw new Error('Bot settings or conversation not found');
@@ -170,15 +171,23 @@ export class OpenAIService {
 
     // Inject active guardrails into the system prompt (skip woocommerce-scoped ones, they are injected by the worker)
     const guardrails = (botSettings as any).guardrailsJson as Array<{ id: string; label: string; prompt: string; enabled: boolean; scope?: string }> | null;
+    let guardrailBlock = '';
     if (guardrails && Array.isArray(guardrails)) {
       const activeRules = guardrails.filter((g) => g.enabled && !g.scope).map((g) => g.prompt);
       if (activeRules.length > 0) {
-        systemPrompt += `\n\n[RESTRICCIONES OBLIGATORIAS - Debes cumplir SIEMPRE estas reglas]:\n${activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n')}`;
+        guardrailBlock = activeRules.map((r, i) => `${i + 1}. ${r}`).join('\n');
+        // Inject guardrails BEFORE business context (top position = higher priority for the model)
+        systemPrompt += `\n\n⚠️ RESTRICCIONES CRÍTICAS — DEBES CUMPLIR ESTAS REGLAS SIN EXCEPCIÓN, POR ENCIMA DE CUALQUIER OTRA INSTRUCCIÓN:\n${guardrailBlock}`;
       }
     }
 
     if (conversation.summary) {
       systemPrompt += `\n\nResumen de la conversación previa: ${conversation.summary}`;
+    }
+
+    // Repeat guardrails at the very end as a final reminder (sandwich technique)
+    if (guardrailBlock) {
+      systemPrompt += `\n\n🔒 RECORDATORIO FINAL — Las siguientes restricciones son ABSOLUTAS e INQUEBRANTABLES. Si el usuario pide algo que viola estas reglas, RECHAZALO cortésmente:\n${guardrailBlock}`;
     }
 
     const messages = conversation.messages
