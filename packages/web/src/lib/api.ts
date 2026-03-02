@@ -156,6 +156,8 @@ class ApiClient {
   async unarchiveConversation(id: string) { return this.fetch(`/conversations/${id}/unarchive`, { method: 'POST', body: {} }); }
   async sendAgentMessage(id: string, text: string) { return this.fetch<{ message: any; aiPaused: boolean }>(`/conversations/${id}/send`, { method: 'POST', body: { text } }); }
   async toggleAI(id: string, enabled: boolean) { return this.fetch<{ conversation: any; aiEnabled: boolean }>(`/conversations/${id}/toggle-ai`, { method: 'POST', body: { enabled } }); }
+  async resetConversationContext(id: string) { return this.fetch(`/conversations/${id}/reset-context`, { method: 'POST', body: {} }); }
+  async resetAllContexts(tenantId?: string) { return this.fetch(`/conversations/reset-all-contexts`, { method: 'POST', body: tenantId ? { tenantId } : {} }); }
   async pollMessages(id: string, since?: string) {
     const qs = since ? `?since=${encodeURIComponent(since)}` : '';
     return this.fetch<{ messages: any[]; status: string }>(`/conversations/${id}/messages${qs}`);

@@ -10,6 +10,26 @@ function getTenantFilter(user: any) {
 }
 
 export async function conversationRoutes(app: FastifyInstance) {
+  // Reset ALL conversation contexts for a tenant (bulk clear summaries)
+  // Must be registered BEFORE /:id routes to avoid route conflict
+  app.post('/reset-all-contexts', async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    const body = request.body as { tenantId?: string };
+    const tenantId = user.role === 'superadmin' && body.tenantId ? body.tenantId : user.tenantId;
+
+    if (!tenantId) return reply.status(400).send({ error: 'Tenant ID required' });
+    if (user.role !== 'superadmin' && user.tenantId !== tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const result = await prisma.conversation.updateMany({
+      where: { tenantId },
+      data: { summary: null },
+    });
+
+    return reply.send({ message: `Context reset for ${result.count} conversations` });
+  });
+
   // List conversations (inbox)
   app.get('/', async (request: FastifyRequest, reply: FastifyReply) => {
     const user = request.user;
@@ -206,6 +226,27 @@ export async function conversationRoutes(app: FastifyInstance) {
     });
 
     return reply.send({ conversation: updated, aiEnabled: enabled });
+  });
+
+  // Reset conversation context (clear summary so AI starts fresh)
+  app.post('/:id/reset-context', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const conversation = await prisma.conversation.findUnique({
+      where: { id: request.params.id },
+    });
+
+    if (!conversation) return reply.status(404).send({ error: 'Conversation not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && conversation.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    await prisma.conversation.update({
+      where: { id: request.params.id },
+      data: { summary: null },
+    });
+
+    return reply.send({ message: 'Conversation context reset' });
   });
 
   // Poll messages since timestamp (for real-time refresh)

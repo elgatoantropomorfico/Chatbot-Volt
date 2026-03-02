@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore } from 'lucide-react';
+import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw } from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
@@ -140,12 +140,11 @@ export default function InboxPage() {
     }
   }
 
-  async function handleClose(conversationId: string) {
+  async function handleResetContext(conversationId: string) {
+    if (!confirm('¿Resetear el contexto de esta conversación? El bot va a "olvidar" el resumen acumulado y responder solo con los últimos mensajes.')) return;
     try {
-      await api.closeConversation(conversationId);
-      await fetchAll();
-      setSelectedId(null);
-      setMessages([]);
+      await api.resetConversationContext(conversationId);
+      alert('Contexto reseteado. El bot va a responder con las guardrails actualizadas.');
     } catch (err: any) {
       alert(err.message);
     }
@@ -315,8 +314,8 @@ export default function InboxPage() {
                   </button>
                 )}
                 {convStatus !== 'closed' && (
-                  <button className={styles.actionBtn} onClick={() => handleClose(selectedConv.id)}>
-                    <X size={14} /> Cerrar
+                  <button className={styles.actionBtn} onClick={() => handleResetContext(selectedConv.id)} title="Resetear contexto del bot para esta conversación">
+                    <RefreshCw size={14} /> Reset contexto
                   </button>
                 )}
                 {!showArchived ? (
