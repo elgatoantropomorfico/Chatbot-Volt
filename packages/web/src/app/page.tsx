@@ -3,19 +3,20 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import LandingPage from '@/components/LandingPage';
 
 export default function HomePage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   useEffect(() => {
-    if (loading) return;
-    if (user) {
+    if (!loading && user) {
       router.replace('/dashboard');
-    } else {
-      router.replace('/login');
     }
   }, [user, loading, router]);
 
-  return null;
+  if (loading) return null;
+  if (user) return null; // redirecting
+
+  return <LandingPage />;
 }
