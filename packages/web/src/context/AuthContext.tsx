@@ -6,6 +6,7 @@ import { api } from '@/lib/api';
 interface User {
   id: string;
   email: string;
+  name?: string | null;
   role: 'superadmin' | 'tenant_admin' | 'agent';
   tenantId: string | null;
   tenant?: { id: string; name: string; status: string } | null;
@@ -16,6 +17,7 @@ interface AuthContextType {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   isSuperAdmin: boolean;
   isTenantAdmin: boolean;
 }
@@ -63,6 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         loading,
         login,
         logout,
+        refreshUser: loadUser,
         isSuperAdmin: user?.role === 'superadmin',
         isTenantAdmin: user?.role === 'tenant_admin',
       }}

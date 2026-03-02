@@ -5,6 +5,7 @@ import { UserRole } from '@prisma/client';
 interface RegisterInput {
   email: string;
   password: string;
+  name?: string;
   role?: UserRole;
   tenantId?: string | null;
 }
@@ -26,6 +27,7 @@ export class AuthService {
     const user = await prisma.user.create({
       data: {
         email: input.email,
+        name: input.name || null,
         passwordHash,
         role: input.role || 'agent',
         tenantId: input.tenantId || null,
@@ -33,6 +35,7 @@ export class AuthService {
       select: {
         id: true,
         email: true,
+        name: true,
         role: true,
         tenantId: true,
         createdAt: true,

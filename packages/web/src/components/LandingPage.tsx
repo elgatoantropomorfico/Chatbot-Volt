@@ -486,12 +486,12 @@ function Integrations() {
 function Pricing() {
   const plans = [
     {
-      name: 'Starter', price: 'Gratis', period: 'para empezar', highlight: false,
-      features: ['1 canal de WhatsApp', 'Bot con IA básico', 'Hasta 100 mensajes/mes', 'Dashboard básico'],
-      cta: 'Empezar gratis',
+      name: 'Starter', price: '$150.000', period: '/mes', highlight: false,
+      features: ['1 canal de WhatsApp', 'Bot con IA básico', 'Hasta 500 mensajes/mes', 'Dashboard básico'],
+      cta: 'Comenzar',
     },
     {
-      name: 'Pro', price: '$29.990', period: '/mes', highlight: true,
+      name: 'Pro', price: '$299.000', period: '/mes', highlight: true,
       features: ['1 canal de WhatsApp', 'Bot con IA avanzado', 'Mensajes ilimitados', 'WooCommerce integrado', 'Gestión de leads', 'Dashboard completo', 'Soporte prioritario'],
       cta: 'Comenzar prueba',
     },
@@ -508,7 +508,7 @@ function Pricing() {
         <SectionHeader
           badge="Precios"
           title="Planes para cada etapa"
-          subtitle="Empezá gratis y escalá cuando tu negocio lo necesite."
+          subtitle="Elegí el plan que mejor se adapte a tu negocio y escalá cuando lo necesites."
         />
         <div className="landing-grid-3" style={{
           display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
@@ -645,7 +645,7 @@ function Footer() {
             Volt IA Agents — Marca operada por Ignacio Prado
           </span>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            CUIT: XX-XXXXXXXX-X · Corrientes, Argentina
+            CUIT: 20-3919690-5 · Corrientes, Argentina
           </span>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
             pradoignacio.utn@icloud.com

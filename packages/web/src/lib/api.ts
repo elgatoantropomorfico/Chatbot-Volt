@@ -131,6 +131,8 @@ class ApiClient {
   // Users
   async getUsers() { return this.fetch<{ users: any[] }>('/users'); }
   async createUser(data: any) { return this.fetch<{ user: any }>('/users', { method: 'POST', body: data }); }
+  async updateUser(id: string, data: any) { return this.fetch<{ user: any }>(`/users/${id}`, { method: 'PATCH', body: data }); }
+  async updateProfile(data: { name?: string; password?: string }) { return this.fetch<{ user: any }>('/users/me', { method: 'PATCH', body: data }); }
 
   // Leads
   async getLeads(params?: Record<string, string>) {
