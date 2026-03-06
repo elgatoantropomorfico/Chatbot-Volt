@@ -645,7 +645,7 @@ function Footer() {
             Volt IA Agents — Marca operada por Ignacio Prado
           </span>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
-            CUIT: 20-3919690-5 · Corrientes, Argentina
+            CUIT: 20-39196909-5 · Corrientes, Argentina
           </span>
           <span style={{ fontSize: 11, color: 'var(--color-text-muted)' }}>
             pradoignacio.utn@icloud.com
