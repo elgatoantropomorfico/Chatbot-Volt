@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
 import { ZohoSyncService } from '../services/zoho-sync.service';
-import { ZohoService } from '../services/zoho.service';
 
 const updateLeadSchema = z.object({
   name: z.string().optional(),
@@ -118,7 +117,7 @@ export async function leadRoutes(app: FastifyInstance) {
     return reply.status(201).send({ note });
   });
 
-  // Delete lead (cascade: conversations, messages, notes) + remove from Zoho
+  // Delete lead (cascade: conversations, messages, notes)
   app.delete('/:id', {
     preHandler: [requireRole('superadmin', 'tenant_admin')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -131,25 +130,6 @@ export async function leadRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    // Try to delete from Zoho if contact exists
-    if (lead.zohoContactId) {
-      try {
-        const integration = await prisma.integration.findFirst({
-          where: { tenantId: lead.tenantId, type: 'zoho_crm', status: 'active' },
-        });
-        if (integration) {
-          const config = JSON.parse(integration.configEncrypted);
-          const zohoService = new ZohoService(config);
-          await zohoService.deleteContact(lead.zohoContactId);
-          console.log(`🗑️ Deleted Zoho contact ${lead.zohoContactId} for lead ${id}`);
-        }
-      } catch (err: any) {
-        console.warn(`⚠️ Could not delete Zoho contact ${lead.zohoContactId}:`, err.message);
-        // Continue with local deletion even if Zoho delete fails
-      }
-    }
-
-    // Cascade delete: messages → conversations → notes → lead
     await prisma.lead.delete({ where: { id } });
     console.log(`🗑️ Deleted lead ${id} and all related records`);
 

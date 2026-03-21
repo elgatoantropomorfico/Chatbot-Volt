@@ -414,7 +414,7 @@ export default function LeadsPage() {
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
               onClick={async () => {
-                if (!confirm(`¿Eliminar lead "${selectedLead.name || selectedLead.phone}"?\n\nSe eliminarán todas las conversaciones, mensajes y notas.${selectedLead.zohoContactId ? '\nTambién se eliminará el contacto en Zoho CRM.' : ''}`)) return;
+                if (!confirm(`¿Eliminar lead "${selectedLead.name || selectedLead.phone}"?\n\nSe eliminarán todas las conversaciones, mensajes y notas.`)) return;
                 try {
                   await api.deleteLead(selectedLead.id);
                   setSelectedLead(null);
