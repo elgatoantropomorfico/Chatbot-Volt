@@ -18,6 +18,7 @@ import {
   Menu,
   X,
   DollarSign,
+  GraduationCap,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import styles from './layout.module.css';
@@ -50,6 +51,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
+  const [showOffers, setShowOffers] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -70,6 +72,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const woo = integrations.find((i: any) => i.type === 'woocommerce' && i.status === 'active');
         if (woo) {
           setShowSales(true);
+        }
+        const zoho = integrations.find((i: any) => i.type === 'zoho_crm' && i.status === 'active');
+        if (zoho) {
+          setShowOffers(true);
         }
       } catch {}
     })();
@@ -141,6 +147,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   <DollarSign size={18} />
                   Ventas
+                </Link>
+              )}
+
+              {showOffers && (
+                <Link
+                  href="/dashboard/offers"
+                  className={`${styles.navItem} ${pathname === '/dashboard/offers' ? styles.navItemActive : ''}`}
+                >
+                  <GraduationCap size={18} />
+                  Ofertas
                 </Link>
               )}
 

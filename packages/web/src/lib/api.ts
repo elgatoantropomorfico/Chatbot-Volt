@@ -179,6 +179,18 @@ class ApiClient {
   async getDashboardStats() { return this.fetch<any>('/dashboard/stats'); }
   async getDashboardActions() { return this.fetch<{ actions: any[] }>('/dashboard/actions'); }
 
+  // Offers
+  async getOffers(tenantId?: string) {
+    const qs = tenantId ? `?tenantId=${tenantId}` : '';
+    return this.fetch<{ offers: any[] }>(`/offers${qs}`);
+  }
+  async createOffer(data: any) { return this.fetch<{ offer: any }>('/offers', { method: 'POST', body: data }); }
+  async updateOffer(id: string, data: any) { return this.fetch<{ offer: any }>(`/offers/${id}`, { method: 'PATCH', body: data }); }
+  async deleteOffer(id: string) { return this.fetch<{ message: string }>(`/offers/${id}`, { method: 'DELETE' }); }
+
+  // Zoho Sync
+  async syncLeadToZoho(leadId: string) { return this.fetch<{ message: string; zohoContactId: string }>(`/leads/${leadId}/sync-zoho`, { method: 'POST' }); }
+
   // Sales
   async getSales(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
