@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
+import { ZohoSyncService } from '../services/zoho-sync.service';
 
 const updateLeadSchema = z.object({
   name: z.string().optional(),
@@ -107,5 +108,26 @@ export async function leadRoutes(app: FastifyInstance) {
       },
     });
     return reply.status(201).send({ note });
+  });
+
+  // Manual Zoho sync for a lead
+  app.post('/:id/sync-zoho', {
+    preHandler: [requireRole('superadmin', 'tenant_admin')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const lead = await prisma.lead.findUnique({ where: { id } });
+    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && lead.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    try {
+      const result = await ZohoSyncService.syncLeadToZoho(lead.id, lead.tenantId);
+      return reply.send({ message: `Lead ${result.action} in Zoho`, zohoContactId: result.zohoContactId });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
   });
 }

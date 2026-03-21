@@ -34,14 +34,20 @@ export class ConversationService {
           channelId: channel.id,
           phone: data.from,
           name: data.profileName || null,
+          whatsappProfileName: data.profileName || null,
           stage: 'nuevo',
         },
       });
-    } else if (data.profileName && !lead.name) {
-      lead = await prisma.lead.update({
-        where: { id: lead.id },
-        data: { name: data.profileName },
-      });
+    } else {
+      const updates: Record<string, any> = {};
+      if (data.profileName && !lead.name) updates.name = data.profileName;
+      if (data.profileName && !lead.whatsappProfileName) updates.whatsappProfileName = data.profileName;
+      if (Object.keys(updates).length > 0) {
+        lead = await prisma.lead.update({
+          where: { id: lead.id },
+          data: updates,
+        });
+      }
     }
 
     // 3. Find open conversation or create one

@@ -13,6 +13,7 @@ import { integrationRoutes } from './routes/integration.routes';
 import { webhookRoutes } from './routes/webhook.routes';
 import { saleRoutes } from './routes/sale.routes';
 import { dashboardRoutes } from './routes/dashboard.routes';
+import { offerRoutes } from './routes/offer.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -74,6 +75,7 @@ export async function buildApp() {
     instance.register(integrationRoutes, { prefix: '/api/integrations' });
     instance.register(saleRoutes, { prefix: '/api/sales' });
     instance.register(dashboardRoutes, { prefix: '/api/dashboard' });
+    instance.register(offerRoutes, { prefix: '/api/offers' });
   });
 
   return app;

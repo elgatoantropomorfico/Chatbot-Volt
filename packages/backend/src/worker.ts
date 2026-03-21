@@ -6,6 +6,9 @@ import { WhatsAppService } from './services/whatsapp.service';
 import { WooService } from './services/woo.service';
 import { HandoffService } from './services/handoff.service';
 import { SaleService } from './services/sale.service';
+import { LeadExtractionService } from './services/lead-extraction.service';
+import { LeadProfileService } from './services/lead-profile.service';
+import { ZohoSyncService } from './services/zoho-sync.service';
 import { prisma } from './config/database';
 
 // Store last search results per conversation for "agregar el 2" cart operations
@@ -35,6 +38,36 @@ async function processMessage(job: Job<IncomingMessage>) {
   }
   const { conversation, channel, tenant, lead } = resolved;
   console.log(`✅ Resolved: tenant=${tenant.name}, lead=${lead.id}, conversation=${conversation.id}`);
+
+  // ============================================
+  // LEAD EXTRACTION & ZOHO SYNC (non-blocking)
+  // ============================================
+  try {
+    const zohoIntegration = await prisma.integration.findFirst({
+      where: { tenantId: tenant.id, type: 'zoho_crm', status: 'active' },
+    });
+
+    if (zohoIntegration) {
+      const extracted = await LeadExtractionService.extract({
+        tenantId: tenant.id,
+        conversationId: conversation.id,
+        leadId: lead.id,
+        latestMessage: data.text,
+        profileName: data.profileName,
+      });
+
+      const enrichedLead = await LeadProfileService.mergeExtractedData(lead.id, extracted);
+
+      // Auto-sync on first readiness (never synced before)
+      const isReady = LeadProfileService.isReadyForZoho(enrichedLead as any);
+      if (isReady && (!enrichedLead.zohoContactId || enrichedLead.zohoSyncStatus === 'pending')) {
+        console.log(`🚀 Lead ${lead.id} ready for Zoho — auto-syncing`);
+        await ZohoSyncService.syncLeadToZoho(enrichedLead.id, tenant.id);
+      }
+    }
+  } catch (err) {
+    console.error('⚠️ Lead extraction/sync error (non-fatal):', err);
+  }
 
   // 2. If conversation is pending_human, skip AI processing
   if (conversation.status === 'pending_human') {

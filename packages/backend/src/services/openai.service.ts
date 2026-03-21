@@ -189,6 +189,28 @@ export class OpenAIService {
       systemPrompt += `\n\nResumen de la conversación previa: ${conversation.summary}`;
     }
 
+    // Inject lead capture instructions for tenants with active Zoho CRM integration
+    const zohoIntegration = await prisma.integration.findFirst({
+      where: { tenantId: botSettings.tenantId, type: 'zoho_crm', status: 'active' },
+    });
+    if (zohoIntegration) {
+      systemPrompt += `\n\n📋 CAPTURA DE LEADS — INSTRUCCIONES IMPORTANTES:
+Tu objetivo secundario es identificar si el usuario es un "interesado real" o solo un "consultante casual".
+
+Interesado real: menciona interés en estudiar, cursar, inscribirse, averiguar fechas de inicio, costos, modalidades, requisitos de ingreso.
+Consultante casual: solo pregunta información general, horarios de atención, ubicación, preguntas genéricas sin intención de inscripción.
+
+Si detectás interés real:
+1. Primero preguntá qué curso/carrera le interesa (de forma natural, no como formulario).
+2. Si ya expresó interés en una oferta, pedí nombre y apellido para "dejar registrada la consulta".
+3. No pidas todos los datos juntos. Avanzá gradualmente.
+4. Una vez identificado (nombre + apellido + oferta), seguí ayudando normalmente.
+5. Completá modalidad, período, correo o DNI solo si surge naturalmente en la conversación.
+6. NUNCA menciones CRM, sincronización ni procesos internos.
+
+Sé conversacional, no interrogador. Si el usuario es solo consultante casual, respondé sin presionar por datos personales.`;
+    }
+
     // Repeat guardrails at the very end as a final reminder (sandwich technique)
     if (guardrailBlock) {
       systemPrompt += `\n\n🔒 RECORDATORIO FINAL — Las siguientes restricciones son ABSOLUTAS e INQUEBRANTABLES. Si el usuario pide algo que viola estas reglas, RECHAZALO cortésmente:\n${guardrailBlock}`;
