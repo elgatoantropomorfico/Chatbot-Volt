@@ -2,26 +2,24 @@ import { prisma } from '../config/database';
 import { ZohoService } from './zoho.service';
 import { LeadProfileService } from './lead-profile.service';
 
-// Normalize extracted modality values to Zoho picklist values
-const MODALITY_MAP: Record<string, string> = {
-  'presencial': 'Presencial',
-  'a distancia': 'A Distancia',
-  'distancia': 'A Distancia',
-  'virtual': 'A Distancia',
-  'online': 'A Distancia',
-  'hibrida': 'Híbrido',
-  'híbrida': 'Híbrido',
-  'hibrido': 'Híbrido',
-  'híbrido': 'Híbrido',
-  'semipresencial': 'Híbrido',
-};
+interface FieldOption {
+  value: string;
+  aliases?: string[];
+  slug?: string;
+}
 
-function normalizeModality(raw: string | null | undefined, configMap?: Record<string, string>): string | null {
-  if (!raw) return null;
+/**
+ * Normalize a picklist value using the field's configured options + aliases
+ */
+function normalizePicklist(raw: string | null | undefined, options: FieldOption[]): string | null {
+  if (!raw || options.length === 0) return raw || null;
   const key = raw.trim().toLowerCase();
-  // Config-level override takes priority
-  if (configMap && configMap[key]) return configMap[key];
-  return MODALITY_MAP[key] || raw;
+  for (const opt of options) {
+    if (opt.value.toLowerCase() === key) return opt.value;
+    if (opt.aliases?.some((a) => a.toLowerCase() === key)) return opt.value;
+    if (opt.slug && opt.slug.toLowerCase() === key) return opt.value;
+  }
+  return raw; // no match, pass through
 }
 
 export class ZohoSyncService {
@@ -45,31 +43,44 @@ export class ZohoSyncService {
     const config = JSON.parse(integration.configEncrypted);
     const zohoService = new ZohoService(config);
 
-    // Resolve offer slug to Zoho picklist value
-    let zohoOfferValue = lead.offerInterest;
-    if (lead.offerInterest) {
-      const offer = await prisma.tenantOffer.findFirst({
-        where: { tenantId, slug: lead.offerInterest, isActive: true },
-      });
-      if (offer) {
-        zohoOfferValue = offer.zohoPicklistValue;
+    // Load dynamic field configs from DB
+    const fieldConfigs = await prisma.zohoFieldConfig.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+
+    // Build Zoho payload dynamically from field configs
+    const payload: Record<string, any> = {};
+    for (const fc of fieldConfigs) {
+      const zohoField = fc.zohoField;
+      const options = (fc.optionsJson as FieldOption[]) || [];
+
+      // Fixed value fields
+      if (fc.fixedValue) {
+        if (fc.fixedValue === '__TODAY__') {
+          payload[zohoField] = new Date().toISOString().split('T')[0];
+        } else {
+          payload[zohoField] = fc.fixedValue;
+        }
+        continue;
+      }
+
+      // Read lead value by localKey
+      const rawValue = (lead as any)[fc.localKey];
+      if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+
+      // Normalize picklist values using options + aliases
+      if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && options.length > 0) {
+        payload[zohoField] = normalizePicklist(rawValue, options);
+      } else {
+        payload[zohoField] = rawValue;
       }
     }
 
-    // Normalize modality to Zoho picklist value
-    const zohoModality = normalizeModality(lead.modalityInterest, config.modalityMap);
-
-    // Build data for Zoho
-    const leadData: Record<string, any> = {
-      firstName: lead.firstName,
-      lastName: lead.lastName,
-      phone: lead.phone,
-      email: lead.email,
-      dni: lead.dni,
-      offerInterest: zohoOfferValue,
-      modalityInterest: zohoModality,
-      periodInterest: lead.periodInterest,
-    };
+    // Fallback: ensure Fecha_de_contacto always present
+    if (!payload['Fecha_de_contacto']) {
+      payload['Fecha_de_contacto'] = new Date().toISOString().split('T')[0];
+    }
 
     try {
       // Search by phone (dedupe)
@@ -81,12 +92,12 @@ export class ZohoSyncService {
         // Update existing
         zohoContactId = existingContact.id;
         console.log(`🔄 Updating Zoho contact ${zohoContactId} for lead ${leadId}`);
-        await zohoService.updateContact(zohoContactId, leadData);
+        await zohoService.updateContact(zohoContactId, payload);
         action = 'updated';
       } else {
         // Create new
         console.log(`✨ Creating new Zoho contact for lead ${leadId}`);
-        zohoContactId = await zohoService.createContact(leadData);
+        zohoContactId = await zohoService.createContact(payload);
         action = 'created';
       }
 

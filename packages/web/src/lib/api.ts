@@ -189,6 +189,15 @@ class ApiClient {
   async updateOffer(id: string, data: any) { return this.fetch<{ offer: any }>(`/offers/${id}`, { method: 'PATCH', body: data }); }
   async deleteOffer(id: string) { return this.fetch<{ message: string }>(`/offers/${id}`, { method: 'DELETE' }); }
 
+  // Zoho Field Configs
+  async getZohoFields(tenantId?: string) {
+    const qs = tenantId ? `?tenantId=${tenantId}` : '';
+    return this.fetch<{ fields: any[] }>(`/zoho-fields${qs}`);
+  }
+  async createZohoField(data: any) { return this.fetch<{ field: any }>('/zoho-fields', { method: 'POST', body: data }); }
+  async updateZohoField(id: string, data: any) { return this.fetch<{ field: any }>(`/zoho-fields/${id}`, { method: 'PATCH', body: data }); }
+  async deleteZohoField(id: string) { return this.fetch<{ message: string }>(`/zoho-fields/${id}`, { method: 'DELETE' }); }
+
   // Zoho Sync
   async syncLeadToZoho(leadId: string) { return this.fetch<{ message: string; zohoContactId: string }>(`/leads/${leadId}/sync-zoho`, { method: 'POST' }); }
 

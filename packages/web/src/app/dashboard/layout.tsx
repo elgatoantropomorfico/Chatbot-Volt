@@ -18,7 +18,7 @@ import {
   Menu,
   X,
   DollarSign,
-  GraduationCap,
+  Cloud,
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import styles from './layout.module.css';
@@ -155,8 +155,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   href="/dashboard/offers"
                   className={`${styles.navItem} ${pathname === '/dashboard/offers' ? styles.navItemActive : ''}`}
                 >
-                  <GraduationCap size={18} />
-                  Ofertas
+                  <Cloud size={18} />
+                  Zoho CRM
                 </Link>
               )}
 

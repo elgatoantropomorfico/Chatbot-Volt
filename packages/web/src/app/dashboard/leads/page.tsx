@@ -37,6 +37,7 @@ export default function LeadsPage() {
   const [noteText, setNoteText] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasZoho, setHasZoho] = useState(false);
+  const [zohoFields, setZohoFields] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
@@ -50,6 +51,10 @@ export default function LeadsPage() {
         const { integrations } = await api.getIntegrations();
         const zoho = integrations.find((i: any) => i.type === 'zoho_crm' && i.status === 'active');
         setHasZoho(!!zoho);
+        if (zoho) {
+          const { fields } = await api.getZohoFields();
+          setZohoFields((fields || []).filter((f: any) => f.isActive && !f.localKey.startsWith('_fixed_') && f.localKey !== 'phone'));
+        }
       } catch {}
     })();
   }, []);
@@ -266,23 +271,21 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          {/* Zoho CRM section */}
+          {/* Zoho CRM section — dynamic fields from ZohoFieldConfig */}
           {hasZoho && (() => {
-            const pending = (v: any) => !v;
-            const val = (v: any, fallback = 'Pendiente') => v || fallback;
-            const fieldStyle = (v: any): React.CSSProperties => pending(v)
-              ? { color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '12px' }
-              : {};
-            const zohoFields = [
-              { label: 'Nombre', value: [selectedLead.firstName, selectedLead.lastName].filter(Boolean).join(' ') },
-              { label: 'Email', value: selectedLead.email },
-              { label: 'DNI', value: selectedLead.dni },
-              { label: 'Oferta', value: selectedLead.offerInterest },
-              { label: 'Modalidad', value: selectedLead.modalityInterest },
-              { label: 'Período', value: selectedLead.periodInterest },
-            ];
-            const filled = zohoFields.filter(f => f.value).length;
-            const total = zohoFields.length;
+            const getLeadValue = (localKey: string) => {
+              if (localKey === 'firstName' || localKey === 'lastName') {
+                return [selectedLead.firstName, selectedLead.lastName].filter(Boolean).join(' ') || null;
+              }
+              return (selectedLead as any)[localKey] || null;
+            };
+            // Merge firstName+lastName into single display row
+            const displayFields = zohoFields.reduce((acc: any[], f: any) => {
+              if (f.localKey === 'lastName') return acc; // skip, merged with firstName
+              return [...acc, f];
+            }, []);
+            const filled = displayFields.filter((f: any) => getLeadValue(f.localKey)).length;
+            const total = displayFields.length;
 
             return (
               <div className={styles.detailSection}>
@@ -292,12 +295,17 @@ export default function LeadsPage() {
                     {filled}/{total} campos
                   </span>
                 </h3>
-                {zohoFields.map((f) => (
-                  <div className={styles.detailField} key={f.label}>
-                    <span>{f.label}</span>
-                    <span style={fieldStyle(f.value)}>{val(f.value)}</span>
-                  </div>
-                ))}
+                {displayFields.map((f: any) => {
+                  const v = getLeadValue(f.localKey);
+                  return (
+                    <div className={styles.detailField} key={f.localKey}>
+                      <span>{f.label}</span>
+                      <span style={!v ? { color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '12px' } : {}}>
+                        {v || 'Pendiente'}
+                      </span>
+                    </div>
+                  );
+                })}
                 <div className={styles.detailField}>
                   <span>Sync</span>
                   <span style={{

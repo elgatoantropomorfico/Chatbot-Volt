@@ -103,7 +103,8 @@ export class ZohoService {
    */
   async createContact(leadData: Record<string, any>): Promise<string> {
     const accessToken = await this.getAccessToken();
-    const payload = this.buildPayload(leadData);
+    // If keys are already Zoho field names (built by ZohoSyncService), use directly
+    const payload = this.config.fieldMapping ? this.buildPayload(leadData) : leadData;
 
     console.log('📤 Zoho CREATE payload:', JSON.stringify(payload));
 
@@ -132,7 +133,7 @@ export class ZohoService {
    */
   async updateContact(zohoContactId: string, leadData: Record<string, any>): Promise<void> {
     const accessToken = await this.getAccessToken();
-    const payload = this.buildPayload(leadData);
+    const payload = this.config.fieldMapping ? this.buildPayload(leadData) : leadData;
 
     console.log('📤 Zoho UPDATE payload:', JSON.stringify(payload));
 

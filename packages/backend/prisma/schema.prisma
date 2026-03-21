@@ -125,7 +125,8 @@ model Tenant {
   integrations  Integration[]
   sales         Sale[]
   eventsOutbox  EventOutbox[]
-  offers        TenantOffer[]
+  offers           TenantOffer[]
+  zohoFieldConfigs ZohoFieldConfig[]
 
   @@map("tenants")
 }
@@ -320,6 +321,29 @@ model TenantOffer {
   @@unique([tenantId, slug])
   @@index([tenantId, isActive])
   @@map("tenant_offers")
+}
+
+model ZohoFieldConfig {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  localKey    String   @map("local_key")
+  zohoField   String   @map("zoho_field")
+  label       String
+  fieldType   String   @default("single_line") @map("field_type")
+  isRequired  Boolean  @default(false) @map("is_required")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  fixedValue  String?  @map("fixed_value")
+  optionsJson Json     @default("[]") @map("options_json")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, localKey])
+  @@index([tenantId])
+  @@map("zoho_field_configs")
 }
 
 model EventOutbox {
