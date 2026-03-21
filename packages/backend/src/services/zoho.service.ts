@@ -158,6 +158,30 @@ export class ZohoService {
   }
 
   /**
+   * Delete a contact from Zoho CRM
+   */
+  async deleteContact(zohoContactId: string): Promise<void> {
+    const accessToken = await this.getAccessToken();
+
+    const response = await axios.delete(
+      `${this.config.apiUrl}/crm/v2/${this.config.moduleApiName}/${zohoContactId}`,
+      {
+        headers: {
+          Authorization: `Zoho-oauthtoken ${accessToken}`,
+        },
+      }
+    );
+
+    const result = response.data?.data?.[0];
+    if (result?.code === 'SUCCESS') {
+      console.log(`🗑️ Zoho contact deleted: ${zohoContactId}`);
+      return;
+    }
+
+    throw new Error(`Zoho delete failed: ${JSON.stringify(response.data)}`);
+  }
+
+  /**
    * Build Zoho payload from local lead data using field mapping
    */
   private buildPayload(leadData: Record<string, any>): Record<string, any> {

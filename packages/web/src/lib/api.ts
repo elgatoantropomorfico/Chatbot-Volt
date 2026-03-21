@@ -142,6 +142,7 @@ class ApiClient {
   async getLead(id: string) { return this.fetch<{ lead: any }>(`/leads/${id}`); }
   async updateLead(id: string, data: any) { return this.fetch<{ lead: any }>(`/leads/${id}`, { method: 'PATCH', body: data }); }
   async addLeadNote(id: string, content: string) { return this.fetch<{ note: any }>(`/leads/${id}/notes`, { method: 'POST', body: { content } }); }
+  async deleteLead(id: string) { return this.fetch<{ message: string }>(`/leads/${id}`, { method: 'DELETE' }); }
 
   // Conversations
   async getConversations(params?: Record<string, string>) {

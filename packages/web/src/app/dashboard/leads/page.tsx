@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Users, X, RefreshCw } from 'lucide-react';
+import { Users, X, RefreshCw, Trash2 } from 'lucide-react';
 import styles from './page.module.css';
 
 const STAGES = ['', 'nuevo', 'contactado', 'interesado', 'venta', 'perdido'];
@@ -403,6 +403,31 @@ export default function LeadsPage() {
                 <span>{new Date(note.createdAt).toLocaleString('es-AR')}</span>
               </div>
             ))}
+          </div>
+
+          <div className={styles.detailSection}>
+            <button
+              style={{
+                width: '100%', padding: '8px', fontSize: '12px', fontWeight: 600,
+                background: 'transparent', border: '1px solid var(--color-danger)',
+                color: 'var(--color-danger)', borderRadius: 'var(--radius-sm)',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }}
+              onClick={async () => {
+                if (!confirm(`¿Eliminar lead "${selectedLead.name || selectedLead.phone}"?\n\nSe eliminarán todas las conversaciones, mensajes y notas.${selectedLead.zohoContactId ? '\nTambién se eliminará el contacto en Zoho CRM.' : ''}`)) return;
+                try {
+                  await api.deleteLead(selectedLead.id);
+                  setSelectedLead(null);
+                  loadLeads();
+                } catch (err) {
+                  console.error('Error deleting lead:', err);
+                  alert('Error al eliminar el lead');
+                }
+              }}
+            >
+              <Trash2 size={14} />
+              Eliminar lead
+            </button>
           </div>
         </div>
         </>
