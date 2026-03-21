@@ -8,6 +8,13 @@ const updateLeadSchema = z.object({
   name: z.string().optional(),
   stage: z.enum(['nuevo', 'contactado', 'interesado', 'venta', 'perdido']).optional(),
   assignedUserId: z.string().nullable().optional(),
+  firstName: z.string().nullable().optional(),
+  lastName: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  dni: z.string().nullable().optional(),
+  offerInterest: z.string().nullable().optional(),
+  modalityInterest: z.string().nullable().optional(),
+  periodInterest: z.string().nullable().optional(),
 });
 
 const createNoteSchema = z.object({

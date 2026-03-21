@@ -271,21 +271,30 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          {/* Zoho CRM section — dynamic fields from ZohoFieldConfig */}
+          {/* Zoho CRM section — editable fields from ZohoFieldConfig */}
           {hasZoho && (() => {
-            const getLeadValue = (localKey: string) => {
-              if (localKey === 'firstName' || localKey === 'lastName') {
-                return [selectedLead.firstName, selectedLead.lastName].filter(Boolean).join(' ') || null;
-              }
-              return (selectedLead as any)[localKey] || null;
+            const editableFields = zohoFields.filter((f: any) => f.localKey !== 'phone');
+            const allFields = zohoFields;
+            const getVal = (key: string) => (selectedLead as any)[key] || '';
+            const filled = allFields.filter((f: any) => f.localKey !== 'phone' && getVal(f.localKey)).length;
+            const total = editableFields.length;
+
+            const inputStyle: React.CSSProperties = {
+              width: '100%', padding: '4px 8px', fontSize: '12px',
+              background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)', color: 'var(--color-text)', outline: 'none',
             };
-            // Merge firstName+lastName into single display row
-            const displayFields = zohoFields.reduce((acc: any[], f: any) => {
-              if (f.localKey === 'lastName') return acc; // skip, merged with firstName
-              return [...acc, f];
-            }, []);
-            const filled = displayFields.filter((f: any) => getLeadValue(f.localKey)).length;
-            const total = displayFields.length;
+            const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
+
+            async function saveField(key: string, value: string) {
+              try {
+                const patch: any = { [key]: value || null };
+                await api.updateLead(selectedLead.id, patch);
+                setSelectedLead({ ...selectedLead, [key]: value || null });
+              } catch (err) {
+                console.error('Error saving field:', err);
+              }
+            }
 
             return (
               <div className={styles.detailSection}>
@@ -295,18 +304,44 @@ export default function LeadsPage() {
                     {filled}/{total} campos
                   </span>
                 </h3>
-                {displayFields.map((f: any) => {
-                  const v = getLeadValue(f.localKey);
+                {editableFields.map((f: any) => {
+                  const opts = (f.optionsJson || []) as any[];
+                  const isPicklist = (f.fieldType === 'picklist' || f.fieldType === 'multi_select') && opts.length > 0;
+                  const val = getVal(f.localKey);
+
                   return (
-                    <div className={styles.detailField} key={f.localKey}>
-                      <span>{f.label}</span>
-                      <span style={!v ? { color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '12px' } : {}}>
-                        {v || 'Pendiente'}
-                      </span>
+                    <div key={f.localKey} style={{ marginBottom: '8px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>
+                        {f.label}
+                        {f.isRequired && <span style={{ color: '#fb7185', marginLeft: 3 }}>*</span>}
+                      </div>
+                      {isPicklist ? (
+                        <select
+                          style={selectStyle}
+                          value={val}
+                          onChange={(e) => saveField(f.localKey, e.target.value)}
+                        >
+                          <option value="">— Seleccionar —</option>
+                          {opts.map((opt: any, i: number) => (
+                            <option key={i} value={f.localKey === 'offerInterest' && opt.slug ? opt.slug : opt.value}>
+                              {opt.value}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          style={inputStyle}
+                          type={f.fieldType === 'email' ? 'email' : f.fieldType === 'number' || f.fieldType === 'decimal' ? 'number' : 'text'}
+                          defaultValue={val}
+                          placeholder={`Ingresar ${f.label.toLowerCase()}...`}
+                          onBlur={(e) => { if (e.target.value !== val) saveField(f.localKey, e.target.value); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        />
+                      )}
                     </div>
                   );
                 })}
-                <div className={styles.detailField}>
+                <div className={styles.detailField} style={{ marginTop: '6px' }}>
                   <span>Sync</span>
                   <span style={{
                     color: selectedLead.zohoSyncStatus === 'synced' ? 'var(--color-success)'
