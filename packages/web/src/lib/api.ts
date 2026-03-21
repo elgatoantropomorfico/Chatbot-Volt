@@ -61,13 +61,13 @@ class ApiClient {
     const fetchOptions: RequestInit = {
       method,
       headers: {
-        'Content-Type': 'application/json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
         ...headers,
         ...(this.accessToken ? { Authorization: `Bearer ${this.accessToken}` } : {}),
       },
     };
 
-    if (body) {
+    if (body !== undefined) {
       fetchOptions.body = JSON.stringify(body);
     }
 
