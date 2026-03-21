@@ -2,6 +2,28 @@ import { prisma } from '../config/database';
 import { ZohoService } from './zoho.service';
 import { LeadProfileService } from './lead-profile.service';
 
+// Normalize extracted modality values to Zoho picklist values
+const MODALITY_MAP: Record<string, string> = {
+  'presencial': 'Presencial',
+  'a distancia': 'A Distancia',
+  'distancia': 'A Distancia',
+  'virtual': 'A Distancia',
+  'online': 'A Distancia',
+  'hibrida': 'Híbrido',
+  'híbrida': 'Híbrido',
+  'hibrido': 'Híbrido',
+  'híbrido': 'Híbrido',
+  'semipresencial': 'Híbrido',
+};
+
+function normalizeModality(raw: string | null | undefined, configMap?: Record<string, string>): string | null {
+  if (!raw) return null;
+  const key = raw.trim().toLowerCase();
+  // Config-level override takes priority
+  if (configMap && configMap[key]) return configMap[key];
+  return MODALITY_MAP[key] || raw;
+}
+
 export class ZohoSyncService {
   /**
    * Sync a lead to Zoho CRM (create or update)
@@ -34,6 +56,9 @@ export class ZohoSyncService {
       }
     }
 
+    // Normalize modality to Zoho picklist value
+    const zohoModality = normalizeModality(lead.modalityInterest, config.modalityMap);
+
     // Build data for Zoho
     const leadData: Record<string, any> = {
       firstName: lead.firstName,
@@ -42,7 +67,7 @@ export class ZohoSyncService {
       email: lead.email,
       dni: lead.dni,
       offerInterest: zohoOfferValue,
-      modalityInterest: lead.modalityInterest,
+      modalityInterest: zohoModality,
       periodInterest: lead.periodInterest,
     };
 
