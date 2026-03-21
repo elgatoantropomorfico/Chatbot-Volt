@@ -1,26 +1,7 @@
 import { prisma } from '../config/database';
 import { ExtractedLeadData } from './lead-extraction.service';
+import { fuzzyMatchPicklist, PicklistOption } from '../utils/fuzzy-match';
 import crypto from 'crypto';
-
-interface FieldOption {
-  value: string;
-  aliases?: string[];
-  slug?: string;
-}
-
-/**
- * Normalize a raw value against picklist options + aliases.
- * Returns the matched value/slug, or the raw value if no match.
- */
-function normalizeToPicklist(raw: string, options: FieldOption[], useSlug: boolean): string {
-  const key = raw.trim().toLowerCase();
-  for (const opt of options) {
-    if (opt.value.toLowerCase() === key) return useSlug && opt.slug ? opt.slug : opt.value;
-    if (opt.slug && opt.slug.toLowerCase() === key) return useSlug ? opt.slug : opt.value;
-    if (opt.aliases?.some((a) => a.toLowerCase() === key)) return useSlug && opt.slug ? opt.slug : opt.value;
-  }
-  return raw; // no match, pass through
-}
 
 export class LeadProfileService {
   /**
@@ -36,9 +17,9 @@ export class LeadProfileService {
     const fieldConfigs = await prisma.zohoFieldConfig.findMany({
       where: { tenantId: lead.tenantId, isActive: true },
     });
-    const picklistMap = new Map<string, { options: FieldOption[]; useSlug: boolean }>();
+    const picklistMap = new Map<string, { options: PicklistOption[]; useSlug: boolean }>();
     for (const fc of fieldConfigs) {
-      const opts = (fc.optionsJson as FieldOption[]) || [];
+      const opts = (fc.optionsJson as PicklistOption[]) || [];
       if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0) {
         picklistMap.set(fc.localKey, {
           options: opts,
@@ -78,13 +59,13 @@ export class LeadProfileService {
     if (extracted.offerInterest && extracted.offerInterest !== lead.offerInterest) {
       const pl = picklistMap.get('offerInterest');
       updates.offerInterest = pl
-        ? normalizeToPicklist(extracted.offerInterest, pl.options, pl.useSlug)
+        ? (fuzzyMatchPicklist(extracted.offerInterest, pl.options, pl.useSlug) || extracted.offerInterest)
         : extracted.offerInterest;
     }
     if (extracted.modalityInterest && extracted.modalityInterest !== lead.modalityInterest) {
       const pl = picklistMap.get('modalityInterest');
       updates.modalityInterest = pl
-        ? normalizeToPicklist(extracted.modalityInterest, pl.options, pl.useSlug)
+        ? (fuzzyMatchPicklist(extracted.modalityInterest, pl.options, pl.useSlug) || extracted.modalityInterest)
         : extracted.modalityInterest;
     }
     if (extracted.periodInterest && extracted.periodInterest !== lead.periodInterest) {

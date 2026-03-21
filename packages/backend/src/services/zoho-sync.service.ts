@@ -1,26 +1,7 @@
 import { prisma } from '../config/database';
 import { ZohoService } from './zoho.service';
 import { LeadProfileService } from './lead-profile.service';
-
-interface FieldOption {
-  value: string;
-  aliases?: string[];
-  slug?: string;
-}
-
-/**
- * Normalize a picklist value using the field's configured options + aliases
- */
-function normalizePicklist(raw: string | null | undefined, options: FieldOption[]): string | null {
-  if (!raw || options.length === 0) return raw || null;
-  const key = raw.trim().toLowerCase();
-  for (const opt of options) {
-    if (opt.value.toLowerCase() === key) return opt.value;
-    if (opt.aliases?.some((a) => a.toLowerCase() === key)) return opt.value;
-    if (opt.slug && opt.slug.toLowerCase() === key) return opt.value;
-  }
-  return raw; // no match, pass through
-}
+import { fuzzyMatchPicklist, PicklistOption } from '../utils/fuzzy-match';
 
 export class ZohoSyncService {
   /**
@@ -53,7 +34,7 @@ export class ZohoSyncService {
     const payload: Record<string, any> = {};
     for (const fc of fieldConfigs) {
       const zohoField = fc.zohoField;
-      const options = (fc.optionsJson as FieldOption[]) || [];
+      const options = (fc.optionsJson as PicklistOption[]) || [];
 
       // Fixed value fields
       if (fc.fixedValue) {
@@ -71,7 +52,7 @@ export class ZohoSyncService {
 
       // Normalize picklist values using options + aliases
       if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && options.length > 0) {
-        payload[zohoField] = normalizePicklist(rawValue, options);
+        payload[zohoField] = fuzzyMatchPicklist(rawValue, options) || rawValue;
       } else {
         payload[zohoField] = rawValue;
       }
