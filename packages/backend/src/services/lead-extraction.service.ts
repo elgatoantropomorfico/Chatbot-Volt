@@ -41,8 +41,8 @@ export class LeadExtractionService {
       .map((m) => `${m.direction === 'in' ? 'Usuario' : 'Bot'}: ${m.text}`)
       .join('\n');
 
-    // Load active offers for this tenant
-    const offers = await prisma.tenantOffer.findMany({
+    // Load ZohoFieldConfig for this tenant (all active fields)
+    const fieldConfigs = await prisma.zohoFieldConfig.findMany({
       where: { tenantId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
@@ -50,21 +50,45 @@ export class LeadExtractionService {
     // Load current lead to know what we already have
     const lead = await prisma.lead.findUnique({ where: { id: params.leadId } });
 
-    const offersCatalog = offers.length > 0
-      ? offers.map((o, i) => {
-          const synonyms = (o.synonymsJson as string[]) || [];
-          return `${i + 1}. "${o.name}" (slug: "${o.slug}")\n   Sinónimos: ${synonyms.join(', ') || 'ninguno'}`;
-        }).join('\n')
-      : 'No hay catálogo de ofertas configurado para este tenant.';
+    // Build picklist catalogs for the prompt from ZohoFieldConfig
+    const picklistInstructions: string[] = [];
+    for (const fc of fieldConfigs) {
+      if (fc.fixedValue) continue; // skip fixed fields
+      const opts = (fc.optionsJson as any[]) || [];
+      if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0) {
+        const optLines = opts.map((o: any, i: number) => {
+          const aliases = (o.aliases || []).join(', ');
+          const slug = o.slug ? ` (slug: "${o.slug}")` : '';
+          return `  ${i + 1}. "${o.value}"${slug}${aliases ? `  — aliases: ${aliases}` : ''}`;
+        }).join('\n');
+        // For offerInterest use slug, for others use value
+        const useSlug = fc.localKey === 'offerInterest' && opts.some((o: any) => o.slug);
+        picklistInstructions.push(
+          `- ${fc.localKey}: ${fc.label}. Valores válidos:\n${optLines}\n  → Devolvé ${useSlug ? 'el SLUG' : 'el VALUE exacto'} que mejor coincida. Si no hay match claro, null.`
+        );
+      }
+    }
 
-    const alreadyKnown = [];
+    // Build "already known" context
+    const alreadyKnown: string[] = [];
+    const extractableKeys = fieldConfigs.filter(fc => !fc.fixedValue && fc.localKey !== 'phone').map(fc => fc.localKey);
+    for (const key of extractableKeys) {
+      const val = (lead as any)?.[key];
+      if (val) alreadyKnown.push(`${key}: ${val}`);
+    }
     if (lead?.firstName) alreadyKnown.push(`firstName: ${lead.firstName}`);
     if (lead?.lastName) alreadyKnown.push(`lastName: ${lead.lastName}`);
-    if (lead?.email) alreadyKnown.push(`email: ${lead.email}`);
-    if (lead?.dni) alreadyKnown.push(`dni: ${lead.dni}`);
-    if (lead?.offerInterest) alreadyKnown.push(`offerInterest: ${lead.offerInterest}`);
-    if (lead?.modalityInterest) alreadyKnown.push(`modalityInterest: ${lead.modalityInterest}`);
-    if (lead?.periodInterest) alreadyKnown.push(`periodInterest: ${lead.periodInterest}`);
+
+    // Build field instructions for non-picklist fields
+    const textFieldInstructions: string[] = [];
+    for (const fc of fieldConfigs) {
+      if (fc.fixedValue) continue;
+      const opts = (fc.optionsJson as any[]) || [];
+      const isPicklist = (fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0;
+      if (isPicklist) continue; // handled above
+      if (fc.localKey === 'phone') continue; // we get phone from WABA
+      textFieldInstructions.push(`- ${fc.localKey}: ${fc.label} (solo si lo mencionó explícitamente)`);
+    }
 
     const extractionPrompt = `Eres un extractor de datos estructurados de conversaciones de WhatsApp.
 Extraé SOLO datos que el usuario haya mencionado explícitamente. No inventes ni inferir datos vagos.
@@ -77,22 +101,20 @@ Nombre de perfil WhatsApp: ${profileName || 'no disponible'}
 Datos ya conocidos del lead:
 ${alreadyKnown.length > 0 ? alreadyKnown.join('\n') : 'Ninguno todavía'}
 
-Catálogo de ofertas académicas del tenant:
-${offersCatalog}
-
-Instrucciones:
+Campos de texto (extraer solo si mencionados):
 - firstName: nombre de pila del usuario (solo si lo dijo explícitamente)
 - lastName: apellido del usuario (solo si lo dijo explícitamente)
 - fullName: nombre completo si lo dijo todo junto
-- email: correo electrónico (solo si lo mencionó)
-- dni: documento de identidad (solo si lo mencionó)
-- offerInterest: el SLUG de la oferta del catálogo que coincida con lo que el usuario pidió. Si no hay match claro, null.
-- modalityInterest: presencial, a distancia, híbrida (solo si lo mencionó)
-- periodInterest: año o período (solo si lo mencionó)
+${textFieldInstructions.join('\n')}
 - intentLevel: "high" si quiere inscribirse/estudiar, "medium" si pide info específica, "low" si es consulta general
 
-Si un campo no se puede extraer con certeza, usá null.
-Si el profileName parece ser un nombre real y no hay firstName/lastName confirmados, podés usarlo como pista para fullName.
+Campos picklist (DEBE coincidir con un valor válido o null):
+${picklistInstructions.length > 0 ? picklistInstructions.join('\n') : '(sin picklists configurados)'}
+
+Reglas:
+- Si un campo no se puede extraer con certeza, usá null.
+- Para picklists, SOLO devolvé un valor/slug que esté en la lista. Si el usuario dijo algo que no matchea con ninguna opción, devolvé null.
+- Si el profileName parece ser un nombre real y no hay firstName/lastName confirmados, podés usarlo como pista para fullName.
 
 Respondé SOLO con JSON válido, sin markdown ni texto adicional:
 {"firstName":null,"lastName":null,"fullName":null,"email":null,"dni":null,"offerInterest":null,"modalityInterest":null,"periodInterest":null,"intentLevel":null}`;
