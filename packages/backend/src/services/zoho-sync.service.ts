@@ -32,6 +32,8 @@ export class ZohoSyncService {
 
     // Build Zoho payload dynamically from field configs
     const payload: Record<string, any> = {};
+    console.log(`🔧 Building Zoho payload for lead ${leadId} with ${fieldConfigs.length} field configs`);
+    
     for (const fc of fieldConfigs) {
       const zohoField = fc.zohoField;
       const options = (fc.optionsJson as PicklistOption[]) || [];
@@ -43,25 +45,35 @@ export class ZohoSyncService {
         } else {
           payload[zohoField] = fc.fixedValue;
         }
+        console.log(`  ✓ ${fc.localKey} → ${zohoField} = ${payload[zohoField]} (fixed)`);
         continue;
       }
 
       // Read lead value by localKey
       const rawValue = (lead as any)[fc.localKey];
-      if (rawValue === undefined || rawValue === null || rawValue === '') continue;
+      if (rawValue === undefined || rawValue === null || rawValue === '') {
+        console.log(`  ⊘ ${fc.localKey} → ${zohoField} (empty, skipped)`);
+        continue;
+      }
 
       // Normalize picklist values using options + aliases
       if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && options.length > 0) {
-        payload[zohoField] = fuzzyMatchPicklist(rawValue, options) || rawValue;
+        const normalized = fuzzyMatchPicklist(rawValue, options) || rawValue;
+        payload[zohoField] = normalized;
+        console.log(`  ✓ ${fc.localKey} → ${zohoField} = "${rawValue}" → "${normalized}" (picklist)`);
       } else {
         payload[zohoField] = rawValue;
+        console.log(`  ✓ ${fc.localKey} → ${zohoField} = "${rawValue}"`);
       }
     }
 
     // Fallback: ensure Fecha_de_contacto always present
     if (!payload['Fecha_de_contacto']) {
       payload['Fecha_de_contacto'] = new Date().toISOString().split('T')[0];
+      console.log(`  ✓ Fecha_de_contacto = ${payload['Fecha_de_contacto']} (fallback)`);
     }
+
+    console.log(`📦 Final Zoho payload:`, JSON.stringify(payload, null, 2));
 
     try {
       // Search by phone (dedupe)
