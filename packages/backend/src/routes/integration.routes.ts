@@ -3,34 +3,36 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
 
+const wooConfigSchema = z.object({
+  baseUrl: z.string().url(),
+  consumerKey: z.string(),
+  consumerSecret: z.string(),
+  maxSearchResults: z.number().min(1).max(20).optional(),
+  enableProductSearch: z.boolean().optional(),
+  enableOrderLookup: z.boolean().optional(),
+  enableCart: z.boolean().optional(),
+  checkoutMode: z.enum(['wa_human', 'mercadopago']).optional(),
+  checkoutPhone: z.string().optional(),
+});
+
+const zohoConfigSchema = z.object({
+  clientId: z.string().min(1),
+  clientSecret: z.string().min(1),
+  refreshToken: z.string().min(1),
+  moduleApiName: z.string().optional(),
+  dedupeField: z.string().optional(),
+  fieldMapping: z.record(z.string()).optional(),
+  fixedValues: z.record(z.string()).optional(),
+});
+
 const createIntegrationSchema = z.object({
   tenantId: z.string(),
-  type: z.enum(['woocommerce']),
-  config: z.object({
-    baseUrl: z.string().url(),
-    consumerKey: z.string(),
-    consumerSecret: z.string(),
-    maxSearchResults: z.number().min(1).max(20).optional(),
-    enableProductSearch: z.boolean().optional(),
-    enableOrderLookup: z.boolean().optional(),
-    enableCart: z.boolean().optional(),
-    checkoutMode: z.enum(['wa_human', 'mercadopago']).optional(),
-    checkoutPhone: z.string().optional(),
-  }),
+  type: z.enum(['woocommerce', 'zoho_crm']),
+  config: z.union([wooConfigSchema, zohoConfigSchema]),
 });
 
 const updateIntegrationSchema = z.object({
-  config: z.object({
-    baseUrl: z.string().url(),
-    consumerKey: z.string(),
-    consumerSecret: z.string(),
-    maxSearchResults: z.number().min(1).max(20).optional(),
-    enableProductSearch: z.boolean().optional(),
-    enableOrderLookup: z.boolean().optional(),
-    enableCart: z.boolean().optional(),
-    checkoutMode: z.enum(['wa_human', 'mercadopago']).optional(),
-    checkoutPhone: z.string().optional(),
-  }).optional(),
+  config: z.union([wooConfigSchema, zohoConfigSchema]).optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });
 
@@ -69,7 +71,7 @@ export async function integrationRoutes(app: FastifyInstance) {
     const integration = await prisma.integration.create({
       data: {
         tenantId: body.data.tenantId,
-        type: body.data.type,
+        type: body.data.type as any,
         configEncrypted: JSON.stringify(body.data.config),
         status: 'active',
       },
@@ -81,7 +83,8 @@ export async function integrationRoutes(app: FastifyInstance) {
   // Update integration
   app.patch('/:id', {
     preHandler: [requireRole('superadmin', 'tenant_admin')],
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
     const body = updateIntegrationSchema.safeParse(request.body);
     if (!body.success) {
       return reply.status(400).send({ error: 'Validation failed', details: body.error.flatten() });
@@ -92,7 +95,7 @@ export async function integrationRoutes(app: FastifyInstance) {
     if (body.data.status) data.status = body.data.status;
 
     const integration = await prisma.integration.update({
-      where: { id: request.params.id },
+      where: { id },
       data,
     });
 
@@ -102,8 +105,9 @@ export async function integrationRoutes(app: FastifyInstance) {
   // Delete integration
   app.delete('/:id', {
     preHandler: [requireRole('superadmin')],
-  }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    await prisma.integration.delete({ where: { id: request.params.id } });
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    await prisma.integration.delete({ where: { id } });
     return reply.send({ message: 'Integration deleted' });
   });
 }

@@ -174,6 +174,7 @@ class ApiClient {
   async getIntegrations() { return this.fetch<{ integrations: any[] }>('/integrations'); }
   async createIntegration(data: any) { return this.fetch<{ integration: any }>('/integrations', { method: 'POST', body: data }); }
   async updateIntegration(id: string, data: any) { return this.fetch<{ integration: any }>(`/integrations/${id}`, { method: 'PATCH', body: data }); }
+  async deleteIntegration(id: string) { return this.fetch<{ message: string }>(`/integrations/${id}`, { method: 'DELETE' }); }
 
   // Dashboard
   async getDashboardStats() { return this.fetch<any>('/dashboard/stats'); }

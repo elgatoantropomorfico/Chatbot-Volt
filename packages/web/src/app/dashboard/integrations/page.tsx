@@ -16,6 +16,7 @@ import {
   Settings2,
   ExternalLink,
   CreditCard,
+  Cloud,
 } from 'lucide-react';
 
 interface WooConfig {
@@ -31,7 +32,17 @@ interface WooConfig {
   checkoutPhone: string;
 }
 
-const defaultConfig: WooConfig = {
+interface ZohoConfig {
+  clientId: string;
+  clientSecret: string;
+  refreshToken: string;
+  moduleApiName: string;
+  dedupeField: string;
+  fieldMapping: Record<string, string>;
+  fixedValues: Record<string, string>;
+}
+
+const defaultWooConfig: WooConfig = {
   baseUrl: '',
   consumerKey: '',
   consumerSecret: '',
@@ -44,6 +55,16 @@ const defaultConfig: WooConfig = {
   checkoutPhone: '',
 };
 
+const defaultZohoConfig: ZohoConfig = {
+  clientId: '',
+  clientSecret: '',
+  refreshToken: '',
+  moduleApiName: 'Contacts',
+  dedupeField: 'Mobile',
+  fieldMapping: {},
+  fixedValues: {},
+};
+
 export default function IntegrationsPage() {
   const { user, isSuperAdmin, isTenantAdmin } = useAuth();
   const [integrations, setIntegrations] = useState<any[]>([]);
@@ -52,8 +73,10 @@ export default function IntegrationsPage() {
   const [saving, setSaving] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [config, setConfig] = useState<WooConfig>({ ...defaultConfig });
+  const [config, setConfig] = useState<WooConfig>({ ...defaultWooConfig });
+  const [zohoConfig, setZohoConfig] = useState<ZohoConfig>({ ...defaultZohoConfig });
   const [createForm, setCreateForm] = useState({ tenantId: '', type: 'woocommerce' });
+  const [editType, setEditType] = useState<string>('woocommerce');
   const [saveMsg, setSaveMsg] = useState('');
 
   const loadIntegrations = useCallback(async () => {
@@ -74,18 +97,31 @@ export default function IntegrationsPage() {
 
   function openEdit(integration: any) {
     const c = integration.config || {};
-    setConfig({
-      baseUrl: c.baseUrl || '',
-      consumerKey: c.consumerKey || '',
-      consumerSecret: c.consumerSecret || '',
-      maxSearchResults: c.maxSearchResults ?? 10,
-      enableProductSearch: c.enableProductSearch !== false,
-      enableOrderLookup: c.enableOrderLookup !== false,
-      enableCart: c.enableCart !== false,
-      exitShopOnCheckout: c.exitShopOnCheckout !== false,
-      checkoutMode: c.checkoutMode || 'wa_human',
-      checkoutPhone: c.checkoutPhone || '',
-    });
+    setEditType(integration.type);
+    if (integration.type === 'zoho_crm') {
+      setZohoConfig({
+        clientId: c.clientId || '',
+        clientSecret: c.clientSecret || '',
+        refreshToken: c.refreshToken || '',
+        moduleApiName: c.moduleApiName || 'Contacts',
+        dedupeField: c.dedupeField || 'Mobile',
+        fieldMapping: c.fieldMapping || {},
+        fixedValues: c.fixedValues || {},
+      });
+    } else {
+      setConfig({
+        baseUrl: c.baseUrl || '',
+        consumerKey: c.consumerKey || '',
+        consumerSecret: c.consumerSecret || '',
+        maxSearchResults: c.maxSearchResults ?? 10,
+        enableProductSearch: c.enableProductSearch !== false,
+        enableOrderLookup: c.enableOrderLookup !== false,
+        enableCart: c.enableCart !== false,
+        exitShopOnCheckout: c.exitShopOnCheckout !== false,
+        checkoutMode: c.checkoutMode || 'wa_human',
+        checkoutPhone: c.checkoutPhone || '',
+      });
+    }
     setEditingId(integration.id);
     setShowCreate(false);
     setSaveMsg('');
@@ -95,13 +131,15 @@ export default function IntegrationsPage() {
     e.preventDefault();
     setSaving(true);
     try {
+      const cfgPayload = createForm.type === 'zoho_crm' ? { ...zohoConfig } : { ...config };
       await api.createIntegration({
         tenantId: isTenantAdmin ? user?.tenantId : createForm.tenantId,
         type: createForm.type,
-        config: { ...config },
+        config: cfgPayload,
       });
       setShowCreate(false);
-      setConfig({ ...defaultConfig });
+      setConfig({ ...defaultWooConfig });
+      setZohoConfig({ ...defaultZohoConfig });
       await loadIntegrations();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
@@ -112,7 +150,8 @@ export default function IntegrationsPage() {
     setSaving(true);
     setSaveMsg('');
     try {
-      await api.updateIntegration(editingId, { config: { ...config } });
+      const cfgPayload = editType === 'zoho_crm' ? { ...zohoConfig } : { ...config };
+      await api.updateIntegration(editingId, { config: cfgPayload });
       setSaveMsg('Guardado correctamente');
       await loadIntegrations();
       setTimeout(() => setSaveMsg(''), 3000);
@@ -155,6 +194,83 @@ export default function IntegrationsPage() {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '14px 0', borderBottom: '1px solid rgba(139, 92, 246, 0.06)',
   };
+
+  function renderZohoConfigForm() {
+    return (
+      <>
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>
+            <Cloud size={18} style={{ color: '#f59e0b' }} />
+            Credenciales Zoho CRM
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>Client ID</label>
+              <input
+                value={zohoConfig.clientId}
+                onChange={(e) => setZohoConfig({ ...zohoConfig, clientId: e.target.value })}
+                placeholder="1000.XXXXXXXXXXXXXXX"
+                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Client Secret</label>
+              <input
+                type="password"
+                value={zohoConfig.clientSecret}
+                onChange={(e) => setZohoConfig({ ...zohoConfig, clientSecret: e.target.value })}
+                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Refresh Token</label>
+              <input
+                type="password"
+                value={zohoConfig.refreshToken}
+                onChange={(e) => setZohoConfig({ ...zohoConfig, refreshToken: e.target.value })}
+                placeholder="1000.xxxxxxxx.xxxxxxxx"
+                style={{ ...inputStyle, fontFamily: 'var(--font-mono)', fontSize: '13px' }}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div style={sectionStyle}>
+          <div style={sectionTitleStyle}>
+            <Settings2 size={18} style={{ color: 'var(--color-info)' }} />
+            Configuracion del modulo
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={labelStyle}>Modulo API Name</label>
+              <input
+                value={zohoConfig.moduleApiName}
+                onChange={(e) => setZohoConfig({ ...zohoConfig, moduleApiName: e.target.value })}
+                placeholder="Contacts"
+                style={inputStyle}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Campo de deduplicacion</label>
+              <input
+                value={zohoConfig.dedupeField}
+                onChange={(e) => setZohoConfig({ ...zohoConfig, dedupeField: e.target.value })}
+                placeholder="Mobile"
+                style={inputStyle}
+              />
+            </div>
+          </div>
+          <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
+              El mapeo de campos y valores fijos se configuran automaticamente.
+              Los campos de lead (nombre, email, DNI, oferta, modalidad, periodo) se extraen de la conversacion por IA.
+            </div>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   function renderConfigForm(isCreate: boolean) {
     return (
@@ -433,7 +549,7 @@ export default function IntegrationsPage() {
         <h1 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Integraciones</h1>
         {!showCreate && !editingId && (
           <button
-            onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultConfig }); }}
+            onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultWooConfig }); setZohoConfig({ ...defaultZohoConfig }); setCreateForm({ tenantId: '', type: 'woocommerce' }); }}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px',
               background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none',
@@ -450,7 +566,7 @@ export default function IntegrationsPage() {
       {showCreate && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Nueva integracion WooCommerce</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Nueva integracion</h2>
             <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
               <X size={20} />
             </button>
@@ -472,7 +588,27 @@ export default function IntegrationsPage() {
               </div>
             )}
 
-            {renderConfigForm(true)}
+            <div style={{ ...sectionStyle, marginBottom: '16px' }}>
+              <label style={labelStyle}>Tipo de integracion</label>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'woocommerce' })} style={{ flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'woocommerce' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: createForm.type === 'woocommerce' ? 'var(--color-primary-light)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <ShoppingCart size={16} style={{ color: '#a78bfa' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>WooCommerce</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>E-commerce, productos, carrito</div>
+                </button>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'zoho_crm' })} style={{ flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'zoho_crm' ? '2px solid #f59e0b' : '1px solid var(--color-border)', background: createForm.type === 'zoho_crm' ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <Cloud size={16} style={{ color: '#f59e0b' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>Zoho CRM</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Captura de leads, sync automatico</div>
+                </button>
+              </div>
+            </div>
+
+            {createForm.type === 'zoho_crm' ? renderZohoConfigForm() : renderConfigForm(true)}
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
               <button
@@ -509,13 +645,13 @@ export default function IntegrationsPage() {
       {editingId && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar WooCommerce</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : 'WooCommerce'}</h2>
             <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
               <X size={20} />
             </button>
           </div>
 
-          {renderConfigForm(false)}
+          {editType === 'zoho_crm' ? renderZohoConfigForm() : renderConfigForm(false)}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
             <button
@@ -561,7 +697,7 @@ export default function IntegrationsPage() {
             <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-muted)' }}>
               <Plug size={40} style={{ marginBottom: '12px', opacity: 0.4 }} />
               <p style={{ fontSize: '16px', marginBottom: '4px' }}>No hay integraciones configuradas</p>
-              <p style={{ fontSize: '13px' }}>Crea una integracion con WooCommerce para conectar tu tienda</p>
+              <p style={{ fontSize: '13px' }}>Crea una integracion para conectar tu servicio</p>
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -580,30 +716,44 @@ export default function IntegrationsPage() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
                     <div style={{
                       width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
-                      background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))', display: 'flex',
+                      background: i.type === 'zoho_crm'
+                        ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.08))'
+                        : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))',
+                      display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
-                      border: '1px solid rgba(139, 92, 246, 0.12)',
+                      border: i.type === 'zoho_crm' ? '1px solid rgba(245, 158, 11, 0.12)' : '1px solid rgba(139, 92, 246, 0.12)',
                     }}>
-                      <ShoppingCart size={20} style={{ color: '#a78bfa' }} />
+                      {i.type === 'zoho_crm' ? <Cloud size={20} style={{ color: '#f59e0b' }} /> : <ShoppingCart size={20} style={{ color: '#a78bfa' }} />}
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: 600 }}>WooCommerce</div>
+                      <div style={{ fontSize: '15px', fontWeight: 600 }}>{i.type === 'zoho_crm' ? 'Zoho CRM' : 'WooCommerce'}</div>
                       <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
-                        {(i.config as any)?.baseUrl || 'Sin URL configurada'}
+                        {i.type === 'zoho_crm'
+                          ? `Modulo: ${(i.config as any)?.moduleApiName || 'Contacts'}`
+                          : ((i.config as any)?.baseUrl || 'Sin URL configurada')}
                       </div>
                     </div>
                   </div>
 
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      {(i.config as any)?.enableProductSearch !== false && (
-                        <span title="Busqueda de productos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-light)', color: 'var(--color-success)' }}>Productos</span>
-                      )}
-                      {(i.config as any)?.enableCart !== false && (
-                        <span title="Carrito" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-info-light)', color: 'var(--color-info)' }}>Carrito</span>
-                      )}
-                      {(i.config as any)?.enableOrderLookup !== false && (
-                        <span title="Pedidos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-light)', color: 'var(--color-warning)' }}>Pedidos</span>
+                      {i.type === 'zoho_crm' ? (
+                        <>
+                          <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Leads</span>
+                          <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Auto-sync</span>
+                        </>
+                      ) : (
+                        <>
+                          {(i.config as any)?.enableProductSearch !== false && (
+                            <span title="Busqueda de productos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-light)', color: 'var(--color-success)' }}>Productos</span>
+                          )}
+                          {(i.config as any)?.enableCart !== false && (
+                            <span title="Carrito" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-info-light)', color: 'var(--color-info)' }}>Carrito</span>
+                          )}
+                          {(i.config as any)?.enableOrderLookup !== false && (
+                            <span title="Pedidos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-light)', color: 'var(--color-warning)' }}>Pedidos</span>
+                          )}
+                        </>
                       )}
                     </div>
 
