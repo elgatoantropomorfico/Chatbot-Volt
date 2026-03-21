@@ -1,7 +1,7 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../config/database';
-import { requireRole } from '../middleware/auth';
+import { requireRole } from '../middleware/roles';
 
 const optionSchema = z.object({
   value: z.string(),
