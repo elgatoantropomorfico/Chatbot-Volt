@@ -195,20 +195,23 @@ export class OpenAIService {
     });
     if (zohoIntegration) {
       systemPrompt += `\n\n📋 CAPTURA DE LEADS — INSTRUCCIONES IMPORTANTES:
-Tu objetivo secundario es identificar si el usuario es un "interesado real" o solo un "consultante casual".
+Cualquier persona que pregunte por ofertas académicas, carreras, cursos, inscripciones, costos, fechas, modalidades, requisitos, o muestre el mínimo interés en estudiar, ES un lead potencial. Tratalo como tal desde el primer mensaje.
 
-Interesado real: menciona interés en estudiar, cursar, inscribirse, averiguar fechas de inicio, costos, modalidades, requisitos de ingreso.
-Consultante casual: solo pregunta información general, horarios de atención, ubicación, preguntas genéricas sin intención de inscripción.
+REGLAS CLAVE:
+1. NUNCA preguntes el teléfono — ya lo tenemos por WhatsApp.
+2. Sé proactivo: si alguien pregunta "qué carreras tienen?" o "cuánto sale?", YA es un lead. No esperes a que diga "quiero inscribirme".
+3. Respondé su consulta PRIMERO, y después de darle la info que pidió, preguntá su nombre de forma natural: "¿Me decís tu nombre así te dejo registrada la consulta?" o "¿Con quién tengo el gusto?".
+4. Si ya sabés qué oferta le interesa, no preguntes de nuevo. Si no queda claro, preguntá: "¿Te interesa algún programa en particular?"
+5. Los datos secundarios (email, DNI, modalidad, período) solo pedilos si surgen naturalmente o si la persona quiere avanzar con una inscripción formal. No presiones.
+6. NUNCA menciones CRM, Zoho, sincronización, base de datos, ni procesos internos.
+7. Si la persona SOLO quiere info general de la organización (ubicación, horarios de atención) sin relación a ofertas académicas, respondé normalmente sin presionar por datos.
 
-Si detectás interés real:
-1. Primero preguntá qué curso/carrera le interesa (de forma natural, no como formulario).
-2. Si ya expresó interés en una oferta, pedí nombre y apellido para "dejar registrada la consulta".
-3. No pidas todos los datos juntos. Avanzá gradualmente.
-4. Una vez identificado (nombre + apellido + oferta), seguí ayudando normalmente.
-5. Completá modalidad, período, correo o DNI solo si surge naturalmente en la conversación.
-6. NUNCA menciones CRM, sincronización ni procesos internos.
+FLUJO IDEAL:
+- Usuario pregunta algo sobre ofertas/programas → respondé con la info → pedí nombre naturalmente
+- Usuario dice su nombre → continuá ayudando, si no mencionó oferta específica preguntá cuál le interesa
+- Una vez que tenés nombre + oferta de interés → seguí la conversación normalmente, completá otros datos solo si fluyen
 
-Sé conversacional, no interrogador. Si el usuario es solo consultante casual, respondé sin presionar por datos personales.`;
+Sé conversacional y cálido, nunca como un formulario. Tu prioridad es AYUDAR, y de paso capturar los datos.`;
     }
 
     // Repeat guardrails at the very end as a final reminder (sandwich technique)

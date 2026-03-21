@@ -267,89 +267,82 @@ export default function LeadsPage() {
           </div>
 
           {/* Zoho CRM section */}
-          {hasZoho && (
-            <div className={styles.detailSection}>
-              <h3>Zoho CRM</h3>
-              {selectedLead.firstName && (
+          {hasZoho && (() => {
+            const pending = (v: any) => !v;
+            const val = (v: any, fallback = 'Pendiente') => v || fallback;
+            const fieldStyle = (v: any): React.CSSProperties => pending(v)
+              ? { color: 'var(--color-text-muted)', fontStyle: 'italic', fontSize: '12px' }
+              : {};
+            const zohoFields = [
+              { label: 'Nombre', value: [selectedLead.firstName, selectedLead.lastName].filter(Boolean).join(' ') },
+              { label: 'Email', value: selectedLead.email },
+              { label: 'DNI', value: selectedLead.dni },
+              { label: 'Oferta', value: selectedLead.offerInterest },
+              { label: 'Modalidad', value: selectedLead.modalityInterest },
+              { label: 'Período', value: selectedLead.periodInterest },
+            ];
+            const filled = zohoFields.filter(f => f.value).length;
+            const total = zohoFields.length;
+
+            return (
+              <div className={styles.detailSection}>
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Zoho CRM</span>
+                  <span style={{ fontSize: '10px', fontWeight: 500, color: filled === total ? 'var(--color-success)' : 'var(--color-warning)', textTransform: 'none', letterSpacing: 0 }}>
+                    {filled}/{total} campos
+                  </span>
+                </h3>
+                {zohoFields.map((f) => (
+                  <div className={styles.detailField} key={f.label}>
+                    <span>{f.label}</span>
+                    <span style={fieldStyle(f.value)}>{val(f.value)}</span>
+                  </div>
+                ))}
                 <div className={styles.detailField}>
-                  <span>Nombre</span>
-                  <span>{selectedLead.firstName} {selectedLead.lastName || ''}</span>
+                  <span>Sync</span>
+                  <span style={{
+                    color: selectedLead.zohoSyncStatus === 'synced' ? 'var(--color-success)'
+                      : selectedLead.zohoSyncStatus === 'error' ? 'var(--color-danger)'
+                      : 'var(--color-warning)',
+                    fontWeight: 600, fontSize: '12px',
+                  }}>
+                    {selectedLead.zohoSyncStatus === 'synced' ? '✓ Sincronizado'
+                      : selectedLead.zohoSyncStatus === 'error' ? '✗ Error'
+                      : '⏳ Pendiente'}
+                  </span>
                 </div>
-              )}
-              {selectedLead.email && (
-                <div className={styles.detailField}>
-                  <span>Email</span>
-                  <span>{selectedLead.email}</span>
-                </div>
-              )}
-              {selectedLead.dni && (
-                <div className={styles.detailField}>
-                  <span>DNI</span>
-                  <span>{selectedLead.dni}</span>
-                </div>
-              )}
-              {selectedLead.offerInterest && (
-                <div className={styles.detailField}>
-                  <span>Oferta</span>
-                  <span>{selectedLead.offerInterest}</span>
-                </div>
-              )}
-              {selectedLead.modalityInterest && (
-                <div className={styles.detailField}>
-                  <span>Modalidad</span>
-                  <span>{selectedLead.modalityInterest}</span>
-                </div>
-              )}
-              {selectedLead.periodInterest && (
-                <div className={styles.detailField}>
-                  <span>Período</span>
-                  <span>{selectedLead.periodInterest}</span>
-                </div>
-              )}
-              <div className={styles.detailField}>
-                <span>Sync</span>
-                <span style={{
-                  color: selectedLead.zohoSyncStatus === 'synced' ? 'var(--color-success)'
-                    : selectedLead.zohoSyncStatus === 'error' ? 'var(--color-danger)'
-                    : 'var(--color-warning)',
-                  fontWeight: 600, fontSize: '12px',
-                }}>
-                  {selectedLead.zohoSyncStatus === 'synced' ? '✓ Sincronizado'
-                    : selectedLead.zohoSyncStatus === 'error' ? '✗ Error'
-                    : '⏳ Pendiente'}
-                </span>
+                {selectedLead.zohoLastError && (
+                  <div style={{ fontSize: '11px', color: 'var(--color-danger)', marginTop: 4, wordBreak: 'break-all' }}>
+                    {selectedLead.zohoLastError}
+                  </div>
+                )}
+                {selectedLead.zohoLastSyncAt && (
+                  <div className={styles.detailField}>
+                    <span>Último sync</span>
+                    <span>{new Date(selectedLead.zohoLastSyncAt).toLocaleString('es-AR')}</span>
+                  </div>
+                )}
+                <button
+                  className={styles.noteBtn}
+                  onClick={syncToZoho}
+                  disabled={syncing}
+                  style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RefreshCw size={13} className={syncing ? 'spin' : ''} />
+                  {syncing ? 'Sincronizando...' : 'Actualizar en Zoho'}
+                </button>
+                {syncMsg && (
+                  <div style={{
+                    marginTop: 8,
+                    fontSize: '12px',
+                    color: syncMsg.type === 'ok' ? 'var(--color-success)' : 'var(--color-danger)',
+                  }}>
+                    {syncMsg.text}
+                  </div>
+                )}
               </div>
-              {selectedLead.zohoLastError && (
-                <div style={{ fontSize: '11px', color: 'var(--color-danger)', marginTop: 4, wordBreak: 'break-all' }}>
-                  {selectedLead.zohoLastError}
-                </div>
-              )}
-              {selectedLead.zohoLastSyncAt && (
-                <div className={styles.detailField}>
-                  <span>Último sync</span>
-                  <span>{new Date(selectedLead.zohoLastSyncAt).toLocaleString('es-AR')}</span>
-                </div>
-              )}
-              <button
-                className={styles.noteBtn}
-                onClick={syncToZoho}
-                disabled={syncing}
-                style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}
-              >
-                <RefreshCw size={13} className={syncing ? 'spin' : ''} />
-                {syncing ? 'Sincronizando...' : 'Actualizar en Zoho'}
-              </button>
-              {syncMsg && (
-                <div style={{
-                  marginTop: 8,
-                  fontSize: '12px',
-                  color: syncMsg.type === 'ok' ? 'var(--color-success)' : 'var(--color-danger)',
-                }}>
-                  {syncMsg.text}
-                </div>
-              )}
-            </div>
-          )}
+            );
+          })()}
 
           <div className={styles.detailSection}>
             <h3>Notas internas</h3>
