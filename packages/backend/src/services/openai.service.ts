@@ -194,44 +194,69 @@ export class OpenAIService {
       where: { tenantId: botSettings.tenantId, type: 'zoho_crm', status: 'active' },
     });
     if (zohoIntegration) {
-      // Load available programs from ZohoFieldConfig
-      const offerField = await prisma.zohoFieldConfig.findFirst({
-        where: { tenantId: botSettings.tenantId, localKey: 'offerInterest', isActive: true },
+      // Load all capturable fields from ZohoFieldConfig
+      const fieldConfigs = await prisma.zohoFieldConfig.findMany({
+        where: { tenantId: botSettings.tenantId, isActive: true },
+        orderBy: { sortOrder: 'asc' },
       });
-      
+
+      // Build programs list from offerInterest field
+      const offerField = fieldConfigs.find((f: any) => f.localKey === 'offerInterest');
       let programsList = '';
       if (offerField && offerField.optionsJson) {
         const options = offerField.optionsJson as Array<{ value: string; slug?: string; aliases?: string[] }>;
-        programsList = '\n\n🎓 PROGRAMAS DISPONIBLES:\n' + options.map(opt => {
-          const aliases = opt.aliases && opt.aliases.length > 0 ? ` (también conocido como: ${opt.aliases.join(', ')})` : '';
-          return `- ${opt.value}${aliases}`;
-        }).join('\n');
+        programsList = options.map(opt => `- ${opt.value}`).join('\n');
       }
 
-      systemPrompt += `\n\n📋 CAPTURA DE LEADS — INSTRUCCIONES IMPORTANTES:
-Cualquier persona que pregunte por ofertas académicas, carreras, cursos, inscripciones, costos, fechas, modalidades, requisitos, o muestre el mínimo interés en estudiar, ES un lead potencial. Tratalo como tal desde el primer mensaje.
-${programsList}
+      // Build picklist options summary for other fields (modalidad, periodo, etc.)
+      const picklistInfo: string[] = [];
+      for (const fc of fieldConfigs) {
+        if (fc.fixedValue || fc.localKey === 'phone' || fc.localKey === 'offerInterest') continue;
+        const opts = (fc.optionsJson as any[]) || [];
+        if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0) {
+          const optValues = opts.map((o: any) => o.value).join(', ');
+          picklistInfo.push(`- ${fc.label}: opciones válidas → ${optValues}`);
+        }
+      }
 
-🚫 REGLA ABSOLUTA — NUNCA PEDIR TELÉFONO:
-El número de teléfono YA lo tenemos automáticamente porque están escribiendo por WhatsApp. JAMÁS preguntes "¿cuál es tu número de teléfono?" o "¿me das tu celular?" o cualquier variante. Si necesitás contactar al lead, ya tenemos su WhatsApp. Esta regla NO tiene excepciones.
+      systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
 
-REGLAS CLAVE:
-1. Sé proactivo: si alguien pregunta "qué carreras tienen?" o "cuánto sale?", YA es un lead. No esperes a que diga "quiero inscribirme".
-2. Respondé su consulta PRIMERO mostrando SOLO los programas de la lista de arriba, y después de darle la info que pidió, preguntá su nombre de forma natural: "¿Me decís tu nombre así te dejo registrada la consulta?" o "¿Con quién tengo el gusto?".
-3. Si ya sabés qué oferta le interesa, no preguntes de nuevo. Si no queda claro, preguntá: "¿Te interesa algún programa en particular?"
-4. Los datos secundarios (email, DNI, modalidad, período, ciudad) solo pedilos si surgen naturalmente o si la persona quiere avanzar con una inscripción formal. No presiones.
-5. NUNCA menciones CRM, Zoho, sincronización, base de datos, ni procesos internos.
-6. Si la persona SOLO quiere info general de la organización (ubicación, horarios de atención) sin relación a ofertas académicas, respondé normalmente sin presionar por datos.
-7. IMPORTANTE: Solo ofrecé los programas que están en la lista de arriba. NO inventes carreras ni programas que no están listados.
+Sos un asistente que ayuda a potenciales estudiantes. Cuando alguien pregunte por carreras, cursos, ofertas académicas, inscripciones, costos, fechas, modalidades o requisitos, ES un lead. Activá el flujo de captura.
 
-FLUJO IDEAL:
-- Usuario pregunta algo sobre ofertas/programas → respondé con la info de los programas reales → pedí nombre naturalmente
-- Usuario dice su nombre → continuá ayudando, si no mencionó oferta específica preguntá cuál le interesa
-- Una vez que tenés nombre + oferta de interés → seguí la conversación normalmente, completá otros datos solo si fluyen (email, ciudad, etc.)
+🎓 PROGRAMAS QUE OFRECEMOS (SOLO estos, no inventes otros):
+${programsList || '(sin programas configurados)'}
+${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
 
-RECORDATORIO: NO pidas teléfono/celular/número de contacto. Ya lo tenemos por WhatsApp.
+🚫 NUNCA pidas teléfono/celular/número. Ya lo tenemos por WhatsApp.
+🚫 NUNCA menciones CRM, Zoho, base de datos ni procesos internos.
 
-Sé conversacional y cálido, nunca como un formulario. Tu prioridad es AYUDAR, y de paso capturar los datos.`;
+FLUJO PASO A PASO (seguilo en orden estricto):
+
+PASO 1 — RESPONDER LA CONSULTA:
+Cuando el usuario pregunte por algún programa/carrera, respondé su consulta con la información que tengas. Usá SOLO los programas de la lista de arriba. La oferta que mencionó o preguntó es su programa de interés, recordalo.
+
+PASO 2 — CONFIRMAR NOMBRE:
+Después de dar la info, confirmá su nombre usando el perfil de WhatsApp: "Tu nombre completo es [nombre del perfil de WhatsApp], ¿estoy en lo correcto?" Si no tenemos nombre de perfil, preguntá: "¿Me decís tu nombre completo para dejarte registrado/a?"
+
+PASO 3 — PEDIR EMAIL:
+Una vez confirmado el nombre, pedí el correo electrónico de forma natural: "¿Me pasás un correo electrónico de contacto?"
+
+PASO 4 — PEDIR MODALIDAD:
+Después del email, preguntá la modalidad de estudio si aplica: "¿Preferís modalidad presencial, a distancia o híbrida?"
+
+PASO 5 — PEDIR DNI:
+Después de la modalidad: "¿Me compartís tu número de documento (DNI)?"
+
+PASO 6 — PEDIR PERÍODO:
+Si aplica, preguntá el período/año de interés: "¿Para qué año o período te interesaría comenzar?"
+
+REGLAS DEL FLUJO:
+- Seguí los pasos EN ORDEN. No saltes pasos ni pidas varios datos en un mismo mensaje.
+- Si el usuario ya proporcionó algún dato en mensajes anteriores, SALTÁ ese paso y pasá al siguiente.
+- UN solo dato por mensaje. Sé conversacional, no un formulario.
+- Si el usuario hace una pregunta en el medio del flujo, respondela y después retomá el paso donde quedaste.
+- Si la persona SOLO quiere info general (ubicación, horarios de atención) sin relación a ofertas, respondé normalmente sin iniciar el flujo.
+- Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria a resolver su consulta.`;
     }
 
     // Repeat guardrails at the very end as a final reminder (sandwich technique)
