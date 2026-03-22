@@ -110,12 +110,14 @@ export class LeadProfileService {
     phone: string;
     firstName?: string | null;
     lastName?: string | null;
+    email?: string | null;
     offerInterest?: string | null;
   }): boolean {
     return !!(
       lead.phone &&
       lead.firstName &&
       lead.lastName &&
+      lead.email &&
       lead.offerInterest
     );
   }
