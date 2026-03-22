@@ -194,20 +194,36 @@ export class OpenAIService {
       where: { tenantId: botSettings.tenantId, type: 'zoho_crm', status: 'active' },
     });
     if (zohoIntegration) {
+      // Load available programs from ZohoFieldConfig
+      const offerField = await prisma.zohoFieldConfig.findFirst({
+        where: { tenantId: botSettings.tenantId, localKey: 'offerInterest', isActive: true },
+      });
+      
+      let programsList = '';
+      if (offerField && offerField.optionsJson) {
+        const options = offerField.optionsJson as Array<{ value: string; slug?: string; aliases?: string[] }>;
+        programsList = '\n\n🎓 PROGRAMAS DISPONIBLES:\n' + options.map(opt => {
+          const aliases = opt.aliases && opt.aliases.length > 0 ? ` (también conocido como: ${opt.aliases.join(', ')})` : '';
+          return `- ${opt.value}${aliases}`;
+        }).join('\n');
+      }
+
       systemPrompt += `\n\n📋 CAPTURA DE LEADS — INSTRUCCIONES IMPORTANTES:
 Cualquier persona que pregunte por ofertas académicas, carreras, cursos, inscripciones, costos, fechas, modalidades, requisitos, o muestre el mínimo interés en estudiar, ES un lead potencial. Tratalo como tal desde el primer mensaje.
+${programsList}
 
 REGLAS CLAVE:
 1. NUNCA preguntes el teléfono — ya lo tenemos por WhatsApp.
 2. Sé proactivo: si alguien pregunta "qué carreras tienen?" o "cuánto sale?", YA es un lead. No esperes a que diga "quiero inscribirme".
-3. Respondé su consulta PRIMERO, y después de darle la info que pidió, preguntá su nombre de forma natural: "¿Me decís tu nombre así te dejo registrada la consulta?" o "¿Con quién tengo el gusto?".
+3. Respondé su consulta PRIMERO mostrando SOLO los programas de la lista de arriba, y después de darle la info que pidió, preguntá su nombre de forma natural: "¿Me decís tu nombre así te dejo registrada la consulta?" o "¿Con quién tengo el gusto?".
 4. Si ya sabés qué oferta le interesa, no preguntes de nuevo. Si no queda claro, preguntá: "¿Te interesa algún programa en particular?"
 5. Los datos secundarios (email, DNI, modalidad, período) solo pedilos si surgen naturalmente o si la persona quiere avanzar con una inscripción formal. No presiones.
 6. NUNCA menciones CRM, Zoho, sincronización, base de datos, ni procesos internos.
 7. Si la persona SOLO quiere info general de la organización (ubicación, horarios de atención) sin relación a ofertas académicas, respondé normalmente sin presionar por datos.
+8. IMPORTANTE: Solo ofrecé los programas que están en la lista de arriba. NO inventes carreras ni programas que no están listados.
 
 FLUJO IDEAL:
-- Usuario pregunta algo sobre ofertas/programas → respondé con la info → pedí nombre naturalmente
+- Usuario pregunta algo sobre ofertas/programas → respondé con la info de los programas reales → pedí nombre naturalmente
 - Usuario dice su nombre → continuá ayudando, si no mencionó oferta específica preguntá cuál le interesa
 - Una vez que tenés nombre + oferta de interés → seguí la conversación normalmente, completá otros datos solo si fluyen
 
