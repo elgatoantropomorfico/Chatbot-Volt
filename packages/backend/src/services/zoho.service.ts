@@ -103,8 +103,7 @@ export class ZohoService {
    */
   async createContact(leadData: Record<string, any>): Promise<string> {
     const accessToken = await this.getAccessToken();
-    // If keys are already Zoho field names (built by ZohoSyncService), use directly
-    const payload = this.config.fieldMapping ? this.buildPayload(leadData) : leadData;
+    const payload = leadData;
 
     console.log('📤 Zoho CREATE payload:', JSON.stringify(payload));
 
@@ -133,7 +132,7 @@ export class ZohoService {
    */
   async updateContact(zohoContactId: string, leadData: Record<string, any>): Promise<void> {
     const accessToken = await this.getAccessToken();
-    const payload = this.config.fieldMapping ? this.buildPayload(leadData) : leadData;
+    const payload = leadData;
 
     console.log('📤 Zoho UPDATE payload:', JSON.stringify(payload));
 
@@ -181,26 +180,4 @@ export class ZohoService {
     throw new Error(`Zoho delete failed: ${JSON.stringify(response.data)}`);
   }
 
-  /**
-   * Build Zoho payload from local lead data using field mapping
-   */
-  private buildPayload(leadData: Record<string, any>): Record<string, any> {
-    const payload: Record<string, any> = {};
-
-    for (const [localField, zohoField] of Object.entries(this.config.fieldMapping)) {
-      if (leadData[localField] !== undefined && leadData[localField] !== null && leadData[localField] !== '') {
-        payload[zohoField] = leadData[localField];
-      }
-    }
-
-    if (this.config.fixedValues) {
-      Object.assign(payload, this.config.fixedValues);
-    }
-
-    if (!payload['Fecha_de_contacto']) {
-      payload['Fecha_de_contacto'] = new Date().toISOString().split('T')[0];
-    }
-
-    return payload;
-  }
 }
