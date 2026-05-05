@@ -1,4 +1,14 @@
 #!/bin/sh
+set -e
+
+# Apply pending Prisma migrations before booting anything that touches the DB.
+# 'migrate deploy' is idempotent: previously applied migrations are no-ops, so
+# this is safe to run on every container start.
+echo "Applying database migrations..."
+npx prisma migrate deploy
+echo "Migrations applied."
+
+set +e
 
 # Start worker with auto-restart in background
 while true; do
