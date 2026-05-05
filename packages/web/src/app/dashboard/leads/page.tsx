@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Users, X, RefreshCw, Trash2 } from 'lucide-react';
+import { Users, X, RefreshCw, Trash2, Camera, FileText } from 'lucide-react';
 import styles from './page.module.css';
 
 const STAGES = ['', 'nuevo', 'contactado', 'interesado', 'venta', 'perdido'];
@@ -40,6 +40,8 @@ export default function LeadsPage() {
   const [zohoFields, setZohoFields] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [leadFieldConfigs, setLeadFieldConfigs] = useState<any[]>([]);
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
   useEffect(() => {
     loadLeads();
@@ -55,6 +57,10 @@ export default function LeadsPage() {
           const { fields } = await api.getZohoFields();
           setZohoFields((fields || []).filter((f: any) => f.isActive && !f.localKey.startsWith('_fixed_') && f.localKey !== 'phone'));
         }
+      } catch {}
+      try {
+        const { fields } = await api.getLeadFieldConfigs();
+        setLeadFieldConfigs((fields || []).filter((f: any) => f.isActive));
       } catch {}
     })();
   }, []);
@@ -272,6 +278,56 @@ export default function LeadsPage() {
           </div>
 
           {/* Zoho CRM section — editable fields from ZohoFieldConfig */}
+          {/* Custom Data section (LeadFieldConfig tenants) */}
+          {leadFieldConfigs.length > 0 && selectedLead.customData && (() => {
+            const customData = (typeof selectedLead.customData === 'string' ? JSON.parse(selectedLead.customData) : selectedLead.customData) || {};
+            const textFields = leadFieldConfigs.filter((f: any) => f.fieldType !== 'photo' && f.fieldType !== 'multi_photo');
+            const filled = textFields.filter((f: any) => customData[f.fieldKey]).length;
+
+            return (
+              <div className={styles.detailSection}>
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FileText size={12} /> Datos capturados</span>
+                  <span style={{ fontSize: '10px', fontWeight: 500, color: filled === textFields.length ? 'var(--color-success)' : 'var(--color-warning)', textTransform: 'none', letterSpacing: 0 }}>
+                    {filled}/{textFields.length} campos
+                  </span>
+                </h3>
+                {textFields.map((f: any) => (
+                  <div key={f.fieldKey} className={styles.detailField}>
+                    <span>{f.label}</span>
+                    {customData[f.fieldKey] ? (
+                      <span className={styles.customDataValue}>{customData[f.fieldKey]}</span>
+                    ) : (
+                      <span className={styles.customDataEmpty}>Sin dato</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            );
+          })()}
+
+          {/* Photos section */}
+          {selectedLead.photos && selectedLead.photos.length > 0 && (
+            <div className={styles.detailSection}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Camera size={12} /> Fotos ({selectedLead.photos.length})
+              </h3>
+              <div className={styles.photoGrid}>
+                {selectedLead.photos.map((photo: any) => {
+                  const fieldConfig = leadFieldConfigs.find((f: any) => f.fieldKey === photo.fieldKey);
+                  return (
+                    <div key={photo.id} className={styles.photoThumb} onClick={() => setPhotoPreview(photo.url)}>
+                      <img src={photo.url} alt={photo.caption || photo.fieldKey} loading="lazy" />
+                      <div className={styles.photoFieldLabel}>
+                        {fieldConfig?.label || photo.fieldKey}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {hasZoho && (() => {
             const editableFields = zohoFields.filter((f: any) => f.localKey !== 'phone');
             const allFields = zohoFields;
@@ -404,6 +460,13 @@ export default function LeadsPage() {
               </div>
             ))}
           </div>
+
+          {/* Photo preview overlay */}
+          {photoPreview && (
+            <div className={styles.photoOverlay} onClick={() => setPhotoPreview(null)}>
+              <img src={photoPreview} alt="Preview" />
+            </div>
+          )}
 
           <div className={styles.detailSection}>
             <button

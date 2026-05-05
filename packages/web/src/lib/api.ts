@@ -202,6 +202,15 @@ class ApiClient {
   // Zoho Sync
   async syncLeadToZoho(leadId: string) { return this.fetch<{ message: string; zohoContactId: string }>(`/leads/${leadId}/sync-zoho`, { method: 'POST' }); }
 
+  // Lead Field Configs
+  async getLeadFieldConfigs(tenantId?: string) {
+    const qs = tenantId ? `?tenantId=${tenantId}` : '';
+    return this.fetch<{ fields: any[] }>(`/lead-fields${qs}`);
+  }
+
+  // Lead Photos
+  async getLeadPhotos(leadId: string) { return this.fetch<{ photos: any[] }>(`/leads/${leadId}/photos`); }
+
   // Sales
   async getSales(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';
