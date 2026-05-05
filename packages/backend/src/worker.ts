@@ -33,6 +33,11 @@ async function processMessage(job: Job<IncomingMessage>) {
   console.log(`📋 Job data: ${JSON.stringify(data)}`);
 
   // 1. Resolve tenant, lead, conversation and save incoming message
+  // For image messages with no caption, set a descriptive text for context
+  if (data.messageType === 'image' && !data.text) {
+    data.text = '[📷 Foto enviada]';
+  }
+
   let resolved;
   try {
     resolved = await ConversationService.resolveOrCreate(data);
@@ -40,7 +45,7 @@ async function processMessage(job: Job<IncomingMessage>) {
     console.error(`❌ Failed to resolve conversation:`, err);
     throw err;
   }
-  const { conversation, channel, tenant, lead } = resolved;
+  const { conversation, channel, tenant, lead, message: savedMessage } = resolved;
   console.log(`✅ Resolved: tenant=${tenant.name}, lead=${lead.id}, conversation=${conversation.id}`);
 
   // ============================================
@@ -80,50 +85,54 @@ async function processMessage(job: Job<IncomingMessage>) {
   }
 
   // ============================================
-  // IMAGE HANDLING: download from WA → upload to R2 → save LeadPhoto
+  // IMAGE HANDLING: download from WA → upload to R2 → save LeadPhoto + update message
   // ============================================
   if (data.messageType === 'image' && data.mediaId) {
     try {
-      // Check if this tenant uses photo fields
-      const photoFields = await prisma.leadFieldConfig.findMany({
-        where: { tenantId: tenant.id, isActive: true, fieldType: { in: ['photo', 'multi_photo'] } },
-        orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
+      console.log(`📷 Downloading image mediaId=${data.mediaId} for lead ${lead.id}`);
+      const media = await WhatsAppService.downloadMedia(data.mediaId);
+      const url = await R2Service.upload({
+        buffer: media.buffer,
+        mimeType: media.mimeType,
+        tenantId: tenant.id,
+        leadId: lead.id,
+        fieldKey: 'chat-image',
       });
 
-      if (photoFields.length > 0) {
-        // Find the appropriate field to assign the photo to
-        const existingPhotos = await prisma.leadPhoto.findMany({
-          where: { leadId: lead.id },
+      if (url) {
+        // Always update the message so image shows in inbox chat
+        await prisma.message.update({
+          where: { id: savedMessage.id },
+          data: { mediaUrl: url },
         });
 
-        // Determine which field this photo belongs to
-        let targetField: any = null;
-        for (const pf of photoFields) {
-          const photosForField = existingPhotos.filter((p: any) => p.fieldKey === pf.fieldKey);
-          if (pf.fieldType === 'photo' && photosForField.length === 0) {
-            targetField = pf;
-            break;
-          } else if (pf.fieldType === 'multi_photo') {
-            const maxPhotos = (pf.optionsJson as any)?.maxPhotos || 10;
-            if (photosForField.length < maxPhotos) {
-              targetField = pf;
-              break;
-            }
-          }
-        }
+        // If tenant has photo field configs, also save as LeadPhoto
+        const photoFields = await prisma.leadFieldConfig.findMany({
+          where: { tenantId: tenant.id, isActive: true, fieldType: { in: ['photo', 'multi_photo'] } },
+          orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
+        });
 
-        if (targetField) {
-          console.log(`📷 Processing image for field: ${targetField.fieldKey} (lead ${lead.id})`);
-          const media = await WhatsAppService.downloadMedia(data.mediaId);
-          const url = await R2Service.upload({
-            buffer: media.buffer,
-            mimeType: media.mimeType,
-            tenantId: tenant.id,
-            leadId: lead.id,
-            fieldKey: targetField.fieldKey,
+        if (photoFields.length > 0) {
+          const existingPhotos = await prisma.leadPhoto.findMany({
+            where: { leadId: lead.id },
           });
 
-          if (url) {
+          let targetField: any = null;
+          for (const pf of photoFields) {
+            const photosForField = existingPhotos.filter((p: any) => p.fieldKey === pf.fieldKey);
+            if (pf.fieldType === 'photo' && photosForField.length === 0) {
+              targetField = pf;
+              break;
+            } else if (pf.fieldType === 'multi_photo') {
+              const maxPhotos = (pf.optionsJson as any)?.maxPhotos || 10;
+              if (photosForField.length < maxPhotos) {
+                targetField = pf;
+                break;
+              }
+            }
+          }
+
+          if (targetField) {
             await prisma.leadPhoto.create({
               data: {
                 leadId: lead.id,
@@ -135,10 +144,12 @@ async function processMessage(job: Job<IncomingMessage>) {
               },
             });
             console.log(`✅ Photo saved for lead ${lead.id}, field ${targetField.fieldKey}`);
+          } else {
+            console.log(`⚠️ No available photo field for lead ${lead.id} — all slots full`);
           }
-        } else {
-          console.log(`⚠️ No available photo field for lead ${lead.id} — all slots full`);
         }
+
+        console.log(`✅ Image uploaded: ${url}`);
       }
     } catch (imgErr: any) {
       console.error('⚠️ Image processing error (non-fatal):', imgErr.message || imgErr);

@@ -6,6 +6,8 @@ interface IncomingMessageData {
   text: string;
   messageId: string;
   profileName?: string | null;
+  messageType?: string;
+  mediaUrl?: string | null;
 }
 
 export class ConversationService {
@@ -77,6 +79,8 @@ export class ConversationService {
         conversationId: conversation.id,
         direction: 'in',
         text: data.text,
+        messageType: data.messageType || 'text',
+        mediaUrl: data.mediaUrl || null,
         providerMessageId: data.messageId,
       },
     });

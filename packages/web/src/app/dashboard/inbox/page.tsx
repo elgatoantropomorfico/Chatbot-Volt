@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw } from 'lucide-react';
+import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw, Image } from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
@@ -19,6 +19,7 @@ export default function InboxPage() {
   const [inputText, setInputText] = useState('');
   const [sending, setSending] = useState(false);
   const [togglingAI, setTogglingAI] = useState(false);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const lastMessageTimeRef = useRef<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -348,12 +349,25 @@ export default function InboxPage() {
                     styles.messageSystem
                   }`}
                 >
-                  {msg.text}
+                  {msg.mediaUrl && (
+                    <div className={styles.messageImage} onClick={() => setImagePreview(msg.mediaUrl)}>
+                      <img src={msg.mediaUrl} alt="Imagen" loading="lazy" />
+                    </div>
+                  )}
+                  {msg.text && msg.text !== '[📷 Foto enviada]' && msg.text}
+                  {!msg.mediaUrl && msg.text === '[📷 Foto enviada]' && msg.text}
                   <div className={styles.messageTime}>{formatTime(msg.createdAt)}</div>
                 </div>
               ))}
               <div ref={messagesEndRef} />
             </div>
+
+            {/* Image preview overlay */}
+            {imagePreview && (
+              <div className={styles.messageImageOverlay} onClick={() => setImagePreview(null)}>
+                <img src={imagePreview} alt="Preview" />
+              </div>
+            )}
 
             {/* Message input */}
             {convStatus !== 'closed' && (

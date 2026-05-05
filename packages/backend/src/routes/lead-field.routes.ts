@@ -32,11 +32,11 @@ export async function leadFieldRoutes(app: FastifyInstance) {
       where.tenantId = user.tenantId;
     }
 
-    const configs = await prisma.leadFieldConfig.findMany({
+    const fields = await prisma.leadFieldConfig.findMany({
       where,
       orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
     });
-    return reply.send({ configs });
+    return reply.send({ fields });
   });
 
   // Create a new field config

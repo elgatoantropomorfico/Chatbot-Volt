@@ -364,6 +364,55 @@
   padding: 6px 16px;
 }
 
+.messageImage {
+  max-width: 240px;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 4px;
+  cursor: pointer;
+}
+
+.messageImage img {
+  width: 100%;
+  height: auto;
+  display: block;
+  border-radius: 12px;
+  transition: transform var(--transition-fast);
+}
+
+.messageImage img:hover {
+  transform: scale(1.02);
+}
+
+.messageImageOverlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 100;
+  background: rgba(6, 6, 12, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: fadeInImg 0.2s ease;
+}
+
+@keyframes fadeInImg {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.messageImageOverlay img {
+  max-width: 90%;
+  max-height: 85vh;
+  border-radius: 8px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+}
+
 .messageTime {
   font-size: 10px;
   opacity: 0.5;

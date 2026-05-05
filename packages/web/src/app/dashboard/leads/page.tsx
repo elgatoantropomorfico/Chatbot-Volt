@@ -279,9 +279,11 @@ export default function LeadsPage() {
 
           {/* Zoho CRM section — editable fields from ZohoFieldConfig */}
           {/* Custom Data section (LeadFieldConfig tenants) */}
-          {leadFieldConfigs.length > 0 && selectedLead.customData && (() => {
+          {leadFieldConfigs.length > 0 && (() => {
+            const tenantConfigs = leadFieldConfigs.filter((f: any) => f.tenantId === selectedLead.tenantId);
+            if (tenantConfigs.length === 0) return null;
             const customData = (typeof selectedLead.customData === 'string' ? JSON.parse(selectedLead.customData) : selectedLead.customData) || {};
-            const textFields = leadFieldConfigs.filter((f: any) => f.fieldType !== 'photo' && f.fieldType !== 'multi_photo');
+            const textFields = tenantConfigs.filter((f: any) => f.fieldType !== 'photo' && f.fieldType !== 'multi_photo');
             const filled = textFields.filter((f: any) => customData[f.fieldKey]).length;
 
             return (
