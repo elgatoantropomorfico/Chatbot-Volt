@@ -22,8 +22,7 @@ WORKDIR /app/packages/backend
 # Railway injects PORT as env var
 EXPOSE ${PORT:-3001}
 
-# Copy start script and make executable
-COPY packages/backend/start.sh ./start.sh
+# start.sh is already in the image from COPY packages/backend/ (avoid a second COPY for remote builders)
 RUN chmod +x start.sh
 
 # Run API server + worker with auto-restart
