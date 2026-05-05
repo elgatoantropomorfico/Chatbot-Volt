@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
 import { api } from '@/lib/api';
 import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw, Image } from 'lucide-react';
 import styles from './page.module.css';
@@ -199,6 +199,33 @@ export default function InboxPage() {
     return d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   }
 
+  function isSameDay(a: Date, b: Date) {
+    return (
+      a.getFullYear() === b.getFullYear() &&
+      a.getMonth() === b.getMonth() &&
+      a.getDate() === b.getDate()
+    );
+  }
+
+  function formatDayLabel(dateStr: string) {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+
+    if (isSameDay(d, now)) return 'Hoy';
+    if (isSameDay(d, yesterday)) return 'Ayer';
+
+    const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
+    if (diffDays > 1 && diffDays < 7) {
+      return d.toLocaleDateString('es-AR', { weekday: 'long' }).replace(/^./, (c) => c.toUpperCase());
+    }
+    if (d.getFullYear() === now.getFullYear()) {
+      return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' });
+    }
+    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+  }
+
   return (
     <div className={`${styles.container} ${selectedId ? styles.mobileChatOpen : ''}`}>
       {/* Conversation list */}
@@ -340,25 +367,36 @@ export default function InboxPage() {
             )}
 
             <div className={styles.chatMessages}>
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  className={`${styles.message} ${
-                    msg.direction === 'in' ? styles.messageIn :
-                    msg.direction === 'out' ? styles.messageOut :
-                    styles.messageSystem
-                  }`}
-                >
-                  {msg.mediaUrl && (
-                    <div className={styles.messageImage} onClick={() => setImagePreview(msg.mediaUrl)}>
-                      <img src={msg.mediaUrl} alt="Imagen" loading="lazy" />
+              {messages.map((msg, i) => {
+                const prev = i > 0 ? messages[i - 1] : null;
+                const showDateSep =
+                  !prev || !isSameDay(new Date(prev.createdAt), new Date(msg.createdAt));
+                return (
+                  <Fragment key={msg.id}>
+                    {showDateSep && (
+                      <div className={styles.dateSeparator}>
+                        <span>{formatDayLabel(msg.createdAt)}</span>
+                      </div>
+                    )}
+                    <div
+                      className={`${styles.message} ${
+                        msg.direction === 'in' ? styles.messageIn :
+                        msg.direction === 'out' ? styles.messageOut :
+                        styles.messageSystem
+                      }`}
+                    >
+                      {msg.mediaUrl && (
+                        <div className={styles.messageImage} onClick={() => setImagePreview(msg.mediaUrl)}>
+                          <img src={msg.mediaUrl} alt="Imagen" loading="lazy" />
+                        </div>
+                      )}
+                      {msg.text && msg.text !== '[📷 Foto enviada]' && msg.text}
+                      {!msg.mediaUrl && msg.text === '[📷 Foto enviada]' && msg.text}
+                      <div className={styles.messageTime}>{formatTime(msg.createdAt)}</div>
                     </div>
-                  )}
-                  {msg.text && msg.text !== '[📷 Foto enviada]' && msg.text}
-                  {!msg.mediaUrl && msg.text === '[📷 Foto enviada]' && msg.text}
-                  <div className={styles.messageTime}>{formatTime(msg.createdAt)}</div>
-                </div>
-              ))}
+                  </Fragment>
+                );
+              })}
               <div ref={messagesEndRef} />
             </div>
 

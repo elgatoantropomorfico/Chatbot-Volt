@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
 import { ZohoSyncService } from '../services/zoho-sync.service';
+import { R2Service } from '../services/r2.service';
 
 const updateLeadSchema = z.object({
   name: z.string().optional(),
@@ -129,6 +130,18 @@ export async function leadRoutes(app: FastifyInstance) {
     const user = request.user;
     if (user.role !== 'superadmin' && lead.tenantId !== user.tenantId) {
       return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    // Best-effort: wipe Cloudflare R2 media for this lead before cascading the
+    // DB delete. Failures here must not block deletion of the lead record.
+    try {
+      const r2Prefix = `${lead.tenantId}/${lead.id}/`;
+      const removed = await R2Service.deleteByPrefix(r2Prefix);
+      if (removed > 0) {
+        console.log(`🧹 Removed ${removed} R2 object(s) for lead ${id}`);
+      }
+    } catch (err) {
+      console.warn(`⚠️ R2 cleanup failed for lead ${id} (continuing with DB delete):`, err);
     }
 
     await prisma.lead.delete({ where: { id } });
