@@ -213,17 +213,29 @@ export default function InboxPage() {
     const yesterday = new Date(now);
     yesterday.setDate(now.getDate() - 1);
 
-    if (isSameDay(d, now)) return 'Hoy';
-    if (isSameDay(d, yesterday)) return 'Ayer';
+    const cap = (s: string) => s.replace(/^./, (c) => c.toUpperCase());
+
+    if (isSameDay(d, now)) {
+      return `Hoy · ${d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}`;
+    }
+    if (isSameDay(d, yesterday)) {
+      return `Ayer · ${d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' })}`;
+    }
 
     const diffDays = Math.floor((now.getTime() - d.getTime()) / (1000 * 60 * 60 * 24));
     if (diffDays > 1 && diffDays < 7) {
-      return d.toLocaleDateString('es-AR', { weekday: 'long' }).replace(/^./, (c) => c.toUpperCase());
+      const weekday = cap(d.toLocaleDateString('es-AR', { weekday: 'long' }));
+      const dayMonth = d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' });
+      return `${weekday} · ${dayMonth}`;
     }
     if (d.getFullYear() === now.getFullYear()) {
-      return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' });
+      const weekday = cap(d.toLocaleDateString('es-AR', { weekday: 'long' }));
+      const dayMonth = d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long' });
+      return `${weekday} · ${dayMonth}`;
     }
-    return d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+    const weekday = cap(d.toLocaleDateString('es-AR', { weekday: 'long' }));
+    const fullDate = d.toLocaleDateString('es-AR', { day: '2-digit', month: 'long', year: 'numeric' });
+    return `${weekday} · ${fullDate}`;
   }
 
   return (
