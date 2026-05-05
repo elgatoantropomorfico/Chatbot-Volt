@@ -2,28 +2,30 @@ FROM node:18-slim
 
 WORKDIR /app
 
-# Install OpenSSL (required by Prisma)
-RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
+# OpenSSL + ca-certificates (Prisma + R2/Cloudflare TLS)
+RUN apt-get update -y \
+ && apt-get install -y --no-install-recommends openssl ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
 
-# Copy root workspace config
+# 1) Copy manifests FIRST for cache-friendly npm install
 COPY package.json package-lock.json* tsconfig.base.json ./
+COPY packages/backend/package.json ./packages/backend/
 
-# Copy only backend package
-COPY packages/backend/ packages/backend/
+RUN npm install --no-audit --no-fund
 
-# Install dependencies
-RUN npm install
+# 2) Copy backend source
+COPY packages/backend/ ./packages/backend/
 
-# Generate Prisma client
+# 3) Prisma client
 RUN cd packages/backend && npx prisma generate
+
+# 4) Normalize start.sh line endings (CRLF -> LF) and make executable.
+#    Defensive: contributors on Windows can otherwise commit CRLF and break /bin/sh.
+RUN sed -i 's/\r$//' packages/backend/start.sh \
+ && chmod +x packages/backend/start.sh
 
 WORKDIR /app/packages/backend
 
-# Railway injects PORT as env var
 EXPOSE ${PORT:-3001}
 
-# start.sh is already in the image from COPY packages/backend/ (avoid a second COPY for remote builders)
-RUN chmod +x start.sh
-
-# Run API server + worker with auto-restart
 CMD ["sh", "./start.sh"]
