@@ -72,19 +72,27 @@ export async function webhookRoutes(app: FastifyInstance) {
 
           for (const message of messages) {
             console.log(`📝 Message type: ${message.type}, from: ${message.from}`);
-            if (message.type !== 'text') {
-              console.log(`⚠️ Skipping non-text message type: ${message.type}`);
+            if (message.type !== 'text' && message.type !== 'image') {
+              console.log(`⚠️ Skipping unsupported message type: ${message.type}`);
               continue;
             }
 
-            const incomingMessage = {
+            const incomingMessage: any = {
               phoneNumberId,
               from: message.from,
-              text: message.text?.body || '',
+              text: message.type === 'text' ? (message.text?.body || '') : (message.image?.caption || ''),
               messageId: message.id,
               timestamp: message.timestamp,
               profileName: value.contacts?.[0]?.profile?.name || null,
+              messageType: message.type,
             };
+
+            // Attach image metadata if present
+            if (message.type === 'image' && message.image) {
+              incomingMessage.mediaId = message.image.id;
+              incomingMessage.mediaMimeType = message.image.mime_type;
+              console.log(`📷 Image message: mediaId=${message.image.id}, mime=${message.image.mime_type}`);
+            }
 
             // Deduplication check
             if (processedMessageIds.has(message.id)) {

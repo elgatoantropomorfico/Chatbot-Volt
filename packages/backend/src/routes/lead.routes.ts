@@ -70,6 +70,7 @@ export async function leadRoutes(app: FastifyInstance) {
         assignedUser: { select: { id: true, email: true } },
         channel: { select: { id: true, displayPhone: true, phoneNumberId: true } },
         notes: { orderBy: { createdAt: 'desc' }, take: 20 },
+        photos: { orderBy: { createdAt: 'asc' } },
         conversations: {
           orderBy: { updatedAt: 'desc' },
           take: 5,
@@ -134,6 +135,23 @@ export async function leadRoutes(app: FastifyInstance) {
     console.log(`🗑️ Deleted lead ${id} and all related records`);
 
     return reply.send({ message: 'Lead deleted successfully' });
+  });
+
+  // Get lead photos
+  app.get('/:id/photos', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
+    const lead = await prisma.lead.findUnique({ where: { id: request.params.id } });
+    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && lead.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const photos = await (prisma as any).leadPhoto.findMany({
+      where: { leadId: lead.id },
+      orderBy: { createdAt: 'asc' },
+    });
+    return reply.send({ photos });
   });
 
   // Manual Zoho sync for a lead

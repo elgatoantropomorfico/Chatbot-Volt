@@ -189,37 +189,114 @@ export class OpenAIService {
       systemPrompt += `\n\nResumen de la conversación previa: ${conversation.summary}`;
     }
 
-    // Inject lead capture instructions for tenants with active Zoho CRM integration
-    const zohoIntegration = await prisma.integration.findFirst({
-      where: { tenantId: botSettings.tenantId, type: 'zoho_crm', status: 'active' },
+    // ============================================
+    // LEAD CAPTURE PROMPT INJECTION
+    // Supports: LeadFieldConfig (generic) OR ZohoFieldConfig (Zoho tenants)
+    // ============================================
+    const leadFieldConfigs = await prisma.leadFieldConfig.findMany({
+      where: { tenantId: botSettings.tenantId, isActive: true },
+      orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
     });
-    if (zohoIntegration) {
-      // Load all capturable fields from ZohoFieldConfig
-      const fieldConfigs = await prisma.zohoFieldConfig.findMany({
-        where: { tenantId: botSettings.tenantId, isActive: true },
-        orderBy: { sortOrder: 'asc' },
-      });
 
-      // Build programs list from offerInterest field
-      const offerField = fieldConfigs.find((f: any) => f.localKey === 'offerInterest');
-      let programsList = '';
-      if (offerField && offerField.optionsJson) {
-        const options = offerField.optionsJson as Array<{ value: string; slug?: string; aliases?: string[] }>;
-        programsList = options.map(opt => `- ${opt.value}`).join('\n');
+    if (leadFieldConfigs.length > 0) {
+      // ── GENERIC TENANT (CardioCor, TallerAlfa, etc.) ──
+      // Group fields by step
+      const stepMap = new Map<number, any[]>();
+      for (const fc of leadFieldConfigs) {
+        const s = fc.step;
+        if (!stepMap.has(s)) stepMap.set(s, []);
+        stepMap.get(s)!.push(fc);
       }
 
-      // Build picklist options summary for other fields (modalidad, periodo, etc.)
+      // Build picklist options summary
       const picklistInfo: string[] = [];
-      for (const fc of fieldConfigs) {
-        if (fc.fixedValue || fc.localKey === 'phone' || fc.localKey === 'offerInterest') continue;
+      for (const fc of leadFieldConfigs) {
         const opts = (fc.optionsJson as any[]) || [];
-        if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0) {
+        if (fc.fieldType === 'picklist' && opts.length > 0) {
           const optValues = opts.map((o: any) => o.value).join(', ');
           picklistInfo.push(`- ${fc.label}: opciones válidas → ${optValues}`);
         }
       }
 
+      // Build step-by-step instructions
+      const stepInstructions: string[] = [];
+      let stepNum = 0;
+      const sortedSteps = [...stepMap.entries()].sort((a, b) => a[0] - b[0]);
+
+      for (const [, fields] of sortedSteps) {
+        for (const fc of fields) {
+          stepNum++;
+          const hint = fc.promptHint || `Pedí: ${fc.label}`;
+
+          if (fc.fieldType === 'photo') {
+            stepInstructions.push(`PASO ${stepNum} — ${fc.label.toUpperCase()}:\n${hint}. Indicale que puede enviar la foto directamente por este chat.`);
+          } else if (fc.fieldType === 'multi_photo') {
+            stepInstructions.push(`PASO ${stepNum} — ${fc.label.toUpperCase()}:\n${hint}. Indicale que puede enviar las fotos directamente por este chat.`);
+          } else if (fc.fieldType === 'picklist') {
+            const opts = (fc.optionsJson as any[]) || [];
+            const optValues = opts.map((o: any) => o.value).join(', ');
+            stepInstructions.push(`PASO ${stepNum} — ${fc.label.toUpperCase()}:\n${hint}. Opciones: ${optValues}`);
+          } else {
+            stepInstructions.push(`PASO ${stepNum} — ${fc.label.toUpperCase()}:\n${hint}`);
+          }
+        }
+      }
+
       systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
+
+Siempre que detectes intención de consulta sobre los servicios de este negocio, activá el flujo de captura de datos. Está siempre latente — no necesitás que el usuario diga algo específico para activarlo, simplemente si la conversación gira en torno al servicio, empezá a capturar datos.
+${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
+
+🚫 NUNCA pidas teléfono/celular/número. Ya lo tenemos por WhatsApp.
+🚫 NUNCA menciones CRM, base de datos ni procesos internos.
+
+FLUJO PASO A PASO (seguilo en orden estricto):
+
+PASO 0 — RESPONDER LA CONSULTA:
+Primero respondé la consulta del usuario con la información que tengas según tu contexto de negocio. Después empezá a capturar datos.
+
+PASO 1 — CONFIRMAR NOMBRE:
+Confirmá su nombre usando el perfil de WhatsApp: "Tu nombre completo es [nombre del perfil de WhatsApp], ¿es correcto?" Si no tenemos nombre de perfil, preguntá: "¿Me decís tu nombre completo?"
+
+${stepInstructions.join('\n\n')}
+
+REGLAS DEL FLUJO:
+- Seguí los pasos EN ORDEN. No saltes pasos ni pidas varios datos en un mismo mensaje.
+- Si el usuario ya proporcionó algún dato en mensajes anteriores, SALTÁ ese paso y pasá al siguiente.
+- UN solo dato por mensaje. Sé conversacional, no un formulario.
+- Si el usuario hace una pregunta en el medio del flujo, respondela y después retomá el paso donde quedaste.
+- Si la persona SOLO quiere info general (ubicación, horarios de atención) sin relación a los servicios, respondé normalmente sin presionar por datos.
+- Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria a resolver su consulta.
+- Cuando pidas fotos, sé claro sobre qué necesitás y por qué.`;
+    } else {
+      // ── ZOHO TENANT (IUDI, etc.) ──
+      const zohoIntegration = await prisma.integration.findFirst({
+        where: { tenantId: botSettings.tenantId, type: 'zoho_crm' as any, status: 'active' },
+      });
+      if (zohoIntegration) {
+        const fieldConfigs = await prisma.zohoFieldConfig.findMany({
+          where: { tenantId: botSettings.tenantId, isActive: true },
+          orderBy: { sortOrder: 'asc' },
+        });
+
+        const offerField = fieldConfigs.find((f: any) => f.localKey === 'offerInterest');
+        let programsList = '';
+        if (offerField && offerField.optionsJson) {
+          const options = offerField.optionsJson as Array<{ value: string; slug?: string; aliases?: string[] }>;
+          programsList = options.map(opt => `- ${opt.value}`).join('\n');
+        }
+
+        const picklistInfo: string[] = [];
+        for (const fc of fieldConfigs) {
+          if (fc.fixedValue || fc.localKey === 'phone' || fc.localKey === 'offerInterest') continue;
+          const opts = (fc.optionsJson as any[]) || [];
+          if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0) {
+            const optValues = opts.map((o: any) => o.value).join(', ');
+            picklistInfo.push(`- ${fc.label}: opciones válidas → ${optValues}`);
+          }
+        }
+
+        systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
 
 Sos un asistente que ayuda a potenciales estudiantes. Cuando alguien pregunte por carreras, cursos, ofertas académicas, inscripciones, costos, fechas, modalidades o requisitos, ES un lead. Activá el flujo de captura.
 
@@ -233,7 +310,7 @@ ${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('
 FLUJO PASO A PASO (seguilo en orden estricto):
 
 PASO 1 — RESPONDER LA CONSULTA:
-Cuando el usuario pregunte por algún programa/carrera, respondé su consulta con la información que tengas. Usá SOLO los programas de la lista de arriba. La oferta que mencionó o preguntó es su programa de interés, recordalo.
+Cuando el usuario pregunte por algún programa/carrera, respondé su consulta con la información que tengas. Usá SOLO los programas de la lista de arriba.
 
 PASO 2 — CONFIRMAR NOMBRE:
 Después de dar la info, confirmá su nombre usando el perfil de WhatsApp: "Tu nombre completo es [nombre del perfil de WhatsApp], ¿estoy en lo correcto?" Si no tenemos nombre de perfil, preguntá: "¿Me decís tu nombre completo para dejarte registrado/a?"
@@ -257,6 +334,7 @@ REGLAS DEL FLUJO:
 - Si el usuario hace una pregunta en el medio del flujo, respondela y después retomá el paso donde quedaste.
 - Si la persona SOLO quiere info general (ubicación, horarios de atención) sin relación a ofertas, respondé normalmente sin iniciar el flujo.
 - Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria a resolver su consulta.`;
+      }
     }
 
     // Repeat guardrails at the very end as a final reminder (sandwich technique)

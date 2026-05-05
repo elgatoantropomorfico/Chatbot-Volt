@@ -9,6 +9,7 @@ import { SaleService } from './services/sale.service';
 import { LeadExtractionService } from './services/lead-extraction.service';
 import { LeadProfileService } from './services/lead-profile.service';
 import { ZohoSyncService } from './services/zoho-sync.service';
+import { R2Service } from './services/r2.service';
 import { prisma } from './config/database';
 
 // Store last search results per conversation for "agregar el 2" cart operations
@@ -21,6 +22,9 @@ interface IncomingMessage {
   messageId: string;
   timestamp: string;
   profileName: string | null;
+  messageType?: string;
+  mediaId?: string;
+  mediaMimeType?: string;
 }
 
 async function processMessage(job: Job<IncomingMessage>) {
@@ -43,11 +47,15 @@ async function processMessage(job: Job<IncomingMessage>) {
   // LEAD EXTRACTION & ZOHO SYNC (non-blocking)
   // ============================================
   try {
+    // Check if tenant has any field configs (generic or Zoho)
+    const hasLeadFields = await prisma.leadFieldConfig.count({
+      where: { tenantId: tenant.id, isActive: true },
+    });
     const zohoIntegration = await prisma.integration.findFirst({
-      where: { tenantId: tenant.id, type: 'zoho_crm', status: 'active' },
+      where: { tenantId: tenant.id, type: 'zoho_crm' as any, status: 'active' },
     });
 
-    if (zohoIntegration) {
+    if (hasLeadFields > 0 || zohoIntegration) {
       const extracted = await LeadExtractionService.extract({
         tenantId: tenant.id,
         conversationId: conversation.id,
@@ -58,15 +66,83 @@ async function processMessage(job: Job<IncomingMessage>) {
 
       const enrichedLead = await LeadProfileService.mergeExtractedData(lead.id, extracted);
 
-      // Auto-sync on first readiness (never synced before)
-      const isReady = LeadProfileService.isReadyForZoho(enrichedLead as any);
-      if (isReady && (!enrichedLead.zohoContactId || enrichedLead.zohoSyncStatus === 'pending')) {
-        console.log(`🚀 Lead ${lead.id} ready for Zoho — auto-syncing`);
-        await ZohoSyncService.syncLeadToZoho(enrichedLead.id, tenant.id);
+      // Auto-sync to Zoho on first readiness (only for Zoho tenants)
+      if (zohoIntegration) {
+        const isReady = LeadProfileService.isReadyForZoho(enrichedLead as any);
+        if (isReady && (!(enrichedLead as any).zohoContactId || (enrichedLead as any).zohoSyncStatus === 'pending')) {
+          console.log(`🚀 Lead ${lead.id} ready for Zoho — auto-syncing`);
+          await ZohoSyncService.syncLeadToZoho(enrichedLead.id, tenant.id);
+        }
       }
     }
   } catch (err) {
     console.error('⚠️ Lead extraction/sync error (non-fatal):', err);
+  }
+
+  // ============================================
+  // IMAGE HANDLING: download from WA → upload to R2 → save LeadPhoto
+  // ============================================
+  if (data.messageType === 'image' && data.mediaId) {
+    try {
+      // Check if this tenant uses photo fields
+      const photoFields = await prisma.leadFieldConfig.findMany({
+        where: { tenantId: tenant.id, isActive: true, fieldType: { in: ['photo', 'multi_photo'] } },
+        orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
+      });
+
+      if (photoFields.length > 0) {
+        // Find the appropriate field to assign the photo to
+        const existingPhotos = await prisma.leadPhoto.findMany({
+          where: { leadId: lead.id },
+        });
+
+        // Determine which field this photo belongs to
+        let targetField: any = null;
+        for (const pf of photoFields) {
+          const photosForField = existingPhotos.filter((p: any) => p.fieldKey === pf.fieldKey);
+          if (pf.fieldType === 'photo' && photosForField.length === 0) {
+            targetField = pf;
+            break;
+          } else if (pf.fieldType === 'multi_photo') {
+            const maxPhotos = (pf.optionsJson as any)?.maxPhotos || 10;
+            if (photosForField.length < maxPhotos) {
+              targetField = pf;
+              break;
+            }
+          }
+        }
+
+        if (targetField) {
+          console.log(`📷 Processing image for field: ${targetField.fieldKey} (lead ${lead.id})`);
+          const media = await WhatsAppService.downloadMedia(data.mediaId);
+          const url = await R2Service.upload({
+            buffer: media.buffer,
+            mimeType: media.mimeType,
+            tenantId: tenant.id,
+            leadId: lead.id,
+            fieldKey: targetField.fieldKey,
+          });
+
+          if (url) {
+            await prisma.leadPhoto.create({
+              data: {
+                leadId: lead.id,
+                fieldKey: targetField.fieldKey,
+                url,
+                mimeType: media.mimeType,
+                fileSize: media.buffer.length,
+                caption: data.text || null,
+              },
+            });
+            console.log(`✅ Photo saved for lead ${lead.id}, field ${targetField.fieldKey}`);
+          }
+        } else {
+          console.log(`⚠️ No available photo field for lead ${lead.id} — all slots full`);
+        }
+      }
+    } catch (imgErr: any) {
+      console.error('⚠️ Image processing error (non-fatal):', imgErr.message || imgErr);
+    }
   }
 
   // 2. If conversation is pending_human, skip AI processing

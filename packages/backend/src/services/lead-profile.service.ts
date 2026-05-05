@@ -3,23 +3,33 @@ import { ExtractedLeadData } from './lead-extraction.service';
 import { fuzzyMatchPicklist, PicklistOption } from '../utils/fuzzy-match';
 import crypto from 'crypto';
 
+// Standard lead columns that map directly to DB fields (not customData)
+const STANDARD_LEAD_KEYS = new Set([
+  'firstName', 'lastName', 'fullName', 'email', 'dni',
+  'offerInterest', 'modalityInterest', 'periodInterest', 'intentLevel',
+]);
+
 export class LeadProfileService {
   /**
    * Merge extracted data onto existing lead.
    * Rule: never overwrite good data with weaker data.
-   * Normalizes picklist values against ZohoFieldConfig before saving.
+   * Supports both standard lead columns and custom fields stored in lead.customData.
    */
   static async mergeExtractedData(leadId: string, extracted: ExtractedLeadData) {
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
     if (!lead) throw new Error('Lead not found');
 
-    // Load picklist field configs for normalization
-    const fieldConfigs = await prisma.zohoFieldConfig.findMany({
+    // Load picklist configs from both systems for normalization
+    const zohoConfigs = await prisma.zohoFieldConfig.findMany({
       where: { tenantId: lead.tenantId, isActive: true },
     });
+    const leadFieldConfigs = await prisma.leadFieldConfig.findMany({
+      where: { tenantId: lead.tenantId, isActive: true },
+    });
+
     const picklistMap = new Map<string, { options: PicklistOption[]; useSlug: boolean }>();
-    for (const fc of fieldConfigs) {
-      const opts = (fc.optionsJson as PicklistOption[]) || [];
+    for (const fc of zohoConfigs) {
+      const opts = (fc.optionsJson as unknown as PicklistOption[]) || [];
       if ((fc.fieldType === 'picklist' || fc.fieldType === 'multi_select') && opts.length > 0) {
         picklistMap.set(fc.localKey, {
           options: opts,
@@ -27,8 +37,19 @@ export class LeadProfileService {
         });
       }
     }
+    // Custom field picklists
+    const customFieldKeys = new Set<string>();
+    for (const fc of leadFieldConfigs) {
+      customFieldKeys.add(fc.fieldKey);
+      const opts = (fc.optionsJson as PicklistOption[]) || [];
+      if (fc.fieldType === 'picklist' && opts.length > 0) {
+        picklistMap.set(fc.fieldKey, { options: opts, useSlug: false });
+      }
+    }
 
     const updates: Record<string, any> = {};
+    const existingCustomData = ((lead as any).customData as Record<string, any>) || {};
+    const customDataUpdates: Record<string, any> = {};
 
     // Name fields: only update if not already set
     if (extracted.firstName && !lead.firstName) {
@@ -39,7 +60,6 @@ export class LeadProfileService {
     }
     if (extracted.fullName && !lead.fullName) {
       updates.fullName = extracted.fullName;
-      // Try to split fullName into first/last if not already set
       if (!lead.firstName && !updates.firstName && extracted.fullName.includes(' ')) {
         const parts = extracted.fullName.trim().split(/\s+/);
         updates.firstName = parts[0];
@@ -75,6 +95,26 @@ export class LeadProfileService {
     // Intent level: always update
     if (extracted.intentLevel) {
       updates.intentLevel = extracted.intentLevel;
+    }
+
+    // Custom fields from LeadFieldConfig → stored in lead.customData
+    for (const [key, value] of Object.entries(extracted)) {
+      if (!value || STANDARD_LEAD_KEYS.has(key)) continue;
+      if (!customFieldKeys.has(key)) continue; // only store known custom fields
+
+      const existingVal = existingCustomData[key];
+      if (existingVal) continue; // don't overwrite existing data
+
+      // Normalize picklists
+      const pl = picklistMap.get(key);
+      customDataUpdates[key] = pl
+        ? (fuzzyMatchPicklist(value, pl.options, false) || value)
+        : value;
+    }
+
+    // Merge customData if there are updates
+    if (Object.keys(customDataUpdates).length > 0) {
+      updates.customData = { ...existingCustomData, ...customDataUpdates };
     }
 
     // Skip if nothing changed

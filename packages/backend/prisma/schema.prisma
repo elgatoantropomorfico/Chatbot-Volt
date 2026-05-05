@@ -127,6 +127,7 @@ model Tenant {
   eventsOutbox  EventOutbox[]
   offers           TenantOffer[]
   zohoFieldConfigs ZohoFieldConfig[]
+  leadFieldConfigs LeadFieldConfig[]
 
   @@map("tenants")
 }
@@ -173,6 +174,8 @@ model Lead {
   lastDetectedTopic   String?         @map("last_detected_topic")
   needsHumanFollowup  Boolean         @default(false) @map("needs_human_followup")
 
+  customData          Json?           @map("custom_data")
+
   zohoContactId       String?         @map("zoho_contact_id")
   zohoSyncStatus      ZohoSyncStatus  @default(pending) @map("zoho_sync_status")
   zohoLastSyncAt      DateTime?       @map("zoho_last_sync_at")
@@ -190,6 +193,7 @@ model Lead {
   conversations       Conversation[]
   notes               LeadNote[]
   sales               Sale[]
+  photos              LeadPhoto[]
 
   @@unique([tenantId, phone])
   @@index([tenantId, zohoContactId])
@@ -344,6 +348,45 @@ model ZohoFieldConfig {
   @@unique([tenantId, localKey])
   @@index([tenantId])
   @@map("zoho_field_configs")
+}
+
+model LeadFieldConfig {
+  id          String   @id @default(cuid())
+  tenantId    String   @map("tenant_id")
+  fieldKey    String   @map("field_key")
+  label       String
+  fieldType   String   @default("text") @map("field_type")
+  step        Int      @default(1)
+  isRequired  Boolean  @default(false) @map("is_required")
+  isActive    Boolean  @default(true) @map("is_active")
+  sortOrder   Int      @default(0) @map("sort_order")
+  optionsJson Json     @default("[]") @map("options_json")
+  promptHint  String?  @map("prompt_hint")
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, fieldKey])
+  @@index([tenantId])
+  @@map("lead_field_configs")
+}
+
+model LeadPhoto {
+  id         String   @id @default(cuid())
+  leadId     String   @map("lead_id")
+  fieldKey   String   @map("field_key")
+  url        String
+  mimeType   String?  @map("mime_type")
+  fileSize   Int?     @map("file_size")
+  caption    String?
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@index([leadId, fieldKey])
+  @@map("lead_photos")
 }
 
 model EventOutbox {

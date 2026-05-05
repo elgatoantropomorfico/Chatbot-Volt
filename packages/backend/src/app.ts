@@ -15,6 +15,7 @@ import { saleRoutes } from './routes/sale.routes';
 import { dashboardRoutes } from './routes/dashboard.routes';
 import { offerRoutes } from './routes/offer.routes';
 import { zohoFieldRoutes } from './routes/zoho-field.routes';
+import { leadFieldRoutes } from './routes/lead-field.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -78,6 +79,7 @@ export async function buildApp() {
     instance.register(dashboardRoutes, { prefix: '/api/dashboard' });
     instance.register(offerRoutes, { prefix: '/api/offers' });
     instance.register(zohoFieldRoutes, { prefix: '/api/zoho-fields' });
+    instance.register(leadFieldRoutes, { prefix: '/api/lead-fields' });
   });
 
   return app;

@@ -22,6 +22,29 @@ export class WhatsAppService {
     return phone;
   }
 
+  /**
+   * Download media from WhatsApp Cloud API by media ID.
+   * Two-step: first get the media URL, then download the binary.
+   */
+  static async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    // Step 1: Get media URL
+    const metaRes = await axios.get(
+      `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${mediaId}`,
+      { headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}` } },
+    );
+    const mediaUrl = metaRes.data.url;
+    const mimeType = metaRes.data.mime_type || 'image/jpeg';
+
+    // Step 2: Download the binary
+    const fileRes = await axios.get(mediaUrl, {
+      headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}` },
+      responseType: 'arraybuffer',
+    });
+
+    console.log(`📥 Downloaded media ${mediaId}: ${fileRes.data.byteLength} bytes, ${mimeType}`);
+    return { buffer: Buffer.from(fileRes.data), mimeType };
+  }
+
   static async sendTextMessage({ phoneNumberId, to, text }: SendMessageParams): Promise<string | null> {
     const normalizedTo = this.normalizePhoneNumber(to);
     try {
