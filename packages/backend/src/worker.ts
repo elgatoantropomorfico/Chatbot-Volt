@@ -8,6 +8,7 @@ import { HandoffService } from './services/handoff.service';
 import { SaleService } from './services/sale.service';
 import { LeadExtractionService } from './services/lead-extraction.service';
 import { LeadProfileService } from './services/lead-profile.service';
+import { LeadRequestService } from './services/lead-request.service';
 import { ZohoSyncService } from './services/zoho-sync.service';
 import { R2Service } from './services/r2.service';
 import { prisma } from './config/database';
@@ -91,12 +92,27 @@ async function processMessage(job: Job<IncomingMessage>) {
     try {
       console.log(`📷 Downloading image mediaId=${data.mediaId} for lead ${lead.id}`);
       const media = await WhatsAppService.downloadMedia(data.mediaId);
+
+      // Photo field configs available on this tenant (lead is sending images,
+      // chances are one of these is the slot we want to fill). If any exist,
+      // make sure there's an active LeadRequest so the photo lands on it.
+      const photoFields = await prisma.leadFieldConfig.findMany({
+        where: { tenantId: tenant.id, isActive: true, fieldType: { in: ['photo', 'multi_photo'] } },
+        orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
+      });
+
+      let activeRequest: any = null;
+      if (photoFields.length > 0) {
+        activeRequest = await LeadRequestService.getOrCreateActive(lead.id, tenant.id);
+      }
+
       const url = await R2Service.upload({
         buffer: media.buffer,
         mimeType: media.mimeType,
         tenantId: tenant.id,
         leadId: lead.id,
         fieldKey: 'chat-image',
+        requestId: activeRequest?.id,
       });
 
       if (url) {
@@ -106,15 +122,10 @@ async function processMessage(job: Job<IncomingMessage>) {
           data: { mediaUrl: url },
         });
 
-        // If tenant has photo field configs, also save as LeadPhoto
-        const photoFields = await prisma.leadFieldConfig.findMany({
-          where: { tenantId: tenant.id, isActive: true, fieldType: { in: ['photo', 'multi_photo'] } },
-          orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }],
-        });
-
-        if (photoFields.length > 0) {
+        if (photoFields.length > 0 && activeRequest) {
+          // Slots are counted PER REQUEST, not lifetime per lead.
           const existingPhotos = await prisma.leadPhoto.findMany({
-            where: { leadId: lead.id },
+            where: { leadId: lead.id, requestId: activeRequest.id },
           });
 
           let targetField: any = null;
@@ -136,6 +147,7 @@ async function processMessage(job: Job<IncomingMessage>) {
             await prisma.leadPhoto.create({
               data: {
                 leadId: lead.id,
+                requestId: activeRequest.id,
                 fieldKey: targetField.fieldKey,
                 url,
                 mimeType: media.mimeType,
@@ -143,9 +155,11 @@ async function processMessage(job: Job<IncomingMessage>) {
                 caption: data.text || null,
               },
             });
-            console.log(`✅ Photo saved for lead ${lead.id}, field ${targetField.fieldKey}`);
+            console.log(`✅ Photo saved for lead ${lead.id}, request ${activeRequest.id}, field ${targetField.fieldKey}`);
+            // Photos can be the last requirement to satisfy the request.
+            await LeadRequestService.completeIfReady(activeRequest.id);
           } else {
-            console.log(`⚠️ No available photo field for lead ${lead.id} — all slots full`);
+            console.log(`⚠️ No available photo field for lead ${lead.id} request ${activeRequest.id} — all slots full`);
           }
         }
 

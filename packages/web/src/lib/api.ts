@@ -211,6 +211,20 @@ class ApiClient {
   // Lead Photos
   async getLeadPhotos(leadId: string) { return this.fetch<{ photos: any[] }>(`/leads/${leadId}/photos`); }
 
+  // Lead Requests (turnos / presupuestos / pedidos por lead)
+  async getLeadRequests(leadId: string) {
+    return this.fetch<{ requests: any[] }>(`/leads/${leadId}/requests`);
+  }
+  async createLeadRequest(leadId: string, data?: { label?: string }) {
+    return this.fetch<{ request: any }>(`/leads/${leadId}/requests`, { method: 'POST', body: data || {} });
+  }
+  async updateLeadRequest(leadId: string, requestId: string, data: { status?: string; data?: Record<string, any>; label?: string | null }) {
+    return this.fetch<{ request: any }>(`/leads/${leadId}/requests/${requestId}`, { method: 'PATCH', body: data });
+  }
+  async deleteLeadRequest(leadId: string, requestId: string) {
+    return this.fetch<{ message: string }>(`/leads/${leadId}/requests/${requestId}`, { method: 'DELETE' });
+  }
+
   // Sales
   async getSales(params?: Record<string, string>) {
     const qs = params ? '?' + new URLSearchParams(params).toString() : '';

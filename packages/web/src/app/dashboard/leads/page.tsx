@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
-import { Users, X, RefreshCw, Trash2, Camera, FileText } from 'lucide-react';
+import { Users, X, RefreshCw, Trash2, Camera, FileText, Plus, Edit2, Check, ClipboardList } from 'lucide-react';
 import styles from './page.module.css';
 
 const STAGES = ['', 'nuevo', 'contactado', 'interesado', 'venta', 'perdido'];
@@ -277,15 +277,14 @@ export default function LeadsPage() {
             </div>
           </div>
 
-          {/* Zoho CRM section — editable fields from ZohoFieldConfig */}
-          {/* Custom Data section (LeadFieldConfig tenants) */}
+          {/* Lead-scoped data (DNI, obra social marked as scope=lead, etc.) */}
           {leadFieldConfigs.length > 0 && (() => {
-            const tenantConfigs = leadFieldConfigs.filter((f: any) => f.tenantId === selectedLead.tenantId);
+            const tenantConfigs = leadFieldConfigs.filter(
+              (f: any) => f.tenantId === selectedLead.tenantId && (f.scope || 'request') === 'lead'
+            );
             if (tenantConfigs.length === 0) return null;
             const customData = (typeof selectedLead.customData === 'string' ? JSON.parse(selectedLead.customData) : selectedLead.customData) || {};
             const textFields = tenantConfigs.filter((f: any) => f.fieldType !== 'photo' && f.fieldType !== 'multi_photo');
-            // For fieldKeys that collide with a standard Lead column (dni, email, firstName, etc.)
-            // the backend stores the value on the column, not in customData. Read from both.
             const getFieldValue = (fieldKey: string): string | null => {
               const cd = customData[fieldKey];
               if (cd != null && cd !== '') return String(cd);
@@ -294,11 +293,10 @@ export default function LeadsPage() {
               return null;
             };
             const filled = textFields.filter((f: any) => getFieldValue(f.fieldKey) != null).length;
-
             return (
               <div className={styles.detailSection}>
                 <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FileText size={12} /> Datos capturados</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FileText size={12} /> Datos del lead</span>
                   <span style={{ fontSize: '10px', fontWeight: 500, color: filled === textFields.length ? 'var(--color-success)' : 'var(--color-warning)', textTransform: 'none', letterSpacing: 0 }}>
                     {filled}/{textFields.length} campos
                   </span>
@@ -320,14 +318,22 @@ export default function LeadsPage() {
             );
           })()}
 
-          {/* Photos section */}
-          {selectedLead.photos && selectedLead.photos.length > 0 && (
+          {/* Solicitudes (turnos / presupuestos) */}
+          <LeadRequestsPanel
+            lead={selectedLead}
+            fieldConfigs={leadFieldConfigs.filter((f: any) => f.tenantId === selectedLead.tenantId)}
+            onChange={() => selectLead(selectedLead.id)}
+            onPhotoClick={(url) => setPhotoPreview(url)}
+          />
+
+          {/* Legacy photos that were never associated to a request (pre-migration leftovers) */}
+          {selectedLead.photos && selectedLead.photos.filter((p: any) => !p.requestId).length > 0 && (
             <div className={styles.detailSection}>
               <h3 style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <Camera size={12} /> Fotos ({selectedLead.photos.length})
+                <Camera size={12} /> Fotos sin solicitud
               </h3>
               <div className={styles.photoGrid}>
-                {selectedLead.photos.map((photo: any) => {
+                {selectedLead.photos.filter((p: any) => !p.requestId).map((photo: any) => {
                   const fieldConfig = leadFieldConfigs.find((f: any) => f.fieldKey === photo.fieldKey);
                   return (
                     <div key={photo.id} className={styles.photoThumb} onClick={() => setPhotoPreview(photo.url)}>
@@ -510,5 +516,289 @@ export default function LeadsPage() {
         </>
       )}
     </div>
+  );
+}
+
+// ============================================================
+// LeadRequestsPanel — list/edit/delete LeadRequests under a lead
+// ============================================================
+interface LeadRequestsPanelProps {
+  lead: any;
+  fieldConfigs: any[];
+  onChange: () => void;
+  onPhotoClick: (url: string) => void;
+}
+
+function LeadRequestsPanel({ lead, fieldConfigs, onChange, onPhotoClick }: LeadRequestsPanelProps) {
+  const requests: any[] = lead.requests || [];
+  const requestFields = fieldConfigs.filter((f: any) => (f.scope || 'request') === 'request');
+  const textFields = requestFields.filter((f: any) => f.fieldType !== 'photo' && f.fieldType !== 'multi_photo');
+  const photoFields = requestFields.filter((f: any) => f.fieldType === 'photo' || f.fieldType === 'multi_photo');
+
+  if (fieldConfigs.length === 0 && requests.length === 0) return null;
+
+  async function createRequest() {
+    try {
+      await api.createLeadRequest(lead.id);
+      onChange();
+    } catch (err) {
+      console.error(err);
+      alert('Error creando solicitud');
+    }
+  }
+
+  async function deleteRequest(rid: string, label: string) {
+    if (!confirm(`¿Eliminar la solicitud "${label}"?\nSe borrarán también sus fotos asociadas.`)) return;
+    try {
+      await api.deleteLeadRequest(lead.id, rid);
+      onChange();
+    } catch (err) {
+      console.error(err);
+      alert('Error eliminando solicitud');
+    }
+  }
+
+  async function patchRequest(rid: string, patch: any) {
+    try {
+      await api.updateLeadRequest(lead.id, rid, patch);
+      onChange();
+    } catch (err) {
+      console.error(err);
+      alert('Error actualizando solicitud');
+    }
+  }
+
+  return (
+    <div className={styles.detailSection}>
+      <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <ClipboardList size={12} /> Solicitudes ({requests.length})
+        </span>
+        <button
+          onClick={createRequest}
+          title="Crear nueva solicitud"
+          style={{
+            display: 'flex', alignItems: 'center', gap: 4, fontSize: '10px', fontWeight: 500,
+            padding: '4px 8px', borderRadius: 'var(--radius-sm)',
+            background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)',
+            color: 'var(--color-text)', cursor: 'pointer',
+          }}
+        >
+          <Plus size={11} /> Nueva
+        </button>
+      </h3>
+
+      {requests.length === 0 ? (
+        <div style={{ fontSize: '11px', color: 'var(--color-text-muted)', padding: '8px 0' }}>
+          Todavía no hay solicitudes registradas.
+        </div>
+      ) : (
+        requests.map((req: any, idx: number) => (
+          <RequestCard
+            key={req.id}
+            request={req}
+            indexFromEnd={requests.length - idx}
+            textFields={textFields}
+            photoFields={photoFields}
+            onSaveData={(data) => patchRequest(req.id, { data })}
+            onSaveLabel={(label) => patchRequest(req.id, { label })}
+            onSaveStatus={(status) => patchRequest(req.id, { status })}
+            onDelete={() => deleteRequest(req.id, req.label || `Solicitud #${requests.length - idx}`)}
+            onPhotoClick={onPhotoClick}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+interface RequestCardProps {
+  request: any;
+  indexFromEnd: number;
+  textFields: any[];
+  photoFields: any[];
+  onSaveData: (data: Record<string, any>) => void;
+  onSaveLabel: (label: string) => void;
+  onSaveStatus: (status: string) => void;
+  onDelete: () => void;
+  onPhotoClick: (url: string) => void;
+}
+
+function RequestCard({ request, indexFromEnd, textFields, photoFields, onSaveData, onSaveLabel, onSaveStatus, onDelete, onPhotoClick }: RequestCardProps) {
+  const [editingField, setEditingField] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [draftLabel, setDraftLabel] = useState<string>(request.label || '');
+  const data = (request.data as Record<string, any>) || {};
+  const photos: any[] = request.photos || [];
+
+  const statusColor: Record<string, string> = {
+    in_progress: 'var(--color-warning)',
+    completed: 'var(--color-success)',
+    cancelled: 'var(--color-text-muted)',
+  };
+  const statusLabel: Record<string, string> = {
+    in_progress: 'En progreso',
+    completed: 'Completada',
+    cancelled: 'Cancelada',
+  };
+
+  function fieldFilled(f: any) {
+    if (f.fieldType === 'photo' || f.fieldType === 'multi_photo') {
+      return photos.some((p) => p.fieldKey === f.fieldKey);
+    }
+    const v = data[f.fieldKey];
+    return v !== undefined && v !== null && String(v).trim() !== '';
+  }
+  const allFields = [...textFields, ...photoFields];
+  const filled = allFields.filter(fieldFilled).length;
+
+  return (
+    <div style={{
+      padding: '10px', marginBottom: '8px', borderRadius: 'var(--radius-sm)',
+      border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.02)',
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>
+          {editingLabel ? (
+            <input
+              autoFocus
+              value={draftLabel}
+              onChange={(e) => setDraftLabel(e.target.value)}
+              onBlur={() => {
+                setEditingLabel(false);
+                if (draftLabel !== (request.label || '')) onSaveLabel(draftLabel);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+                if (e.key === 'Escape') { setDraftLabel(request.label || ''); setEditingLabel(false); }
+              }}
+              style={{
+                fontSize: '12px', fontWeight: 600, padding: '2px 6px',
+                border: '1px solid var(--color-border)', borderRadius: 4,
+                background: 'var(--color-bg-secondary)', color: 'var(--color-text)', flex: 1,
+              }}
+            />
+          ) : (
+            <span style={{ fontSize: '12px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {request.label || `Solicitud #${indexFromEnd}`}
+            </span>
+          )}
+          <button
+            onClick={() => { setDraftLabel(request.label || ''); setEditingLabel(true); }}
+            style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-text-muted)', padding: 0 }}
+            title="Renombrar"
+          >
+            <Edit2 size={11} />
+          </button>
+        </div>
+        <select
+          value={request.status}
+          onChange={(e) => onSaveStatus(e.target.value)}
+          style={{
+            fontSize: '10px', padding: '2px 6px', border: `1px solid ${statusColor[request.status]}`,
+            borderRadius: 999, background: 'transparent', color: statusColor[request.status], cursor: 'pointer',
+          }}
+        >
+          <option value="in_progress">{statusLabel.in_progress}</option>
+          <option value="completed">{statusLabel.completed}</option>
+          <option value="cancelled">{statusLabel.cancelled}</option>
+        </select>
+        <button
+          onClick={onDelete}
+          style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--color-danger)', padding: 2 }}
+          title="Eliminar solicitud"
+        >
+          <Trash2 size={12} />
+        </button>
+      </div>
+
+      <div style={{ fontSize: '10px', color: 'var(--color-text-muted)', marginBottom: 6 }}>
+        {filled}/{allFields.length} campos · creada {new Date(request.createdAt).toLocaleDateString('es-AR')}
+      </div>
+
+      {textFields.map((f: any) => {
+        const value = data[f.fieldKey];
+        const isEditing = editingField === f.fieldKey;
+        return (
+          <div key={f.fieldKey} className={styles.detailField}>
+            <span>{f.label}</span>
+            {isEditing ? (
+              <RequestFieldEditor
+                field={f}
+                initial={value || ''}
+                onCommit={(v) => {
+                  setEditingField(null);
+                  if (v !== (value || '')) onSaveData({ [f.fieldKey]: v });
+                }}
+                onCancel={() => setEditingField(null)}
+              />
+            ) : (
+              <span
+                onClick={() => setEditingField(f.fieldKey)}
+                style={{ cursor: 'pointer' }}
+                className={value ? styles.customDataValue : styles.customDataEmpty}
+                title="Click para editar"
+              >
+                {value || 'Sin dato'}
+              </span>
+            )}
+          </div>
+        );
+      })}
+
+      {photos.length > 0 && (
+        <div className={styles.photoGrid} style={{ marginTop: 8 }}>
+          {photos.map((photo: any) => {
+            const cfg = photoFields.find((f: any) => f.fieldKey === photo.fieldKey);
+            return (
+              <div key={photo.id} className={styles.photoThumb} onClick={() => onPhotoClick(photo.url)}>
+                <img src={photo.url} alt={photo.caption || photo.fieldKey} loading="lazy" />
+                <div className={styles.photoFieldLabel}>{cfg?.label || photo.fieldKey}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RequestFieldEditor({ field, initial, onCommit, onCancel }: { field: any; initial: string; onCommit: (v: string) => void; onCancel: () => void }) {
+  const [v, setV] = useState(initial);
+  const inputStyle: React.CSSProperties = {
+    fontSize: '12px', padding: '4px 6px', border: '1px solid var(--color-border)',
+    borderRadius: 4, background: 'var(--color-bg-secondary)', color: 'var(--color-text)', flex: 1,
+  };
+
+  if (field.fieldType === 'picklist') {
+    const opts = (field.optionsJson as any[]) || [];
+    return (
+      <span style={{ display: 'flex', gap: 4 }}>
+        <select autoFocus value={v} onChange={(e) => setV(e.target.value)} style={{ ...inputStyle, cursor: 'pointer' }}>
+          <option value="">— vacío —</option>
+          {opts.map((o: any) => (
+            <option key={o.value} value={o.value}>{o.value}</option>
+          ))}
+        </select>
+        <button onClick={() => onCommit(v)} style={{ background: 'transparent', border: 'none', color: 'var(--color-success)', cursor: 'pointer' }}><Check size={12} /></button>
+        <button onClick={onCancel} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}><X size={12} /></button>
+      </span>
+    );
+  }
+  return (
+    <span style={{ display: 'flex', gap: 4 }}>
+      <input
+        autoFocus
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') onCommit(v);
+          if (e.key === 'Escape') onCancel();
+        }}
+        style={inputStyle}
+      />
+      <button onClick={() => onCommit(v)} style={{ background: 'transparent', border: 'none', color: 'var(--color-success)', cursor: 'pointer' }}><Check size={12} /></button>
+      <button onClick={onCancel} style={{ background: 'transparent', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}><X size={12} /></button>
+    </span>
   );
 }

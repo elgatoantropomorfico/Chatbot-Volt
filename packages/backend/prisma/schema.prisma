@@ -76,6 +76,12 @@ enum SaleStatus {
   cancelled
 }
 
+enum LeadRequestStatus {
+  in_progress
+  completed
+  cancelled
+}
+
 // ============================================
 // MODELS
 // ============================================
@@ -128,6 +134,7 @@ model Tenant {
   offers           TenantOffer[]
   zohoFieldConfigs ZohoFieldConfig[]
   leadFieldConfigs LeadFieldConfig[]
+  leadRequests     LeadRequest[]
 
   @@map("tenants")
 }
@@ -194,6 +201,7 @@ model Lead {
   notes               LeadNote[]
   sales               Sale[]
   photos              LeadPhoto[]
+  requests            LeadRequest[]
 
   @@unique([tenantId, phone])
   @@index([tenantId, zohoContactId])
@@ -358,6 +366,7 @@ model LeadFieldConfig {
   fieldKey    String   @map("field_key")
   label       String
   fieldType   String   @default("text") @map("field_type")
+  scope       String   @default("request")
   step        Int      @default(1)
   isRequired  Boolean  @default(false) @map("is_required")
   isActive    Boolean  @default(true) @map("is_active")
@@ -375,19 +384,45 @@ model LeadFieldConfig {
   @@map("lead_field_configs")
 }
 
-model LeadPhoto {
-  id         String   @id @default(cuid())
-  leadId     String   @map("lead_id")
-  fieldKey   String   @map("field_key")
-  url        String
-  mimeType   String?  @map("mime_type")
-  fileSize   Int?     @map("file_size")
-  caption    String?
-  createdAt  DateTime @default(now()) @map("created_at")
+// A LeadRequest represents one "pedido" inside a lead — a turno (CardioCor)
+// or a presupuesto (TallerAlfa). A lead can accumulate many requests over
+// time, each with its own captured data and photos.
+model LeadRequest {
+  id          String            @id @default(cuid())
+  tenantId    String            @map("tenant_id")
+  leadId      String            @map("lead_id")
+  status      LeadRequestStatus @default(in_progress)
+  data        Json              @default("{}")
+  label       String?
+  createdAt   DateTime          @default(now()) @map("created_at")
+  updatedAt   DateTime          @updatedAt @map("updated_at")
+  completedAt DateTime?         @map("completed_at")
 
-  lead       Lead     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tenant      Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead        Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  photos      LeadPhoto[]
+
+  @@index([leadId, status])
+  @@index([tenantId])
+  @@map("lead_requests")
+}
+
+model LeadPhoto {
+  id         String       @id @default(cuid())
+  leadId     String       @map("lead_id")
+  requestId  String?      @map("request_id")
+  fieldKey   String       @map("field_key")
+  url        String
+  mimeType   String?      @map("mime_type")
+  fileSize   Int?         @map("file_size")
+  caption    String?
+  createdAt  DateTime     @default(now()) @map("created_at")
+
+  lead       Lead         @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  request    LeadRequest? @relation(fields: [requestId], references: [id], onDelete: Cascade)
 
   @@index([leadId, fieldKey])
+  @@index([requestId])
   @@map("lead_photos")
 }
 

@@ -34,6 +34,7 @@ export class OpenAIService {
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
       include: {
+        lead: true,
         messages: {
           orderBy: { createdAt: 'desc' },
           take: maxMessages,
@@ -200,6 +201,27 @@ export class OpenAIService {
 
     if (leadFieldConfigs.length > 0) {
       // ── GENERIC TENANT (CardioCor, TallerAlfa, etc.) ──
+      //
+      // Multi-request model: the lead can accumulate many "solicitudes"
+      // (turnos / presupuestos). Look at the most recent one to decide
+      // whether the bot should be capturing data, offering a new request,
+      // or staying passive.
+      const lead = conversation.lead || (await prisma.lead.findUnique({
+        where: { id: (conversation as any).leadId },
+      }));
+      const recentRequest = lead
+        ? await (prisma as any).leadRequest.findFirst({
+            where: { leadId: lead.id },
+            orderBy: { createdAt: 'desc' },
+          })
+        : null;
+      const activeRequestData =
+        recentRequest && recentRequest.status === 'in_progress'
+          ? ((recentRequest.data as Record<string, any>) || {})
+          : {};
+      const lastRequestCompleted =
+        !!recentRequest && recentRequest.status === 'completed';
+
       // Group fields by step
       const stepMap = new Map<number, any[]>();
       for (const fc of leadFieldConfigs) {
@@ -244,10 +266,28 @@ export class OpenAIService {
         }
       }
 
+      // Snapshot of what's already captured on the active request, so the
+      // model can SKIP steps that are already done in this very request.
+      const alreadyOnRequest = Object.entries(activeRequestData)
+        .filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '')
+        .map(([k, v]) => `- ${k}: ${v}`);
+
+      const completedRequestNote = lastRequestCompleted
+        ? `\n\n🟢 ESTADO DE SOLICITUDES:
+La última solicitud de este lead ya está COMPLETA. NO repreguntes los datos que ya capturamos (mirá los datos del lead más arriba).
+Cuando el usuario exprese intención clara de querer otro turno/presupuesto/pedido (por ejemplo: "quiero otro", "necesito sacar otro turno", "presupuestame esto otro"), arrancá una NUEVA solicitud y volvé a recorrer los pasos pidiendo SOLO los datos del nuevo pedido (los datos personales como DNI ya los tenemos, no los repitas).
+Si el usuario solo hace consultas generales (ubicación, horarios, dudas) y NO pide otra solicitud, respondele normalmente y quedate pasivo. NO ofrezcas tomar otra solicitud por iniciativa propia, esperá a que él la pida.`
+        : '';
+
+      const inProgressNote = (!lastRequestCompleted && alreadyOnRequest.length > 0)
+        ? `\n\n📌 DATOS YA CAPTURADOS DE LA SOLICITUD ACTUAL (no los vuelvas a pedir):
+${alreadyOnRequest.join('\n')}`
+        : '';
+
       systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
 
 Siempre que detectes intención de consulta sobre los servicios de este negocio, activá el flujo de captura de datos. Está siempre latente — no necesitás que el usuario diga algo específico para activarlo, simplemente si la conversación gira en torno al servicio, empezá a capturar datos.
-${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
+${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}${completedRequestNote}${inProgressNote}
 
 🚫 NUNCA pidas teléfono/celular/número. Ya lo tenemos por WhatsApp.
 🚫 NUNCA menciones CRM, base de datos ni procesos internos.
@@ -264,12 +304,13 @@ ${stepInstructions.join('\n\n')}
 
 REGLAS DEL FLUJO:
 - Seguí los pasos EN ORDEN. No saltes pasos ni pidas varios datos en un mismo mensaje.
-- Si el usuario ya proporcionó algún dato en mensajes anteriores, SALTÁ ese paso y pasá al siguiente.
+- Si el usuario ya proporcionó algún dato en mensajes anteriores o ya está en "DATOS YA CAPTURADOS" arriba, SALTÁ ese paso y pasá al siguiente.
 - UN solo dato por mensaje. Sé conversacional, no un formulario.
 - Si el usuario hace una pregunta en el medio del flujo, respondela y después retomá el paso donde quedaste.
 - Si la persona SOLO quiere info general (ubicación, horarios de atención) sin relación a los servicios, respondé normalmente sin presionar por datos.
 - Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria a resolver su consulta.
-- Cuando pidas fotos, sé claro sobre qué necesitás y por qué.`;
+- Cuando pidas fotos, sé claro sobre qué necesitás y por qué.
+- Cuando la solicitud actual quede completa (último paso resuelto), confirmale al usuario que está todo registrado y quedate disponible. NO empieces otra solicitud por iniciativa propia: esperá a que el usuario lo pida.`;
     } else {
       // ── ZOHO TENANT (IUDI, etc.) ──
       const zohoIntegration = await prisma.integration.findFirst({

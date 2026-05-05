@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { ExtractedLeadData } from './lead-extraction.service';
 import { fuzzyMatchPicklist, PicklistOption } from '../utils/fuzzy-match';
+import { LeadRequestService } from './lead-request.service';
 import crypto from 'crypto';
 
 // Standard lead columns that map directly to DB fields (not customData)
@@ -13,7 +14,12 @@ export class LeadProfileService {
   /**
    * Merge extracted data onto existing lead.
    * Rule: never overwrite good data with weaker data.
-   * Supports both standard lead columns and custom fields stored in lead.customData.
+   *
+   * Persistence rules:
+   *  - Standard lead columns (firstName, email, dni, ...) are stored on the Lead row.
+   *  - LeadFieldConfig fields with scope='lead' are merged into lead.customData.
+   *  - LeadFieldConfig fields with scope='request' (default) are merged into the
+   *    active LeadRequest.data. If no in_progress request exists, one is created.
    */
   static async mergeExtractedData(leadId: string, extracted: ExtractedLeadData) {
     const lead = await prisma.lead.findUnique({ where: { id: leadId } });
@@ -37,11 +43,13 @@ export class LeadProfileService {
         });
       }
     }
-    // Custom field picklists
+    // Custom field picklists + scope map (lead | request)
     const customFieldKeys = new Set<string>();
+    const customFieldScope = new Map<string, 'lead' | 'request'>();
     for (const fc of leadFieldConfigs) {
       customFieldKeys.add(fc.fieldKey);
-      const opts = (fc.optionsJson as PicklistOption[]) || [];
+      customFieldScope.set(fc.fieldKey, ((fc as any).scope || 'request') as 'lead' | 'request');
+      const opts = (fc.optionsJson as unknown as PicklistOption[]) || [];
       if (fc.fieldType === 'picklist' && opts.length > 0) {
         picklistMap.set(fc.fieldKey, { options: opts, useSlug: false });
       }
@@ -50,6 +58,8 @@ export class LeadProfileService {
     const updates: Record<string, any> = {};
     const existingCustomData = ((lead as any).customData as Record<string, any>) || {};
     const customDataUpdates: Record<string, any> = {};
+    // Per-request updates: applied to the active LeadRequest at the end.
+    const requestDataUpdates: Record<string, any> = {};
 
     // Name fields: only update if not already set
     if (extracted.firstName && !lead.firstName) {
@@ -97,19 +107,37 @@ export class LeadProfileService {
       updates.intentLevel = extracted.intentLevel;
     }
 
-    // Custom fields from LeadFieldConfig → stored in lead.customData
+    // Need active request up front so we can split scope='request' updates.
+    // Lazily resolve only when we actually have something to write to it.
+    let activeRequest: any = null;
+    const ensureActiveRequest = async () => {
+      if (!activeRequest) {
+        activeRequest = await LeadRequestService.getOrCreateActive(leadId, lead.tenantId);
+      }
+      return activeRequest;
+    };
+
+    // Custom fields from LeadFieldConfig → split by scope:
+    //  - scope='lead'    → lead.customData
+    //  - scope='request' → LeadRequest.data
     for (const [key, value] of Object.entries(extracted)) {
       if (!value || STANDARD_LEAD_KEYS.has(key)) continue;
       if (!customFieldKeys.has(key)) continue; // only store known custom fields
 
-      const existingVal = existingCustomData[key];
-      if (existingVal) continue; // don't overwrite existing data
-
-      // Normalize picklists
+      const scope = customFieldScope.get(key) || 'request';
       const pl = picklistMap.get(key);
-      customDataUpdates[key] = pl
+      const normalized = pl
         ? (fuzzyMatchPicklist(value, pl.options, false) || value)
         : value;
+
+      if (scope === 'lead') {
+        const existingVal = existingCustomData[key];
+        if (existingVal) continue; // don't overwrite stable lead-level data
+        customDataUpdates[key] = normalized;
+      } else {
+        // request-scoped: stage for the active request below
+        requestDataUpdates[key] = normalized;
+      }
     }
 
     // Merge customData if there are updates
@@ -117,7 +145,27 @@ export class LeadProfileService {
       updates.customData = { ...existingCustomData, ...customDataUpdates };
     }
 
-    // Skip if nothing changed
+    // Persist request-scoped updates onto the active LeadRequest, then try to
+    // auto-complete it if every required request-scoped field is filled.
+    if (Object.keys(requestDataUpdates).length > 0) {
+      const req = await ensureActiveRequest();
+      const existingReqData = (req.data as Record<string, any>) || {};
+      // Don't overwrite values already captured on this request.
+      const merged: Record<string, any> = { ...existingReqData };
+      for (const [k, v] of Object.entries(requestDataUpdates)) {
+        if (merged[k] === undefined || merged[k] === null || merged[k] === '') {
+          merged[k] = v;
+        }
+      }
+      await (prisma as any).leadRequest.update({
+        where: { id: req.id },
+        data: { data: merged },
+      });
+      await LeadRequestService.completeIfReady(req.id);
+      console.log(`📝 Updated LeadRequest ${req.id} with`, JSON.stringify(requestDataUpdates));
+    }
+
+    // Skip if nothing else changed on the Lead row
     if (Object.keys(updates).length === 0) {
       return lead;
     }

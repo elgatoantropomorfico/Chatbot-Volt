@@ -65,13 +65,17 @@ export async function leadRoutes(app: FastifyInstance) {
   // Get single lead with notes and recent conversations
   app.get('/:id', async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
     const user = request.user;
-    const lead = await prisma.lead.findUnique({
+    const lead = await (prisma as any).lead.findUnique({
       where: { id: request.params.id },
       include: {
         assignedUser: { select: { id: true, email: true } },
         channel: { select: { id: true, displayPhone: true, phoneNumberId: true } },
         notes: { orderBy: { createdAt: 'desc' }, take: 20 },
         photos: { orderBy: { createdAt: 'asc' } },
+        requests: {
+          orderBy: { createdAt: 'desc' },
+          include: { photos: { orderBy: { createdAt: 'asc' } } },
+        },
         conversations: {
           orderBy: { updatedAt: 'desc' },
           take: 5,

@@ -21,6 +21,7 @@ interface FieldDef {
   fieldType: string;
   options: any[];
   promptHint?: string | null;
+  scope?: 'lead' | 'request';
 }
 
 export class LeadExtractionService {
@@ -51,9 +52,14 @@ export class LeadExtractionService {
       .map((m) => `${m.direction === 'in' ? 'Usuario' : 'Bot'}: ${m.text}`)
       .join('\n');
 
-    // Load current lead to know what we already have
+    // Load current lead + active request to know what we already have.
     const lead = await prisma.lead.findUnique({ where: { id: params.leadId } });
     const customData = (lead as any)?.customData as Record<string, any> || {};
+    const activeRequest = await (prisma as any).leadRequest.findFirst({
+      where: { leadId: params.leadId, status: 'in_progress' },
+      orderBy: { createdAt: 'desc' },
+    });
+    const requestData = (activeRequest?.data as Record<string, any>) || {};
 
     // Determine which field config system to use
     const leadFieldConfigs = await prisma.leadFieldConfig.findMany({
@@ -75,6 +81,7 @@ export class LeadExtractionService {
           fieldType: fc.fieldType,
           options: (fc.optionsJson as any[]) || [],
           promptHint: fc.promptHint,
+          scope: (fc.scope || 'request') as 'lead' | 'request',
         }));
     } else {
       // Try ZohoFieldConfig for Zoho-integrated tenants
@@ -112,9 +119,12 @@ export class LeadExtractionService {
       if (val) alreadyKnown.push(`${k}: ${val}`);
     }
 
-    // Custom data already known
+    // Custom data already known: read from lead.customData for scope='lead'
+    // fields, and from the ACTIVE request's data for scope='request' fields.
     for (const f of fields) {
-      const val = customData[f.key];
+      const scope = f.scope || 'request';
+      const source = scope === 'lead' ? customData : requestData;
+      const val = source[f.key];
       if (val) alreadyKnown.push(`${f.key}: ${val}`);
     }
 

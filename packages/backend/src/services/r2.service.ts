@@ -39,6 +39,7 @@ export class R2Service {
     tenantId: string;
     leadId: string;
     fieldKey: string;
+    requestId?: string | null;
   }): Promise<string | null> {
     const client = getClient();
     if (!client) {
@@ -48,7 +49,11 @@ export class R2Service {
 
     const ext = params.mimeType.split('/')[1] || 'bin';
     const hash = crypto.randomBytes(8).toString('hex');
-    const key = `${params.tenantId}/${params.leadId}/${params.fieldKey}/${hash}.${ext}`;
+    // New layout includes requestId so we can wipe a single request's media
+    // by prefix in the future. Falls back to the lead-level path when no
+    // request is active (rare).
+    const reqSegment = params.requestId ? `${params.requestId}/` : '';
+    const key = `${params.tenantId}/${params.leadId}/${reqSegment}${params.fieldKey}/${hash}.${ext}`;
 
     await client.send(new PutObjectCommand({
       Bucket: env.R2_BUCKET_NAME,
