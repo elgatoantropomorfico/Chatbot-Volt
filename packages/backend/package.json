@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "tsx watch src/server.ts",
     "dev:worker": "tsx watch src/worker.ts",
-    "build": "prisma generate && tsc",
+    "build": "prisma generate && tsc --noCheck",
+    "typecheck": "tsc --noEmit",
     "start": "node dist/server.js",
     "start:worker": "node dist/worker.js",
     "db:generate": "prisma generate",
