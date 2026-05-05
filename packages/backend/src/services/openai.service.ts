@@ -218,9 +218,11 @@ export class OpenAIService {
         }
       }
 
-      // Build step-by-step instructions
+      // Build step-by-step instructions.
+      // PASO 0 (RESPONDER LA CONSULTA) and PASO 1 (CONFIRMAR NOMBRE) are
+      // hardcoded below, so generated steps must start at PASO 2.
       const stepInstructions: string[] = [];
-      let stepNum = 0;
+      let stepNum = 1;
       const sortedSteps = [...stepMap.entries()].sort((a, b) => a[0] - b[0]);
 
       for (const [, fields] of sortedSteps) {

@@ -284,7 +284,16 @@ export default function LeadsPage() {
             if (tenantConfigs.length === 0) return null;
             const customData = (typeof selectedLead.customData === 'string' ? JSON.parse(selectedLead.customData) : selectedLead.customData) || {};
             const textFields = tenantConfigs.filter((f: any) => f.fieldType !== 'photo' && f.fieldType !== 'multi_photo');
-            const filled = textFields.filter((f: any) => customData[f.fieldKey]).length;
+            // For fieldKeys that collide with a standard Lead column (dni, email, firstName, etc.)
+            // the backend stores the value on the column, not in customData. Read from both.
+            const getFieldValue = (fieldKey: string): string | null => {
+              const cd = customData[fieldKey];
+              if (cd != null && cd !== '') return String(cd);
+              const std = (selectedLead as any)[fieldKey];
+              if (std != null && std !== '') return String(std);
+              return null;
+            };
+            const filled = textFields.filter((f: any) => getFieldValue(f.fieldKey) != null).length;
 
             return (
               <div className={styles.detailSection}>
@@ -294,16 +303,19 @@ export default function LeadsPage() {
                     {filled}/{textFields.length} campos
                   </span>
                 </h3>
-                {textFields.map((f: any) => (
-                  <div key={f.fieldKey} className={styles.detailField}>
-                    <span>{f.label}</span>
-                    {customData[f.fieldKey] ? (
-                      <span className={styles.customDataValue}>{customData[f.fieldKey]}</span>
-                    ) : (
-                      <span className={styles.customDataEmpty}>Sin dato</span>
-                    )}
-                  </div>
-                ))}
+                {textFields.map((f: any) => {
+                  const value = getFieldValue(f.fieldKey);
+                  return (
+                    <div key={f.fieldKey} className={styles.detailField}>
+                      <span>{f.label}</span>
+                      {value ? (
+                        <span className={styles.customDataValue}>{value}</span>
+                      ) : (
+                        <span className={styles.customDataEmpty}>Sin dato</span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             );
           })()}
