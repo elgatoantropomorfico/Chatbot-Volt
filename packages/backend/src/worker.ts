@@ -88,6 +88,12 @@ async function processMessage(job: Job<IncomingMessage>) {
   // ============================================
   // IMAGE HANDLING: download from WA → upload to R2 → save LeadPhoto + update message
   // ============================================
+  // When a burst of photos arrives just AFTER the request closed (e.g. user
+  // sent 3 photos in 5 seconds and the first one already triggered the
+  // closing AI message), we attach the rest to that same completed request
+  // and short-circuit the worker so the bot doesn't re-emit the closing
+  // message on every photo. The flag is set in the photo-handling block.
+  let attachedToClosedRequest = false;
   if (data.messageType === 'image' && data.mediaId) {
     try {
       console.log(`📷 Downloading image mediaId=${data.mediaId} for lead ${lead.id}`);
@@ -102,8 +108,15 @@ async function processMessage(job: Job<IncomingMessage>) {
       });
 
       let activeRequest: any = null;
+      let targetWasAlreadyCompleted = false;
       if (photoFields.length > 0) {
-        activeRequest = await LeadRequestService.getOrCreateActive(lead.id, tenant.id);
+        const picked = await LeadRequestService.findOrCreatePhotoRequest(
+          lead.id,
+          tenant.id,
+          photoFields as any,
+        );
+        activeRequest = picked.request;
+        targetWasAlreadyCompleted = picked.wasAlreadyCompleted;
       }
 
       const url = await R2Service.upload({
@@ -156,8 +169,21 @@ async function processMessage(job: Job<IncomingMessage>) {
               },
             });
             console.log(`✅ Photo saved for lead ${lead.id}, request ${activeRequest.id}, field ${targetField.fieldKey}`);
-            // Photos can be the last requirement to satisfy the request.
-            await LeadRequestService.completeIfReady(activeRequest.id);
+
+            if (targetWasAlreadyCompleted) {
+              // Bump updatedAt so the recent-window heuristic keeps catching
+              // the next photo of this same burst.
+              await (prisma as any).leadRequest.update({
+                where: { id: activeRequest.id },
+                data: { updatedAt: new Date() },
+              });
+              attachedToClosedRequest = true;
+            } else {
+              // Photos can be the last requirement to satisfy the request;
+              // for multi_photo the user decides upfront how many to send,
+              // so a single photo is enough to close the request.
+              await LeadRequestService.completeIfReady(activeRequest.id);
+            }
           } else {
             console.log(`⚠️ No available photo field for lead ${lead.id} request ${activeRequest.id} — all slots full`);
           }
@@ -168,6 +194,15 @@ async function processMessage(job: Job<IncomingMessage>) {
     } catch (imgErr: any) {
       console.error('⚠️ Image processing error (non-fatal):', imgErr.message || imgErr);
     }
+  }
+
+  // If this photo got attached to a request that was ALREADY completed
+  // (i.e., it's a follow-up photo from the same burst that closed the
+  // request a moment ago), skip the AI pipeline so the bot doesn't repeat
+  // the closing message it already sent for the first photo.
+  if (attachedToClosedRequest) {
+    console.log(`📷 Photo attached to already-completed request, skipping AI`);
+    return;
   }
 
   // 2. If conversation is pending_human, skip AI processing
