@@ -3,8 +3,9 @@ import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 
 export const metadata: Metadata = {
-  title: 'Volt IA Agents — Automatizá tu atención con IA',
-  description: 'Plataforma de agentes inteligentes para WhatsApp. Automatizá ventas, atención al cliente y seguimiento de leads con inteligencia artificial.',
+  title: 'Volt — Automatización, IA e integraciones para tu empresa',
+  description:
+    'Asistentes inteligentes, integraciones con WhatsApp e Instagram, automatización de turnos y desarrollo de software a medida.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
