@@ -10,6 +10,7 @@ export default function AutomatizacionTurnosPage() {
   return (
     <SolutionPageLayout
       badge="Automatización"
+      heroVisual="turnos"
       heroTitle="Automatización de Turnos, Consultas y Gestión de Casos"
       heroSubtitle="Menos tareas manuales. Más tiempo para lo importante. Digitalizá la atención al cliente mediante asistentes capaces de gestionar reservas, responder consultas frecuentes y organizar solicitudes de forma automática."
       heroCtaLabel="Automatizar mi gestión"

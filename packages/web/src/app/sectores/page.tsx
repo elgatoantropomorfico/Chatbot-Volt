@@ -4,6 +4,7 @@ import { Building2, GraduationCap, Home, ShoppingBag, Users } from 'lucide-react
 import { MarketingShell } from '@/components/marketing/MarketingShell';
 import { DEMO_MAILTO } from '@/components/marketing/constants';
 import { FinalCTA, PrimaryButton, SectionHeader } from '@/components/marketing/ui';
+import { ChatMockup, HeroOrbs, IntegrationsLogoBar } from '@/components/marketing/visuals';
 
 const SECTORS = [
   {
@@ -43,22 +44,28 @@ export default function SectoresPage() {
     <MarketingShell>
       <section
         style={{
-          paddingTop: 140,
-          paddingBottom: 60,
+          position: 'relative',
+          padding: '140px 24px 48px',
           textAlign: 'center',
-          padding: '140px 24px 60px',
+          overflow: 'hidden',
         }}
       >
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+        <HeroOrbs />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto' }}>
           <SectionHeader
             badge="Sectores"
             title="Soluciones de IA y automatización para distintos tipos de empresas"
             subtitle="Adaptamos cada implementación al rubro, los canales y los procesos de tu organización."
           />
         </div>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: 48, padding: '0 24px' }}>
+          <ChatMockup variant="turnos" />
+        </div>
       </section>
 
-      <section style={{ padding: '40px 24px 100px' }}>
+      <IntegrationsLogoBar />
+
+      <section style={{ padding: '60px 24px 100px' }}>
         <div
           className="landing-grid-3"
           style={{

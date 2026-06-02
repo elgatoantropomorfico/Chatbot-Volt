@@ -28,18 +28,35 @@ export function MarketingStyles() {
         background: var(--color-surface-hover) !important;
         border-color: var(--color-border-light) !important;
       }
-      .landing-solutions-dropdown:hover .landing-solutions-menu,
-      .landing-solutions-dropdown:focus-within .landing-solutions-menu {
+      .landing-solutions-menu {
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(8px);
+        transition: opacity 0.2s, transform 0.2s, visibility 0.2s;
+        pointer-events: none;
+      }
+      .landing-solutions-menu.is-open,
+      .landing-solutions-dropdown:hover .landing-solutions-menu {
         opacity: 1;
         visibility: visible;
         transform: translateY(0);
+        pointer-events: auto;
+      }
+      .landing-solutions-menu::before {
+        content: '';
+        position: absolute;
+        top: -10px;
+        left: 0;
+        right: 0;
+        height: 10px;
       }
       @media (max-width: 900px) {
         .landing-nav-links { display: none !important; }
-        .landing-nav-mobile { display: flex !important; }
+        .landing-nav-mobile-toggle { display: flex !important; }
       }
       @media (min-width: 901px) {
-        .landing-nav-mobile { display: none !important; }
+        .landing-nav-mobile-toggle { display: none !important; }
+        .landing-mobile-menu { display: none !important; }
       }
       @media (max-width: 768px) {
         .landing-hero-btns { flex-direction: column !important; align-items: stretch !important; }
@@ -48,6 +65,8 @@ export function MarketingStyles() {
         .landing-grid-4 { grid-template-columns: 1fr !important; }
         .landing-footer-inner { flex-direction: column !important; text-align: center !important; }
         .landing-steps { grid-template-columns: 1fr !important; }
+        .landing-split { grid-template-columns: 1fr !important; }
+        .landing-split > div { order: unset !important; }
       }
     `}</style>
   );

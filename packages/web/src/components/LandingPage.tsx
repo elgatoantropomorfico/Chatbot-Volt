@@ -17,12 +17,22 @@ import {
   WORK_STEPS,
 } from './marketing/constants';
 import { FinalCTA, GhostButton, PrimaryButton, SectionHeader, TextLink } from './marketing/ui';
+import {
+  ChatMockup,
+  DashboardMockup,
+  FeatureCardsRow,
+  HeroOrbs,
+  IntegrationsLogoBar,
+  SplitSection,
+} from './marketing/visuals';
 
 export default function LandingPage() {
   return (
     <MarketingShell>
       <Hero />
+      <IntegrationsLogoBar />
       <WhatWeDo />
+      <PlatformPreview />
       <MainSolutions />
       <IdealFor />
       <Benefits />
@@ -43,7 +53,7 @@ function Hero() {
       style={{
         position: 'relative',
         paddingTop: 160,
-        paddingBottom: 100,
+        paddingBottom: 48,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -51,20 +61,7 @@ function Hero() {
         overflow: 'hidden',
       }}
     >
-      <div
-        style={{
-          position: 'absolute',
-          top: -200,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 800,
-          height: 800,
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, rgba(232, 121, 249, 0.05) 40%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
+      <HeroOrbs />
 
       <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, padding: '0 24px' }}>
         <div
@@ -141,6 +138,37 @@ function Hero() {
           <GhostButton href="#soluciones">Ver soluciones</GhostButton>
         </div>
       </div>
+
+      <div
+        style={{
+          position: 'relative',
+          zIndex: 1,
+          marginTop: 56,
+          width: '100%',
+          maxWidth: 720,
+          padding: '0 24px',
+          animation: 'fade-in-up 0.8s ease-out 0.4s both',
+        }}
+      >
+        <ChatMockup variant="commerce" />
+      </div>
+    </section>
+  );
+}
+
+function PlatformPreview() {
+  return (
+    <section style={{ padding: '80px 24px', background: 'var(--color-bg-secondary)' }}>
+      <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
+        <SectionHeader
+          badge="Plataforma"
+          title="Todo tu negocio en un solo panel"
+          subtitle="Conversaciones, leads, métricas y configuración del bot en una interfaz pensada para equipos comerciales y de atención."
+        />
+        <div style={{ marginTop: 48 }}>
+          <DashboardMockup />
+        </div>
+      </div>
     </section>
   );
 }
@@ -153,50 +181,52 @@ function WhatWeDo() {
   ];
 
   return (
-    <section style={{ padding: '100px 24px' }}>
-      <div style={{ maxWidth: 900, margin: '0 auto' }}>
+    <SplitSection
+      visual={<FeatureCardsRow />}
+      visualPosition="right"
+    >
+      <div>
         <SectionHeader
           badge="Qué hacemos"
           title="Tecnología para empresas que quieren vender, atender y operar mejor"
           subtitle="En Volt desarrollamos soluciones basadas en inteligencia artificial, automatización e integraciones digitales para transformar la manera en que las empresas se comunican con sus clientes y gestionan sus procesos internos."
+          align="left"
         />
-        <div style={{ marginTop: 48, maxWidth: 640, margin: '48px auto 0' }}>
-          <p
-            style={{
-              fontSize: 15,
-              fontWeight: 600,
-              color: 'var(--color-text)',
-              marginBottom: 20,
-              textAlign: 'center',
-            }}
-          >
-            Trabajamos sobre tres grandes áreas:
-          </p>
-          <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {areas.map((a, i) => (
-              <li
-                key={i}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: 12,
-                  padding: '16px 20px',
-                  borderRadius: 'var(--radius-lg)',
-                  background: 'var(--color-surface)',
-                  border: '1px solid var(--color-border)',
-                  fontSize: 15,
-                  color: 'var(--color-text-secondary)',
-                  lineHeight: 1.5,
-                }}
-              >
-                <Zap size={18} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
-                {a}
-              </li>
-            ))}
-          </ul>
-        </div>
+        <p
+          style={{
+            fontSize: 15,
+            fontWeight: 600,
+            color: 'var(--color-text)',
+            marginTop: 32,
+            marginBottom: 16,
+          }}
+        >
+          Trabajamos sobre tres grandes áreas:
+        </p>
+        <ul style={{ listStyle: 'none', padding: 0, display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {areas.map((a, i) => (
+            <li
+              key={i}
+              style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: 12,
+                padding: '16px 20px',
+                borderRadius: 'var(--radius-lg)',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                fontSize: 15,
+                color: 'var(--color-text-secondary)',
+                lineHeight: 1.5,
+              }}
+            >
+              <Zap size={18} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
+              {a}
+            </li>
+          ))}
+        </ul>
       </div>
-    </section>
+    </SplitSection>
   );
 }
 
@@ -357,14 +387,19 @@ function IdealFor() {
 
 function Benefits() {
   return (
-    <section style={{ padding: '100px 24px', background: 'var(--color-bg-secondary)' }}>
-      <div style={{ maxWidth: 640, margin: '0 auto' }}>
+    <SplitSection
+      visual={<ChatMockup variant="leads" />}
+      visualPosition="left"
+      alt
+    >
+      <div>
         <SectionHeader
           badge="Beneficios"
           title="Menos tareas manuales. Más velocidad. Más oportunidades."
           subtitle="Automatizar no es reemplazar personas: es liberar tiempo para lo que realmente importa."
+          align="left"
         />
-        <ul style={{ listStyle: 'none', padding: 0, marginTop: 48, display: 'flex', flexDirection: 'column', gap: 14 }}>
+        <ul style={{ listStyle: 'none', padding: 0, marginTop: 32, display: 'flex', flexDirection: 'column', gap: 14 }}>
           {GENERAL_BENEFITS.map((b, i) => (
             <li
               key={i}
@@ -382,7 +417,7 @@ function Benefits() {
           ))}
         </ul>
       </div>
-    </section>
+    </SplitSection>
   );
 }
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { MarketingShell } from '@/components/marketing/MarketingShell';
 import { DEMO_MAILTO, SOLUTION_LINKS } from '@/components/marketing/constants';
 import { FinalCTA, SectionHeader } from '@/components/marketing/ui';
+import { DashboardMockup, HeroOrbs, IntegrationsLogoBar } from '@/components/marketing/visuals';
 
 const USE_CASE_GROUPS = [
   {
@@ -55,17 +56,30 @@ const USE_CASE_GROUPS = [
 export default function CasosDeUsoPage() {
   return (
     <MarketingShell>
-      <section style={{ padding: '140px 24px 60px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 720, margin: '0 auto' }}>
+      <section
+        style={{
+          position: 'relative',
+          padding: '140px 24px 48px',
+          textAlign: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        <HeroOrbs />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 720, margin: '0 auto' }}>
           <SectionHeader
             badge="Casos de uso"
             title="Cómo las empresas usan Volt en la práctica"
             subtitle="Ejemplos concretos por línea de solución. Cada caso se adapta a tu operación, canales y sistemas."
           />
         </div>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: 48, padding: '0 24px' }}>
+          <DashboardMockup />
+        </div>
       </section>
 
-      <section style={{ padding: '40px 24px 100px' }}>
+      <IntegrationsLogoBar />
+
+      <section style={{ padding: '60px 24px 100px' }}>
         <div style={{ maxWidth: 800, margin: '0 auto', display: 'flex', flexDirection: 'column', gap: 40 }}>
           {USE_CASE_GROUPS.map((group, i) => (
             <div

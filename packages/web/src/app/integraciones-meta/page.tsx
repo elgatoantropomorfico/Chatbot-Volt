@@ -10,6 +10,7 @@ export default function IntegracionesMetaPage() {
   return (
     <SolutionPageLayout
       badge="Integraciones"
+      heroVisual="meta"
       heroTitle="Conectá tu negocio con WhatsApp, Instagram y Facebook"
       heroSubtitle="Integramos tus canales de Meta con asistentes inteligentes, sistemas internos, CRMs, ERPs y herramientas de automatización para que tu empresa pueda centralizar conversaciones y escalar su comunicación digital."
       heroCtaLabel="Integrar mis canales"

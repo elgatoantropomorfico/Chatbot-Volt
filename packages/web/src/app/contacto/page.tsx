@@ -5,6 +5,7 @@ import { Mail, MapPin, Calendar } from 'lucide-react';
 import { MarketingShell } from '@/components/marketing/MarketingShell';
 import { DEMO_MAILTO } from '@/components/marketing/constants';
 import { PrimaryButton, SectionHeader } from '@/components/marketing/ui';
+import { HeroOrbs, MetaHubVisual } from '@/components/marketing/visuals';
 
 const CTAS = [
   { label: 'Agendar demo', href: DEMO_MAILTO },
@@ -17,8 +18,16 @@ const CTAS = [
 export default function ContactoPage() {
   return (
     <MarketingShell>
-      <section style={{ padding: '140px 24px 80px', textAlign: 'center' }}>
-        <div style={{ maxWidth: 640, margin: '0 auto' }}>
+      <section
+        style={{
+          position: 'relative',
+          padding: '140px 24px 60px',
+          textAlign: 'center',
+          overflow: 'hidden',
+        }}
+      >
+        <HeroOrbs />
+        <div style={{ position: 'relative', zIndex: 1, maxWidth: 640, margin: '0 auto' }}>
           <SectionHeader
             badge="Contacto"
             title="Agendá una demo o escribinos"
@@ -29,50 +38,62 @@ export default function ContactoPage() {
 
       <section style={{ padding: '0 24px 100px' }}>
         <div
+          className="landing-split"
           style={{
-            maxWidth: 560,
-            margin: '0 auto',
-            padding: 40,
-            borderRadius: 'var(--radius-xl)',
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border-glow)',
-            boxShadow: 'var(--shadow-glow)',
+            maxWidth: 1000,
+            margin: '0 auto 48px',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 40,
+            alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 32 }}>
-            <ContactRow
-              icon={<Mail size={20} color="var(--color-primary)" />}
-              label="Email"
-              value="pradoignacio.utn@icloud.com"
-              href="mailto:pradoignacio.utn@icloud.com"
-            />
-            <ContactRow
-              icon={<MapPin size={20} color="var(--color-accent)" />}
-              label="Ubicación"
-              value="Corrientes, Argentina"
-            />
-            <ContactRow
-              icon={<Calendar size={20} color="var(--color-success)" />}
-              label="Demo"
-              value="Coordinamos una reunión según tu disponibilidad"
-            />
-          </div>
-
-          <PrimaryButton href={DEMO_MAILTO} external>
-            Agendar demo por email
-          </PrimaryButton>
-
-          <p
+          <MetaHubVisual />
+          <div
             style={{
-              fontSize: 13,
-              color: 'var(--color-text-muted)',
-              marginTop: 20,
-              lineHeight: 1.5,
-              textAlign: 'center',
+              padding: 40,
+              borderRadius: 'var(--radius-xl)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border-glow)',
+              boxShadow: 'var(--shadow-glow)',
             }}
           >
-            Si ya tenés cuenta en la plataforma, usá el botón <strong style={{ color: 'var(--color-text-secondary)' }}>Acceder</strong> en el menú.
-          </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 24, marginBottom: 32 }}>
+              <ContactRow
+                icon={<Mail size={20} color="var(--color-primary)" />}
+                label="Email"
+                value="pradoignacio.utn@icloud.com"
+                href="mailto:pradoignacio.utn@icloud.com"
+              />
+              <ContactRow
+                icon={<MapPin size={20} color="var(--color-accent)" />}
+                label="Ubicación"
+                value="Corrientes, Argentina"
+              />
+              <ContactRow
+                icon={<Calendar size={20} color="var(--color-success)" />}
+                label="Demo"
+                value="Coordinamos una reunión según tu disponibilidad"
+              />
+            </div>
+
+            <PrimaryButton href={DEMO_MAILTO} external>
+              Agendar demo por email
+            </PrimaryButton>
+
+            <p
+              style={{
+                fontSize: 13,
+                color: 'var(--color-text-muted)',
+                marginTop: 20,
+                lineHeight: 1.5,
+                textAlign: 'center',
+              }}
+            >
+              Si ya tenés cuenta en la plataforma, usá el botón{' '}
+              <strong style={{ color: 'var(--color-text-secondary)' }}>Acceder</strong> en el menú.
+            </p>
+          </div>
         </div>
 
         <div style={{ maxWidth: 560, margin: '48px auto 0' }}>

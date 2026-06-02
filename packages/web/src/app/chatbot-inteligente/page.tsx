@@ -10,6 +10,7 @@ export default function ChatbotInteligentePage() {
   return (
     <SolutionPageLayout
       badge="Chatbot"
+      heroVisual="chat"
       heroTitle="Chatbot Inteligente para Ventas y Atención al Cliente"
       heroSubtitle="Automatizá conversaciones, capturá oportunidades y respondé en segundos. Transformá cada consulta en una oportunidad de negocio mediante un asistente virtual entrenado para responder preguntas frecuentes, calificar prospectos, brindar información comercial y acompañar a tus clientes las 24 horas del día."
       heroCtaLabel="Quiero automatizar mi atención"

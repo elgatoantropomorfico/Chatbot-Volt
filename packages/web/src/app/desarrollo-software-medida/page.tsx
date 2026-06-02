@@ -11,6 +11,7 @@ export default function DesarrolloSoftwarePage() {
   return (
     <SolutionPageLayout
       badge="Desarrollo"
+      heroVisual="software"
       heroTitle="Desarrollo de Software a Medida"
       heroSubtitle="Creamos tecnología alineada a los procesos y objetivos de tu negocio. Diseñamos y desarrollamos soluciones tecnológicas personalizadas que se adaptan exactamente a la forma en que opera tu organización."
       heroCtaLabel="Cotizar mi desarrollo"
