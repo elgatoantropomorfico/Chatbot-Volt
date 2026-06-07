@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
+import { TenantCleanupService } from '../services/tenant-cleanup.service';
 
 const createTenantSchema = z.object({
   name: z.string().min(1),
@@ -20,7 +21,11 @@ export async function tenantRoutes(app: FastifyInstance) {
     preHandler: [requireRole('superadmin')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const tenants = await prisma.tenant.findMany({
-      include: { _count: { select: { users: true, channels: true, leads: true } } },
+      include: {
+        _count: {
+          select: { users: true, channels: true, leads: true, conversations: true, integrations: true },
+        },
+      },
       orderBy: { createdAt: 'desc' },
     });
     return reply.send({ tenants });
@@ -87,11 +92,23 @@ export async function tenantRoutes(app: FastifyInstance) {
     return reply.send({ tenant });
   });
 
-  // Delete tenant (superadmin only)
+  // Delete tenant (superadmin only) — full cascade + R2 cleanup.
   app.delete('/:id', {
     preHandler: [requireRole('superadmin')],
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    await prisma.tenant.delete({ where: { id: request.params.id } });
-    return reply.send({ message: 'Tenant deleted' });
+    const { id } = request.params;
+    try {
+      const result = await TenantCleanupService.deleteTenant(id);
+      return reply.send({
+        message: 'Tenant deleted successfully',
+        ...result,
+      });
+    } catch (err: any) {
+      if (err.message === 'Tenant not found') {
+        return reply.status(404).send({ error: 'Tenant not found' });
+      }
+      console.error(`❌ Failed to delete tenant ${id}:`, err);
+      return reply.status(500).send({ error: 'Failed to delete tenant' });
+    }
   });
 }

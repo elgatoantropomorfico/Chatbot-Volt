@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
+import { TenantCleanupService } from '../services/tenant-cleanup.service';
 
 const createChannelSchema = z.object({
   tenantId: z.string(),
@@ -60,11 +61,23 @@ export async function channelRoutes(app: FastifyInstance) {
     return reply.send({ channel });
   });
 
-  // Delete channel (superadmin only)
+  // Delete channel (superadmin only) — removes linked conversations first.
   app.delete('/:id', {
     preHandler: [requireRole('superadmin')],
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
-    await prisma.channel.delete({ where: { id: request.params.id } });
-    return reply.send({ message: 'Channel deleted' });
+    const { id } = request.params;
+    try {
+      const result = await TenantCleanupService.deleteChannel(id);
+      return reply.send({
+        message: 'Channel deleted successfully',
+        conversationsRemoved: result.conversationsRemoved,
+      });
+    } catch (err: any) {
+      if (err.message === 'Channel not found') {
+        return reply.status(404).send({ error: 'Channel not found' });
+      }
+      console.error(`❌ Failed to delete channel ${id}:`, err);
+      return reply.status(500).send({ error: 'Failed to delete channel' });
+    }
   });
 }

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
-import { Phone, Plus } from 'lucide-react';
+import { Phone, Plus, Trash2 } from 'lucide-react';
 
 export default function ChannelsPage() {
   const { isSuperAdmin } = useAuth();
@@ -45,6 +45,30 @@ export default function ChannelsPage() {
       await api.updateChannel(id, { isActive: !isActive });
       await loadChannels();
     } catch (err: any) { alert(err.message); }
+  }
+
+  async function handleDelete(ch: any) {
+    const label = ch.displayPhone || ch.phoneNumberId;
+    const tenantName = ch.tenant?.name || ch.tenantId;
+    if (
+      !confirm(
+        `¿Eliminar el canal de WhatsApp "${label}" (${tenantName})?\n\n` +
+          'Se borrarán también todas las conversaciones y mensajes asociados a este canal. Esta acción no se puede deshacer.',
+      )
+    ) {
+      return;
+    }
+    try {
+      const res = await api.deleteChannel(ch.id);
+      const extra =
+        res.conversationsRemoved != null
+          ? `\n${res.conversationsRemoved} conversación(es) eliminada(s).`
+          : '';
+      alert(`Canal eliminado.${extra}`);
+      await loadChannels();
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar el canal');
+    }
   }
 
   const inputStyle: React.CSSProperties = { width: '100%', padding: '10px 14px', background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', color: 'var(--color-text)', fontSize: '14px', outline: 'none', transition: 'all 0.15s' };
@@ -117,9 +141,20 @@ export default function ChannelsPage() {
                   </td>
                   <td style={tdStyle}>
                     {isSuperAdmin && (
-                      <button onClick={() => toggleActive(ch.id, ch.isActive)} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s' }}>
-                        {ch.isActive ? 'Desactivar' : 'Activar'}
-                      </button>
+                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                        <button onClick={() => toggleActive(ch.id, ch.isActive)} style={{ padding: '5px 12px', background: 'transparent', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)', color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer', fontWeight: 500, transition: 'all 0.15s' }}>
+                          {ch.isActive ? 'Desactivar' : 'Activar'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(ch)}
+                          title="Eliminar canal"
+                          style={{ background: 'rgba(251, 113, 133, 0.08)', border: 'none', color: '#fb7185', cursor: 'pointer', padding: '6px', borderRadius: 'var(--radius-sm)', transition: 'all 0.15s', display: 'flex' }}
+                          onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(251, 113, 133, 0.15)'; }}
+                          onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(251, 113, 133, 0.08)'; }}
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
                     )}
                   </td>
                 </tr>

@@ -39,12 +39,29 @@ export default function TenantsPage() {
     } catch (err: any) { alert(err.message); }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm('¿Eliminar este tenant? Esta acción es irreversible.')) return;
+  async function handleDelete(tenant: any) {
+    const counts = tenant._count || {};
+    if (
+      !confirm(
+        `¿Eliminar el tenant "${tenant.name}"?\n\n` +
+          'Se borrará permanentemente:\n' +
+          `• ${counts.users ?? 0} usuario(s)\n` +
+          `• ${counts.channels ?? 0} canal(es) de WhatsApp\n` +
+          `• ${counts.leads ?? 0} lead(s) y sus fotos\n` +
+          `• ${counts.conversations ?? 0} conversación(es)\n` +
+          `• ${counts.integrations ?? 0} integración(es)\n` +
+          '• Configuración del bot, campos, ofertas y demás datos del tenant\n\n' +
+          'Esta acción no se puede deshacer.',
+      )
+    ) {
+      return;
+    }
     try {
-      await api.deleteTenant(id);
+      await api.deleteTenant(tenant.id);
       await loadTenants();
-    } catch (err: any) { alert(err.message); }
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar el tenant');
+    }
   }
 
   async function handleToggleStatus(id: string, currentStatus: string) {
@@ -133,7 +150,7 @@ export default function TenantsPage() {
                   <td style={tdStyle}>
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button onClick={() => startEdit(t)} style={{ background: 'rgba(139, 92, 246, 0.08)', border: 'none', color: '#a78bfa', cursor: 'pointer', padding: '6px', borderRadius: 'var(--radius-sm)', transition: 'all 0.15s', display: 'flex' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.15)'} onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(139, 92, 246, 0.08)'}><Pencil size={14} /></button>
-                      <button onClick={() => handleDelete(t.id)} style={{ background: 'rgba(251, 113, 133, 0.08)', border: 'none', color: '#fb7185', cursor: 'pointer', padding: '6px', borderRadius: 'var(--radius-sm)', transition: 'all 0.15s', display: 'flex' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(251, 113, 133, 0.15)'} onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(251, 113, 133, 0.08)'}><Trash2 size={14} /></button>
+                      <button onClick={() => handleDelete(t)} title="Eliminar tenant" style={{ background: 'rgba(251, 113, 133, 0.08)', border: 'none', color: '#fb7185', cursor: 'pointer', padding: '6px', borderRadius: 'var(--radius-sm)', transition: 'all 0.15s', display: 'flex' }} onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(251, 113, 133, 0.15)'} onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(251, 113, 133, 0.08)'}><Trash2 size={14} /></button>
                     </div>
                   </td>
                 </tr>

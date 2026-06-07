@@ -127,6 +127,7 @@ class ApiClient {
   async getChannels() { return this.fetch<{ channels: any[] }>('/channels'); }
   async createChannel(data: any) { return this.fetch<{ channel: any }>('/channels', { method: 'POST', body: data }); }
   async updateChannel(id: string, data: any) { return this.fetch<{ channel: any }>(`/channels/${id}`, { method: 'PATCH', body: data }); }
+  async deleteChannel(id: string) { return this.fetch<{ message: string; conversationsRemoved?: number }>(`/channels/${id}`, { method: 'DELETE' }); }
 
   // Users
   async getUsers() { return this.fetch<{ users: any[] }>('/users'); }
