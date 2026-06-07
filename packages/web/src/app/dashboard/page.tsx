@@ -176,6 +176,10 @@ function SuperAdminPanel() {
         <TenantDetailModal
           tenant={selectedTenant}
           onClose={() => setSelectedTenant(null)}
+          onTenantDeleted={async () => {
+            setSelectedTenant(null);
+            await loadTenants();
+          }}
           onRefresh={async () => {
             await loadTenants();
             const data = await api.getTenant(selectedTenant.id);
@@ -193,10 +197,11 @@ function SuperAdminPanel() {
 // TENANT DETAIL MODAL
 // ════════════════════════════════════════════
 
-function TenantDetailModal({ tenant, onClose, onRefresh, activeTab, setActiveTab }: {
+function TenantDetailModal({ tenant, onClose, onRefresh, onTenantDeleted, activeTab, setActiveTab }: {
   tenant: any;
   onClose: () => void;
   onRefresh: () => Promise<void>;
+  onTenantDeleted: () => Promise<void>;
   activeTab: 'general' | 'channel' | 'users';
   setActiveTab: (tab: 'general' | 'channel' | 'users') => void;
 }) {
@@ -256,7 +261,7 @@ function TenantDetailModal({ tenant, onClose, onRefresh, activeTab, setActiveTab
         {/* Tab Content */}
         <div style={{ padding: '24px', overflowY: 'auto', flex: 1 }}>
           {activeTab === 'general' && (
-            <TenantGeneralTab tenant={tenant} inputStyle={inputStyle} labelStyle={labelStyle} onRefresh={onRefresh} />
+            <TenantGeneralTab tenant={tenant} inputStyle={inputStyle} labelStyle={labelStyle} onRefresh={onRefresh} onDeleted={onTenantDeleted} />
           )}
           {activeTab === 'channel' && (
             <TenantChannelTab tenant={tenant} inputStyle={inputStyle} labelStyle={labelStyle} onRefresh={onRefresh} />
@@ -271,11 +276,12 @@ function TenantDetailModal({ tenant, onClose, onRefresh, activeTab, setActiveTab
 }
 
 // ─── GENERAL TAB ───
-function TenantGeneralTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
+function TenantGeneralTab({ tenant, inputStyle, labelStyle, onRefresh, onDeleted }: any) {
   const [name, setName] = useState(tenant.name);
   const [status, setStatus] = useState(tenant.status);
   const [timezone, setTimezone] = useState(tenant.timezone || 'America/Argentina/Buenos_Aires');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   useEffect(() => {
     setName(tenant.name);
@@ -290,6 +296,33 @@ function TenantGeneralTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
       await onRefresh();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
+  }
+
+  async function handleDeleteTenant() {
+    const counts = tenant._count || {};
+    if (
+      !confirm(
+        `¿Eliminar el tenant "${tenant.name}"?\n\n` +
+          'Se borrará permanentemente:\n' +
+          `• ${counts.users ?? 0} usuario(s)\n` +
+          `• ${tenant.channels?.length ?? counts.channels ?? 0} canal(es) de WhatsApp\n` +
+          `• ${counts.leads ?? 0} lead(s) y sus fotos\n` +
+          `• ${counts.conversations ?? 0} conversación(es)\n` +
+          '• Integraciones, configuración del bot, campos y ofertas\n\n' +
+          'Esta acción no se puede deshacer.',
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await api.deleteTenant(tenant.id);
+      await onDeleted();
+    } catch (err: any) {
+      alert(err.message || 'Error al eliminar el tenant');
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -328,6 +361,28 @@ function TenantGeneralTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
           <Save size={14} /> {saving ? 'Guardando...' : 'Guardar'}
         </button>
       </div>
+
+      <div style={{
+        marginTop: '8px', padding: '16px', borderRadius: 'var(--radius-sm)',
+        border: '1px solid rgba(251, 113, 133, 0.25)', background: 'rgba(251, 113, 133, 0.06)',
+      }}>
+        <div style={{ fontSize: '13px', fontWeight: 600, color: '#fb7185', marginBottom: '6px' }}>Zona peligrosa</div>
+        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
+          Elimina el tenant completo con todos sus usuarios, canales, leads, conversaciones y configuraciones.
+        </p>
+        <button
+          type="button"
+          onClick={handleDeleteTenant}
+          disabled={deleting}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
+            background: 'rgba(251, 113, 133, 0.12)', color: '#fb7185', border: '1px solid rgba(251, 113, 133, 0.35)',
+            borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+          }}
+        >
+          <Trash2 size={14} /> {deleting ? 'Eliminando...' : 'Eliminar tenant'}
+        </button>
+      </div>
     </div>
   );
 }
@@ -339,6 +394,7 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
   const [wabaId, setWabaId] = useState(channel?.wabaId || '');
   const [displayPhone, setDisplayPhone] = useState(channel?.displayPhone || '');
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [saveMsg, setSaveMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
@@ -363,6 +419,34 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
       setSaveMsg({ type: 'err', text: `❌ Error: ${err.message}` });
     }
     finally { setSaving(false); }
+  }
+
+  async function handleDeleteChannel() {
+    if (!channel) return;
+    const label = channel.displayPhone || channel.phoneNumberId;
+    if (
+      !confirm(
+        `¿Eliminar el canal de WhatsApp "${label}"?\n\n` +
+          'Se borrarán también todas las conversaciones y mensajes de este canal. Esta acción no se puede deshacer.',
+      )
+    ) {
+      return;
+    }
+    setDeleting(true);
+    setSaveMsg(null);
+    try {
+      const res = await api.deleteChannel(channel.id);
+      setPhoneNumberId('');
+      setWabaId('');
+      setDisplayPhone('');
+      await onRefresh();
+      const extra = res.conversationsRemoved != null ? ` (${res.conversationsRemoved} conversaciones)` : '';
+      setSaveMsg({ type: 'ok', text: `✅ Canal eliminado${extra}` });
+    } catch (err: any) {
+      setSaveMsg({ type: 'err', text: `❌ Error: ${err.message}` });
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -390,17 +474,33 @@ function TenantChannelTab({ tenant, inputStyle, labelStyle, onRefresh }: any) {
         <label style={labelStyle}>Teléfono visible</label>
         <input value={displayPhone} onChange={(e) => setDisplayPhone(e.target.value)} style={inputStyle} placeholder="Ej: +54 9 11 1234-5678" />
       </div>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '12px' }}>
-        {saveMsg && (
-          <span style={{ fontSize: '13px', color: saveMsg.type === 'ok' ? '#34d399' : '#f87171' }}>{saveMsg.text}</span>
-        )}
-        <button onClick={handleSave} disabled={saving} style={{
-          display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 22px',
-          background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
-          border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-        }}>
-          <Save size={14} /> {saving ? 'Guardando...' : channel ? 'Actualizar canal' : 'Crear canal'}
-        </button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+        {channel ? (
+          <button
+            type="button"
+            onClick={handleDeleteChannel}
+            disabled={deleting}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '9px 16px',
+              background: 'rgba(251, 113, 133, 0.12)', color: '#fb7185', border: '1px solid rgba(251, 113, 133, 0.35)',
+              borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+            }}
+          >
+            <Trash2 size={14} /> {deleting ? 'Eliminando...' : 'Eliminar canal'}
+          </button>
+        ) : <span />}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {saveMsg && (
+            <span style={{ fontSize: '13px', color: saveMsg.type === 'ok' ? '#34d399' : '#f87171' }}>{saveMsg.text}</span>
+          )}
+          <button onClick={handleSave} disabled={saving} style={{
+            display: 'flex', alignItems: 'center', gap: '6px', padding: '10px 22px',
+            background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
+            border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
+          }}>
+            <Save size={14} /> {saving ? 'Guardando...' : channel ? 'Actualizar canal' : 'Crear canal'}
+          </button>
+        </div>
       </div>
     </div>
   );
