@@ -17,7 +17,7 @@ const PILOT_FIELDS = [
     defaultValue: '1', description: '¿Busca 0km o usado?',
     optionsJson: [{ value: '1', label: '0km' }, { value: '2', label: 'Usado' }],
   },
-  { localKey: 'has_trade_in', pilotField: 'notes', label: 'Usado para entregar', fieldType: 'boolean', isRequired: false, sortOrder: 6, includeInNotes: true, description: '¿Tiene un usado para entregar como parte de pago?' },
+  { localKey: 'has_trade_in', pilotField: 'notes', label: 'Usado para entregar', fieldType: 'boolean', isRequired: true, sortOrder: 6, includeInNotes: true, description: '¿Tenés un usado para entregar como parte de pago? Respondé sí o no.' },
   { localKey: 'notes', pilotField: 'pilot_notes', label: 'Resumen conversación', fieldType: 'textarea', isRequired: true, sortOrder: 7, description: 'Resumen breve de la consulta y próximos pasos.' },
 ];
 

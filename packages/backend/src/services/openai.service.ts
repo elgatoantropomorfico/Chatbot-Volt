@@ -353,10 +353,13 @@ REGLAS DEL FLUJO:
         }
 
         const nextField = capture.next;
+        const nextFieldConfig = fieldConfigs.find((f) => f.localKey === nextField?.localKey);
         const nextStepBlock = nextField
           ? `🔴 PRÓXIMO DATO OBLIGATORIO (pedilo al final de tu respuesta): **${nextField.label}**
 ${nextField.localKey === 'fname' || nextField.localKey === 'lname'
   ? `Usá el perfil de WhatsApp${waProfile ? ` ("${waProfile}")` : ''} solo como pista para CONFIRMAR nombre y apellido. El usuario debe confirmar explícitamente.`
+  : nextField.localKey === 'has_trade_in' || nextFieldConfig?.fieldType === 'boolean'
+    ? `${nextField.description || 'Preguntá si tiene un usado para entregar'}. Aceptá sí/no, si tiene, no, no tengo, etc.`
   : nextField.description || `Pedí: ${nextField.label}`}`
           : `✅ Todos los datos obligatorios están completos. Confirmá al usuario que quedó registrado y que un asesor lo va a contactar.`;
 

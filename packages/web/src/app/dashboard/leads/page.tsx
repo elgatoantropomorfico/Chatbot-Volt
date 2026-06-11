@@ -535,6 +535,7 @@ export default function LeadsPage() {
                 {editableFields.map((f: any) => {
                   const opts = (f.optionsJson || []) as any[];
                   const isSelect = f.fieldType === 'select' && opts.length > 0;
+                  const isBoolean = f.fieldType === 'boolean';
                   const val = getPilotVal(selectedLead, f.localKey);
 
                   return (
@@ -543,7 +544,17 @@ export default function LeadsPage() {
                         {f.label}
                         {f.isRequired && <span style={{ color: '#fb7185', marginLeft: 3 }}>*</span>}
                       </div>
-                      {isSelect ? (
+                      {isBoolean ? (
+                        <select
+                          style={selectStyle}
+                          value={val}
+                          onChange={(e) => savePilotField(f.localKey, e.target.value)}
+                        >
+                          <option value="">— Seleccionar —</option>
+                          <option value="Sí">Sí</option>
+                          <option value="No">No</option>
+                        </select>
+                      ) : isSelect ? (
                         <select
                           style={selectStyle}
                           value={val}

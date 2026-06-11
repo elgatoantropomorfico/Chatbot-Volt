@@ -255,6 +255,7 @@ ${JSON.stringify(jsonTemplate)}`;
           delete extracted.offerInterest;
           delete (extracted as any).product;
           delete (extracted as any).biz;
+          delete (extracted as any).has_trade_in;
         }
       }
 
