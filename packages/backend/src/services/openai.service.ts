@@ -370,8 +370,12 @@ REGLAS DEL FLUJO:
         const nextFieldConfig = fieldConfigs.find((f) => f.localKey === nextField?.localKey);
         const nextStepBlock = nextField
           ? `🔴 PRÓXIMO DATO OBLIGATORIO (pedilo al final de tu respuesta): **${nextField.label}**
-${nextField.localKey === 'fname' || nextField.localKey === 'lname'
-  ? `Usá el perfil de WhatsApp${waProfile ? ` ("${waProfile}")` : ''} solo como pista para CONFIRMAR nombre y apellido. El usuario debe confirmar explícitamente.`
+${nextField.localKey === 'full_name'
+  ? `Pedí nombre Y apellido en UNA sola pregunta (ej: "¿Me decís tu nombre y apellido?").${waProfile ? ` El perfil de WhatsApp dice "${waProfile}" — podés usarlo para confirmar si coincide.` : ''} Aceptá respuesta en un mensaje ("Ignacio Prado") o en dos ("Ignacio" y luego "Prado").`
+  : nextField.localKey === 'product'
+    ? `${nextField.description || '¿Qué modelo o versión le interesa?'}. Si ya mencionó un vehículo antes, confirmalo en vez de volver a preguntar desde cero.`
+  : nextField.localKey === 'biz'
+    ? `Preguntá si busca 0km o usado. Aceptá respuestas como "0km", "nuevo", "usado", etc.`
   : nextField.localKey === 'has_trade_in' || nextFieldConfig?.fieldType === 'boolean'
     ? `${nextField.description || 'Preguntá si tiene un usado para entregar'}. Aceptá sí/no, si tiene, no, no tengo, etc.`
   : nextField.description || `Pedí: ${nextField.label}`}`
@@ -396,8 +400,8 @@ ${nextStepBlock}
 
 🚫 NUNCA pidas teléfono/celular. Ya lo tenemos por WhatsApp.
 🚫 NUNCA menciones CRM, Pilot ni procesos internos.
-🚫 NUNCA preguntes por modelo/plan/0km-usado si todavía faltan nombre o apellido.
-🚫 El interés en un vehículo NO reemplaza nombre ni apellido — igual debés pedirlos.
+🚫 NUNCA preguntes por modelo/plan/0km-usado si todavía falta nombre y apellido.
+🚫 Pedí nombre y apellido JUNTOS en un solo paso (no preguntes nombre y apellido por separado).
 
 ESTRUCTURA DE CADA RESPUESTA (cuando hay datos faltantes):
 1) Respondé la consulta del usuario en 2-3 oraciones máximo con info del catálogo.

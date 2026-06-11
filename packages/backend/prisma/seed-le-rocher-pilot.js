@@ -8,14 +8,17 @@ const p = new PrismaClient();
 const TENANT_ID = 'cmq8igu1q000lli09cr2e02on';
 
 const PILOT_FIELDS = [
-  { localKey: 'fname', pilotField: 'pilot_firstname', label: 'Nombre', fieldType: 'text', isRequired: true, sortOrder: 1, description: 'Confirmá el nombre de pila del cliente.' },
-  { localKey: 'lname', pilotField: 'pilot_lastname', label: 'Apellido', fieldType: 'text', isRequired: true, sortOrder: 2, description: 'Confirmá el apellido del cliente.' },
+  { localKey: 'fname', pilotField: 'pilot_firstname', label: 'Nombre', fieldType: 'text', isRequired: true, sortOrder: 1, description: 'Se captura junto con apellido en un solo paso.' },
+  { localKey: 'lname', pilotField: 'pilot_lastname', label: 'Apellido', fieldType: 'text', isRequired: true, sortOrder: 2, description: 'Se captura junto con nombre en un solo paso.' },
   { localKey: 'phone', pilotField: 'pilot_cellphone', label: 'Celular', fieldType: 'phone', isRequired: true, sortOrder: 3, description: 'Se obtiene automáticamente de WhatsApp.' },
   { localKey: 'product', pilotField: 'pilot_product_of_interest', label: 'Modelo o plan', fieldType: 'text', isRequired: true, sortOrder: 4, includeInNotes: true, description: '¿Qué modelo o versión le interesa?' },
   {
     localKey: 'biz', pilotField: 'pilot_business_type_id', label: 'Tipo de operación', fieldType: 'select', isRequired: true, sortOrder: 5,
     defaultValue: '1', description: '¿Busca 0km o usado?',
-    optionsJson: [{ value: '1', label: '0km' }, { value: '2', label: 'Usado' }],
+    optionsJson: [
+      { value: '1', label: '0km', aliases: ['0 km', '0km', 'cero km', 'nuevo', 'nueva', '0 kms', 'cero'] },
+      { value: '2', label: 'Usado', aliases: ['usado', 'usada', 'seminuevo', 'seminueva', 'segunda mano'] },
+    ],
   },
   { localKey: 'has_trade_in', pilotField: 'notes', label: 'Usado para entregar', fieldType: 'boolean', isRequired: true, sortOrder: 6, includeInNotes: true, description: '¿Tenés un usado para entregar como parte de pago? Respondé sí o no.' },
   { localKey: 'notes', pilotField: 'pilot_notes', label: 'Resumen conversación', fieldType: 'textarea', isRequired: true, sortOrder: 7, description: 'Resumen breve de la consulta y próximos pasos.' },

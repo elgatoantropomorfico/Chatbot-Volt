@@ -2,6 +2,10 @@ import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { env } from '../config/env';
 
+function pilotNameComplete(lead: { firstName?: string | null; lastName?: string | null }): boolean {
+  return !!(lead.firstName?.trim() && lead.lastName?.trim());
+}
+
 export interface ExtractedLeadData {
   firstName?: string | null;
   lastName?: string | null;
@@ -40,11 +44,15 @@ export class LeadExtractionService {
   }): Promise<ExtractedLeadData> {
     const { tenantId, conversationId, latestMessage, profileName } = params;
 
-    // Load last 6 messages for context
+    const pilotIntegration = await prisma.integration.findFirst({
+      where: { tenantId, type: 'pilot_crm', status: 'active' },
+    });
+
+    // Load recent messages for context (Pilot flows need more history)
     const messages = await prisma.message.findMany({
       where: { conversationId },
       orderBy: { createdAt: 'desc' },
-      take: 6,
+      take: pilotIntegration ? 14 : 6,
     });
 
     const conversationText = messages
@@ -70,10 +78,6 @@ export class LeadExtractionService {
     let fields: FieldDef[] = [];
     let isGenericTenant = false;
 
-    const pilotIntegration = await prisma.integration.findFirst({
-      where: { tenantId, type: 'pilot_crm', status: 'active' },
-    });
-
     if (leadFieldConfigs.length > 0) {
       // Generic tenant with LeadFieldConfig
       isGenericTenant = true;
@@ -93,7 +97,7 @@ export class LeadExtractionService {
         orderBy: { sortOrder: 'asc' },
       });
       fields = pilotConfigs
-        .filter((fc: any) => fc.localKey !== 'phone')
+        .filter((fc: any) => fc.localKey !== 'phone' && fc.localKey !== 'notes')
         .map((fc: any) => ({
           key: fc.localKey,
           label: fc.label,
@@ -155,14 +159,18 @@ export class LeadExtractionService {
     const textFieldInstructions: string[] = [];
 
     for (const f of fields) {
-      if (f.fieldType === 'picklist' && f.options.length > 0) {
+      const isPicklist = (f.fieldType === 'picklist' || f.fieldType === 'select') && f.options.length > 0;
+      if (isPicklist) {
         const optLines = f.options.map((o: any, i: number) => {
           const aliases = (o.aliases || []).join(', ');
-          return `  ${i + 1}. "${o.value}"${aliases ? `  — aliases: ${aliases}` : ''}`;
+          const label = o.label ? ` (${o.label})` : '';
+          return `  ${i + 1}. "${o.value}"${label}${aliases ? `  — aliases: ${aliases}` : ''}`;
         }).join('\n');
         picklistInstructions.push(
           `- ${f.key}: ${f.label}. Valores válidos:\n${optLines}\n  → Devolvé el VALUE exacto que mejor coincida. Si no hay match claro, null.`
         );
+      } else if (f.fieldType === 'boolean') {
+        textFieldInstructions.push(`- ${f.key}: ${f.label} — devolvé "Sí" o "No" si el usuario respondió afirmativa o negativamente`);
       } else {
         const hint = f.promptHint ? ` (${f.promptHint})` : ' (solo si lo mencionó explícitamente)';
         textFieldInstructions.push(`- ${f.key}: ${f.label}${hint}`);
@@ -179,6 +187,7 @@ export class LeadExtractionService {
       jsonTemplate.fname = null;
       jsonTemplate.lname = null;
       jsonTemplate.fullName = null;
+      jsonTemplate.product = null;
     } else {
       jsonTemplate.firstName = null;
       jsonTemplate.lastName = null;
@@ -197,8 +206,24 @@ export class LeadExtractionService {
     }
     jsonTemplate.intentLevel = null;
 
+    const pilotNameRules = pilotIntegration ? `
+Reglas PILOT (concesionaria):
+- fname/lname: si el usuario dijo nombre y apellido (juntos o en mensajes distintos de la conversación), extraelos. Si dijo "Ignacio Prado", usá fullName y también fname="Ignacio", lname="Prado".
+- product: modelo o versión de vehículo mencionado en CUALQUIER mensaje del usuario en esta conversación (ej: "Jeep Renegade", "208 GT"). Incluí marca + modelo si está claro.
+- biz: si dijo 0km/nuevo/cero km → value del picklist; si dijo usado/seminuevo → value del picklist.
+- Revisá TODA la conversación, no solo el último mensaje.
+` : '';
+
+    const nameFieldLines = pilotIntegration
+      ? `- fname: nombre de pila (si lo dijo en la conversación)
+- lname: apellido (si lo dijo en la conversación)
+- fullName: nombre completo si lo dijo junto (ej: "Ignacio Prado")`
+      : `- firstName: nombre de pila del usuario (solo si lo dijo explícitamente)
+- lastName: apellido del usuario (solo si lo dijo explícitamente)
+- fullName: nombre completo si lo dijo todo junto`;
+
     const extractionPrompt = `Eres un extractor de datos estructurados de conversaciones de WhatsApp.
-Extraé SOLO datos que el usuario haya mencionado explícitamente. No inventes ni inferir datos vagos.
+Extraé datos que el usuario haya mencionado o confirmado en la conversación. No inventes datos que no aparezcan.
 
 Conversación reciente:
 ${conversationText}
@@ -208,21 +233,19 @@ Nombre de perfil WhatsApp: ${profileName || 'no disponible'}
 Datos ya conocidos del lead:
 ${alreadyKnown.length > 0 ? alreadyKnown.join('\n') : 'Ninguno todavía'}
 
-Campos de texto (extraer solo si mencionados):
-- firstName: nombre de pila del usuario (solo si lo dijo explícitamente)
-- lastName: apellido del usuario (solo si lo dijo explícitamente)
-- fullName: nombre completo si lo dijo todo junto
+Campos de texto:
+${nameFieldLines}
 ${textFieldInstructions.join('\n')}
 - intentLevel: "high" si quiere contratar/usar el servicio, "medium" si pide info específica, "low" si es consulta general
 
 Campos picklist (DEBE coincidir con un valor válido o null):
 ${picklistInstructions.length > 0 ? picklistInstructions.join('\n') : '(sin picklists configurados)'}
 
-Reglas:
+Reglas generales:
 - Si un campo no se puede extraer con certeza, usá null.
-- Para picklists, SOLO devolvé un valor/slug que esté en la lista. Si el usuario dijo algo que no matchea con ninguna opción, devolvé null.
-- Si el profileName parece ser un nombre real y no hay firstName/lastName confirmados, podés usarlo como pista para fullName.
-
+- Para picklists, devolvé el VALUE exacto de la lista (ej: "1" o "2", no el label).
+- Si el profileName parece ser un nombre real y el usuario lo confirmó, usalo para fname/lname/fullName.
+${pilotNameRules}
 Respondé SOLO con JSON válido, sin markdown ni texto adicional:
 ${JSON.stringify(jsonTemplate)}`;
 
@@ -244,14 +267,19 @@ ${JSON.stringify(jsonTemplate)}`;
       const jsonStr = content.replace(/^```json?\n?/i, '').replace(/\n?```$/i, '').trim();
       const extracted = JSON.parse(jsonStr) as ExtractedLeadData;
 
-      // Pilot: no registrar modelo/plan hasta tener nombre y apellido confirmados
+      // Pilot: no registrar modelo/plan hasta tener nombre y apellido (lead + esta extracción)
       if (pilotIntegration && lead) {
-        const hasName = !!(lead.firstName && lead.lastName);
-        const willHaveName = !!(
-          (extracted.firstName || (extracted as any).fname) &&
-          (extracted.lastName || (extracted as any).lname)
-        );
-        if (!hasName && !willHaveName) {
+        const mergedLead = { ...lead };
+        if ((extracted as any).fname && !mergedLead.firstName) mergedLead.firstName = (extracted as any).fname;
+        if ((extracted as any).lname && !mergedLead.lastName) mergedLead.lastName = (extracted as any).lname;
+        if (extracted.firstName && !mergedLead.firstName) mergedLead.firstName = extracted.firstName;
+        if (extracted.lastName && !mergedLead.lastName) mergedLead.lastName = extracted.lastName;
+        if (extracted.fullName && (!mergedLead.firstName || !mergedLead.lastName) && extracted.fullName.includes(' ')) {
+          const parts = extracted.fullName.trim().split(/\s+/);
+          if (!mergedLead.firstName) mergedLead.firstName = parts[0];
+          if (!mergedLead.lastName) mergedLead.lastName = parts.slice(1).join(' ');
+        }
+        if (!pilotNameComplete(mergedLead)) {
           delete extracted.offerInterest;
           delete (extracted as any).product;
           delete (extracted as any).biz;

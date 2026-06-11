@@ -42,6 +42,13 @@ export class LeadProfileService {
     return v != null && String(v).trim() !== '' ? String(v) : null;
   }
 
+  static isPilotNameComplete(lead: any): boolean {
+    return !!(
+      this.getPilotFieldValue(lead, 'fname') &&
+      this.getPilotFieldValue(lead, 'lname')
+    );
+  }
+
   /** Ordered missing required fields for Pilot capture + sync readiness */
   static getPilotCaptureState(
     lead: any,
@@ -61,9 +68,27 @@ export class LeadProfileService {
       .filter((f) => f.isActive !== false)
       .sort((a, b) => a.sortOrder - b.sortOrder);
 
+    let nameStepHandled = false;
+
     for (const fc of sorted) {
       if (PILOT_AUTO_FIELDS.has(fc.localKey)) continue;
       if (!fc.isRequired) continue;
+
+      // Nombre y apellido se capturan juntos en un solo paso conversacional
+      if (fc.localKey === 'fname' || fc.localKey === 'lname') {
+        if (!nameStepHandled) {
+          nameStepHandled = true;
+          if (!this.isPilotNameComplete(lead)) {
+            missing.push({
+              localKey: 'full_name',
+              label: 'Nombre y apellido',
+              description: 'Pedí nombre y apellido juntos en una sola pregunta (ej: "¿Me decís tu nombre y apellido?").',
+            });
+          }
+        }
+        continue;
+      }
+
       if (!this.getPilotFieldValue(lead, fc.localKey)) {
         missing.push({
           localKey: fc.localKey,
@@ -144,6 +169,13 @@ export class LeadProfileService {
         })
       : [];
 
+    for (const fc of pilotConfigs) {
+      const opts = (fc.optionsJson as unknown as PicklistOption[]) || [];
+      if ((fc.fieldType === 'picklist' || fc.fieldType === 'select') && opts.length > 0) {
+        picklistMap.set(fc.localKey, { options: opts, useSlug: false });
+      }
+    }
+
     const updates: Record<string, any> = {};
     const existingCustomData = ((lead as any).customData as Record<string, any>) || {};
     const customDataUpdates: Record<string, any> = {};
@@ -212,7 +244,10 @@ export class LeadProfileService {
         if (!value || STANDARD_LEAD_KEYS.has(key)) continue;
         if (PILOT_KEY_MAP[key] !== 'custom') continue;
         if (existingCustomData[key]) continue;
-        customDataUpdates[key] = value;
+        const pl = picklistMap.get(key);
+        customDataUpdates[key] = pl
+          ? (fuzzyMatchPicklist(String(value), pl.options, pl.useSlug) || value)
+          : value;
       }
     }
 
