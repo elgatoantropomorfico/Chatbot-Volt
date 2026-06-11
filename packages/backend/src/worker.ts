@@ -30,6 +30,29 @@ interface IncomingMessage {
   mediaMimeType?: string;
 }
 
+async function tryPilotAutoSync(leadId: string, tenantId: string) {
+  const pilotIntegration = await prisma.integration.findFirst({
+    where: { tenantId, type: 'pilot_crm' as any, status: 'active' },
+  });
+  if (!pilotIntegration) return;
+
+  const freshLead = await prisma.lead.findUnique({ where: { id: leadId } });
+  if (!freshLead || freshLead.pilotContactId) return;
+  if (freshLead.pilotSyncStatus !== 'pending' && freshLead.pilotSyncStatus !== 'error') return;
+
+  const pilotFields = await prisma.pilotFieldConfig.findMany({
+    where: { tenantId, isActive: true },
+  });
+  if (!LeadProfileService.isReadyForPilot(freshLead, pilotFields)) return;
+
+  console.log(`🚀 Lead ${leadId} ready for Pilot — auto-syncing`);
+  try {
+    await PilotSyncService.syncLeadToPilot(leadId, tenantId);
+  } catch (pilotErr: any) {
+    console.error('⚠️ Pilot auto-sync failed (non-fatal):', pilotErr.message);
+  }
+}
+
 async function processMessage(job: Job<IncomingMessage>) {
   const data = job.data;
   console.log(`🔄 Processing message from ${data.from} (phone_number_id: ${data.phoneNumberId})`);
@@ -107,21 +130,8 @@ async function processMessage(job: Job<IncomingMessage>) {
         }
       }
 
-      // Auto-sync to Pilot CRM on first readiness
       if (pilotIntegration) {
-        const pilotFields = await prisma.pilotFieldConfig.findMany({
-          where: { tenantId: tenant.id, isActive: true },
-        });
-        const isReady = LeadProfileService.isReadyForPilot(enrichedLead as any, pilotFields);
-        const el = enrichedLead as any;
-        if (isReady && !el.pilotContactId && (el.pilotSyncStatus === 'pending' || el.pilotSyncStatus === 'error')) {
-          console.log(`🚀 Lead ${lead.id} ready for Pilot — auto-syncing`);
-          try {
-            await PilotSyncService.syncLeadToPilot(enrichedLead.id, tenant.id);
-          } catch (pilotErr: any) {
-            console.error('⚠️ Pilot auto-sync failed (non-fatal):', pilotErr.message);
-          }
-        }
+        await tryPilotAutoSync(enrichedLead.id, tenant.id);
       }
     }
   } catch (err) {
@@ -508,6 +518,11 @@ async function processMessage(job: Job<IncomingMessage>) {
 
   // 8. Save outgoing message
   await ConversationService.saveOutgoingMessage(conversation.id, aiResponse, providerMessageId);
+
+  // Re-check Pilot sync after full turn (safety net)
+  try {
+    await tryPilotAutoSync(lead.id, tenant.id);
+  } catch {}
 
   // 9. Periodically generate summary (every 10 messages)
   const messageCount = await prisma.message.count({

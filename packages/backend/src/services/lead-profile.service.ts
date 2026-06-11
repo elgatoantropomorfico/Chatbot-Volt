@@ -26,7 +26,60 @@ const PILOT_COLUMN_MAP: Record<string, string> = {
   product: 'offerInterest',
 };
 
+/** Filled automatically — not part of the conversational capture sequence */
+const PILOT_AUTO_FIELDS = new Set(['phone', 'notes']);
+
 export class LeadProfileService {
+  static getPilotFieldValue(lead: any, localKey: string): string | null {
+    if (localKey === 'phone') return lead.phone || null;
+    const col = PILOT_COLUMN_MAP[localKey];
+    if (col) {
+      const v = lead[col];
+      return v != null && String(v).trim() !== '' ? String(v) : null;
+    }
+    const custom = (lead.customData as Record<string, any>) || {};
+    const v = custom[localKey];
+    return v != null && String(v).trim() !== '' ? String(v) : null;
+  }
+
+  /** Ordered missing required fields for Pilot capture + sync readiness */
+  static getPilotCaptureState(
+    lead: any,
+    fieldConfigs: Array<{
+      localKey: string;
+      label: string;
+      description?: string | null;
+      fieldType?: string;
+      isRequired: boolean;
+      isActive?: boolean;
+      sortOrder: number;
+    }>,
+  ) {
+    const missing: Array<{ localKey: string; label: string; description?: string | null }> = [];
+
+    const sorted = [...fieldConfigs]
+      .filter((f) => f.isActive !== false)
+      .sort((a, b) => a.sortOrder - b.sortOrder);
+
+    for (const fc of sorted) {
+      if (PILOT_AUTO_FIELDS.has(fc.localKey)) continue;
+      if (!fc.isRequired) continue;
+      if (!this.getPilotFieldValue(lead, fc.localKey)) {
+        missing.push({
+          localKey: fc.localKey,
+          label: fc.label,
+          description: fc.description,
+        });
+      }
+    }
+
+    return {
+      missing,
+      next: missing[0] || null,
+      isComplete: missing.length === 0,
+    };
+  }
+
   /**
    * Merge extracted data onto existing lead.
    * Rule: never overwrite good data with weaker data.
@@ -293,40 +346,18 @@ export class LeadProfileService {
    * Calculate MD5 hash of relevant lead fields for change detection
    */
   static isReadyForPilot(
-    lead: {
-      phone: string;
-      firstName?: string | null;
-      lastName?: string | null;
-      offerInterest?: string | null;
-      customData?: Record<string, any> | null;
-    },
-    fieldConfigs: Array<{ localKey: string; isRequired: boolean }>,
+    lead: { phone?: string | null },
+    fieldConfigs: Array<{
+      localKey: string;
+      label: string;
+      description?: string | null;
+      isRequired: boolean;
+      isActive?: boolean;
+      sortOrder: number;
+    }>,
   ): boolean {
     if (!lead.phone) return false;
-    const custom = (lead.customData as Record<string, any>) || {};
-
-    for (const fc of fieldConfigs) {
-      if (!fc.isRequired || fc.localKey === 'phone') continue;
-      if (fc.localKey === 'fname' || fc.localKey === 'firstName') {
-        if (!lead.firstName) return false;
-        continue;
-      }
-      if (fc.localKey === 'lname' || fc.localKey === 'lastName') {
-        if (!lead.lastName) return false;
-        continue;
-      }
-      if (fc.localKey === 'product' || fc.localKey === 'offerInterest') {
-        if (!lead.offerInterest) return false;
-        continue;
-      }
-      const col = PILOT_COLUMN_MAP[fc.localKey];
-      if (col) {
-        if (!(lead as any)[col]) return false;
-        continue;
-      }
-      if (!custom[fc.localKey]) return false;
-    }
-    return true;
+    return this.getPilotCaptureState(lead, fieldConfigs).isComplete;
   }
 
   static calculatePilotSyncHash(lead: Record<string, any>): string {

@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '../config/env';
 import { prisma } from '../config/database';
+import { LeadProfileService } from './lead-profile.service';
 
 const openai = new OpenAI({ apiKey: env.OPENAI_API_KEY });
 
@@ -327,62 +328,63 @@ REGLAS DEL FLUJO:
           where: { id: (conversation as any).leadId },
         }));
         const customData = ((lead as any)?.customData as Record<string, any>) || {};
+        const capture = LeadProfileService.getPilotCaptureState(lead, fieldConfigs);
+        const waProfile = (lead as any)?.whatsappProfileName || lead?.name || null;
 
-        const existingLines: string[] = [];
-        if (lead?.firstName) existingLines.push(`- Nombre: ${lead.firstName}`);
-        if (lead?.lastName) existingLines.push(`- Apellido: ${lead.lastName}`);
-        if (lead?.offerInterest) existingLines.push(`- Modelo/plan de interés: ${lead.offerInterest}`);
-        if (customData.biz) existingLines.push(`- Tipo operación: ${customData.biz === '2' || customData.biz === 2 ? 'Usado' : '0km'}`);
-        if (customData.has_trade_in) existingLines.push(`- Usado para entregar: ${customData.has_trade_in}`);
-        if (customData.notes) existingLines.push(`- Notas: ${customData.notes}`);
+        const knownLines: string[] = [];
+        if (lead?.firstName) knownLines.push(`- Nombre: ${lead.firstName}`);
+        if (lead?.lastName) knownLines.push(`- Apellido: ${lead.lastName}`);
+        if (lead?.offerInterest) knownLines.push(`- Modelo/plan: ${lead.offerInterest}`);
+        if (customData.biz) knownLines.push(`- Tipo operación: ${customData.biz === '2' || customData.biz === 2 ? 'Usado' : '0km'}`);
+        if (customData.has_trade_in) knownLines.push(`- Usado para entregar: ${customData.has_trade_in}`);
+
+        const missingLines = capture.missing.map(
+          (f, i) => `${i + 1}. ${f.label}${f.description ? ` — ${f.description}` : ''}`,
+        );
 
         const picklistInfo: string[] = [];
         for (const fc of fieldConfigs) {
-          if (fc.localKey === 'phone') continue;
+          if (fc.localKey === 'phone' || fc.localKey === 'notes') continue;
           const opts = (fc.optionsJson as any[]) || [];
           if (fc.fieldType === 'select' && opts.length > 0) {
-            const optValues = opts.map((o: any) => `${o.value}=${o.label || o.value}`).join(', ');
-            picklistInfo.push(`- ${fc.label}: opciones → ${optValues}`);
+            const optValues = opts.map((o: any) => `${o.label || o.value}`).join(', ');
+            picklistInfo.push(`- ${fc.label}: ${optValues}`);
           }
         }
 
-        const stepInstructions: string[] = [];
-        let stepNum = 1;
-        for (const fc of fieldConfigs) {
-          if (fc.localKey === 'phone') continue;
-          stepNum++;
-          const hint = fc.description || `Pedí: ${fc.label}`;
-          stepInstructions.push(`PASO ${stepNum} — ${fc.label.toUpperCase()}:\n${hint}`);
-        }
+        const nextField = capture.next;
+        const nextStepBlock = nextField
+          ? `🔴 PRÓXIMO DATO OBLIGATORIO (pedilo al final de tu respuesta): **${nextField.label}**
+${nextField.localKey === 'fname' || nextField.localKey === 'lname'
+  ? `Usá el perfil de WhatsApp${waProfile ? ` ("${waProfile}")` : ''} solo como pista para CONFIRMAR nombre y apellido. El usuario debe confirmar explícitamente.`
+  : nextField.description || `Pedí: ${nextField.label}`}`
+          : `✅ Todos los datos obligatorios están completos. Confirmá al usuario que quedó registrado y que un asesor lo va a contactar.`;
 
         systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
 
-Sos un asistente comercial de concesionaria. Cuando alguien pregunte por vehículos, modelos, planes, financiación, usados o precios, ES un lead. Activá el flujo de captura.
+Sos un asistente comercial de concesionaria. Cuando alguien pregunte por vehículos, modelos, planes, financiación o precios, ES un lead: respondé Y capturá datos.
 
-🚗 USÁ SOLO el catálogo y planes de financiación del contexto [PRODUCTOS/SERVICIOS]. No inventes modelos, precios ni planes.
-${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
-${existingLines.length > 0 ? `\n📌 DATOS YA REGISTRADOS DEL LEAD (no los vuelvas a pedir):\n${existingLines.join('\n')}` : ''}
+🚗 USÁ SOLO el catálogo y planes del contexto [PRODUCTOS/SERVICIOS]. No inventes modelos ni precios.
+${picklistInfo.length > 0 ? '\n📊 OPCIONES:\n' + picklistInfo.join('\n') : ''}
+${knownLines.length > 0 ? `\n✅ DATOS YA CONFIRMADOS:\n${knownLines.join('\n')}` : ''}
+${missingLines.length > 0 ? `\n⏳ DATOS QUE FALTAN (orden estricto — no saltees):\n${missingLines.join('\n')}` : ''}
 
-🚫 NUNCA pidas teléfono/celular/número. Ya lo tenemos por WhatsApp.
-🚫 NUNCA menciones CRM, Pilot, base de datos ni procesos internos.
-🚫 Si un modelo no está en el catálogo, ofrecé derivar a un asesor humano.
+${nextStepBlock}
 
-FLUJO PASO A PASO (seguilo en orden estricto):
+🚫 NUNCA pidas teléfono/celular. Ya lo tenemos por WhatsApp.
+🚫 NUNCA menciones CRM, Pilot ni procesos internos.
+🚫 NUNCA preguntes por modelo/plan/0km-usado si todavía faltan nombre o apellido.
+🚫 El interés en un vehículo NO reemplaza nombre ni apellido — igual debés pedirlos.
 
-PASO 1 — RESPONDER LA CONSULTA:
-Respondé la consulta del usuario con info del catálogo y planes. Sé claro y breve.
+ESTRUCTURA DE CADA RESPUESTA (cuando hay datos faltantes):
+1) Respondé la consulta del usuario en 2-3 oraciones máximo con info del catálogo.
+2) En un párrafo aparte, pedí SOLO el próximo dato obligatorio de arriba (uno por mensaje).
 
-PASO 2 — CONFIRMAR NOMBRE:
-Confirmá nombre y apellido usando el perfil de WhatsApp si está disponible.
-
-${stepInstructions.join('\n\n')}
-
-REGLAS DEL FLUJO:
-- Seguí los pasos EN ORDEN. No saltes pasos ni pidas varios datos en un mismo mensaje.
-- Si el usuario ya proporcionó algún dato, SALTÁ ese paso.
-- UN solo dato por mensaje. Sé conversacional, no un formulario.
-- Si el usuario envía audio transcrito, tratá el contenido como texto normal.
-- Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria.`;
+REGLAS:
+- Seguí el orden de "DATOS QUE FALTAN" sin excepción.
+- UN solo dato por mensaje. Conversacional, no formulario.
+- Si el usuario manda audio transcrito, tratá el texto igual que uno escrito.
+- Cuando el usuario confirma el último dato faltante, cerrá confirmando el registro.`;
       } else {
       // ── ZOHO TENANT (IUDI, etc.) ──
       const zohoIntegration = await prisma.integration.findFirst({

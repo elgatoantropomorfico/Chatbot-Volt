@@ -244,6 +244,20 @@ ${JSON.stringify(jsonTemplate)}`;
       const jsonStr = content.replace(/^```json?\n?/i, '').replace(/\n?```$/i, '').trim();
       const extracted = JSON.parse(jsonStr) as ExtractedLeadData;
 
+      // Pilot: no registrar modelo/plan hasta tener nombre y apellido confirmados
+      if (pilotIntegration && lead) {
+        const hasName = !!(lead.firstName && lead.lastName);
+        const willHaveName = !!(
+          (extracted.firstName || (extracted as any).fname) &&
+          (extracted.lastName || (extracted as any).lname)
+        );
+        if (!hasName && !willHaveName) {
+          delete extracted.offerInterest;
+          delete (extracted as any).product;
+          delete (extracted as any).biz;
+        }
+      }
+
       console.log(`🔍 Extracted lead data:`, JSON.stringify(extracted));
       return extracted;
     } catch (err) {
