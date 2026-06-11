@@ -105,11 +105,12 @@ export class OpenAIService {
       if (pb.products) {
         const p = pb.products;
         const parts: string[] = [];
+        if (p.catalog) parts.push(`CATÁLOGO COMPLETO:\n${p.catalog}`);
         if (p.description) parts.push(p.description);
-        if (p.categories) parts.push(`Categorías: ${p.categories}`);
-        if (p.priceRange) parts.push(`Rango de precios: ${p.priceRange}`);
+        if (p.categories) parts.push(`Categorías/marcas: ${p.categories}`);
+        if (p.priceRange) parts.push(`Planes y financiación:\n${p.priceRange}`);
         if (p.notes) parts.push(`Notas: ${p.notes}`);
-        if (parts.length) sections.push(`[PRODUCTOS/SERVICIOS]\n${parts.join('\n')}`);
+        if (parts.length) sections.push(`[PRODUCTOS/SERVICIOS]\n${parts.join('\n\n')}`);
       }
 
       // Shipping & Payments
@@ -312,6 +313,77 @@ REGLAS DEL FLUJO:
 - Cuando pidas fotos, sé claro sobre qué necesitás y por qué.
 - Cuando la solicitud actual quede completa (último paso resuelto), confirmale al usuario que está todo registrado y quedate disponible. NO empieces otra solicitud por iniciativa propia: esperá a que el usuario lo pida.`;
     } else {
+      // ── PILOT CRM TENANT (Le Rocher, etc.) ──
+      const pilotIntegration = await prisma.integration.findFirst({
+        where: { tenantId: botSettings.tenantId, type: 'pilot_crm' as any, status: 'active' },
+      });
+      if (pilotIntegration) {
+        const fieldConfigs = await prisma.pilotFieldConfig.findMany({
+          where: { tenantId: botSettings.tenantId, isActive: true },
+          orderBy: { sortOrder: 'asc' },
+        });
+
+        const lead = conversation.lead || (await prisma.lead.findUnique({
+          where: { id: (conversation as any).leadId },
+        }));
+        const customData = ((lead as any)?.customData as Record<string, any>) || {};
+
+        const existingLines: string[] = [];
+        if (lead?.firstName) existingLines.push(`- Nombre: ${lead.firstName}`);
+        if (lead?.lastName) existingLines.push(`- Apellido: ${lead.lastName}`);
+        if (lead?.offerInterest) existingLines.push(`- Modelo/plan de interés: ${lead.offerInterest}`);
+        if (customData.biz) existingLines.push(`- Tipo operación: ${customData.biz === '2' || customData.biz === 2 ? 'Usado' : '0km'}`);
+        if (customData.has_trade_in) existingLines.push(`- Usado para entregar: ${customData.has_trade_in}`);
+        if (customData.notes) existingLines.push(`- Notas: ${customData.notes}`);
+
+        const picklistInfo: string[] = [];
+        for (const fc of fieldConfigs) {
+          if (fc.localKey === 'phone') continue;
+          const opts = (fc.optionsJson as any[]) || [];
+          if (fc.fieldType === 'select' && opts.length > 0) {
+            const optValues = opts.map((o: any) => `${o.value}=${o.label || o.value}`).join(', ');
+            picklistInfo.push(`- ${fc.label}: opciones → ${optValues}`);
+          }
+        }
+
+        const stepInstructions: string[] = [];
+        let stepNum = 1;
+        for (const fc of fieldConfigs) {
+          if (fc.localKey === 'phone') continue;
+          stepNum++;
+          const hint = fc.description || `Pedí: ${fc.label}`;
+          stepInstructions.push(`PASO ${stepNum} — ${fc.label.toUpperCase()}:\n${hint}`);
+        }
+
+        systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
+
+Sos un asistente comercial de concesionaria. Cuando alguien pregunte por vehículos, modelos, planes, financiación, usados o precios, ES un lead. Activá el flujo de captura.
+
+🚗 USÁ SOLO el catálogo y planes de financiación del contexto [PRODUCTOS/SERVICIOS]. No inventes modelos, precios ni planes.
+${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
+${existingLines.length > 0 ? `\n📌 DATOS YA REGISTRADOS DEL LEAD (no los vuelvas a pedir):\n${existingLines.join('\n')}` : ''}
+
+🚫 NUNCA pidas teléfono/celular/número. Ya lo tenemos por WhatsApp.
+🚫 NUNCA menciones CRM, Pilot, base de datos ni procesos internos.
+🚫 Si un modelo no está en el catálogo, ofrecé derivar a un asesor humano.
+
+FLUJO PASO A PASO (seguilo en orden estricto):
+
+PASO 1 — RESPONDER LA CONSULTA:
+Respondé la consulta del usuario con info del catálogo y planes. Sé claro y breve.
+
+PASO 2 — CONFIRMAR NOMBRE:
+Confirmá nombre y apellido usando el perfil de WhatsApp si está disponible.
+
+${stepInstructions.join('\n\n')}
+
+REGLAS DEL FLUJO:
+- Seguí los pasos EN ORDEN. No saltes pasos ni pidas varios datos en un mismo mensaje.
+- Si el usuario ya proporcionó algún dato, SALTÁ ese paso.
+- UN solo dato por mensaje. Sé conversacional, no un formulario.
+- Si el usuario envía audio transcrito, tratá el contenido como texto normal.
+- Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria.`;
+      } else {
       // ── ZOHO TENANT (IUDI, etc.) ──
       const zohoIntegration = await prisma.integration.findFirst({
         where: { tenantId: botSettings.tenantId, type: 'zoho_crm' as any, status: 'active' },
@@ -377,6 +449,7 @@ REGLAS DEL FLUJO:
 - Si el usuario hace una pregunta en el medio del flujo, respondela y después retomá el paso donde quedaste.
 - Si la persona SOLO quiere info general (ubicación, horarios de atención) sin relación a ofertas, respondé normalmente sin iniciar el flujo.
 - Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria a resolver su consulta.`;
+      }
       }
     }
 

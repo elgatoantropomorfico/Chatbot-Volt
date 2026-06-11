@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
-  ChevronDown, WandSparkles, Loader2, X,
+  ChevronDown, WandSparkles, Loader2, X, GitBranch,
 } from 'lucide-react';
 
 interface PromptBuilder {
@@ -14,7 +14,7 @@ interface PromptBuilder {
   location: { type: string; address: string; city: string; province: string; country: string; zone: string; notes: string };
   hours: { schedule: string; holidays: string; notes: string };
   contact: { phone: string; email: string; website: string; instagram: string; facebook: string; other: string };
-  products: { description: string; categories: string; priceRange: string; notes: string };
+  products: { catalog: string; description: string; categories: string; priceRange: string; notes: string };
   shipping: { methods: string; zones: string; costs: string; paymentMethods: string; notes: string };
   promotions: { active: string; conditions: string; validUntil: string };
   policies: { returns: string; warranty: string; exchanges: string; notes: string };
@@ -27,7 +27,7 @@ const defaultPB: PromptBuilder = {
   location: { type: '', address: '', city: '', province: '', country: '', zone: '', notes: '' },
   hours: { schedule: '', holidays: '', notes: '' },
   contact: { phone: '', email: '', website: '', instagram: '', facebook: '', other: '' },
-  products: { description: '', categories: '', priceRange: '', notes: '' },
+  products: { catalog: '', description: '', categories: '', priceRange: '', notes: '' },
   shipping: { methods: '', zones: '', costs: '', paymentMethods: '', notes: '' },
   promotions: { active: '', conditions: '', validUntil: '' },
   policies: { returns: '', warranty: '', exchanges: '', notes: '' },
@@ -45,7 +45,7 @@ const TONE_OPTIONS = [
   'Técnico y preciso', 'Divertido y creativo', 'Corporativo',
 ];
 
-type TabId = 'business' | 'location' | 'hours' | 'contact' | 'products' | 'shipping' | 'promotions' | 'policies' | 'faq' | 'personality' | 'engine' | 'guardrails' | 'handoff';
+type TabId = 'business' | 'location' | 'hours' | 'contact' | 'products' | 'shipping' | 'promotions' | 'policies' | 'faq' | 'personality' | 'flow' | 'engine' | 'guardrails' | 'handoff';
 
 const TABS: { id: TabId; label: string; icon: any; group: string }[] = [
   { id: 'business', label: 'Negocio', icon: Building2, group: 'Contexto del Negocio' },
@@ -58,6 +58,7 @@ const TABS: { id: TabId; label: string; icon: any; group: string }[] = [
   { id: 'policies', label: 'Políticas', icon: Shield, group: 'Contexto del Negocio' },
   { id: 'faq', label: 'FAQ', icon: HelpCircle, group: 'Contexto del Negocio' },
   { id: 'personality', label: 'Personalidad', icon: Sparkles, group: 'Contexto del Negocio' },
+  { id: 'flow', label: 'Flujo', icon: GitBranch, group: 'Contexto del Negocio' },
   { id: 'engine', label: 'Motor IA', icon: Brain, group: 'Configuración Técnica' },
   { id: 'guardrails', label: 'Guardrails', icon: ShieldCheck, group: 'Configuración Técnica' },
   { id: 'handoff', label: 'Derivación', icon: PhoneForwarded, group: 'Configuración Técnica' },
@@ -74,6 +75,8 @@ export default function BotSettingsPage() {
   const [isMobile, setIsMobile] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
+  const [flowPreview, setFlowPreview] = useState<any>(null);
+  const [hasPilot, setHasPilot] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -82,7 +85,11 @@ export default function BotSettingsPage() {
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  const pb: PromptBuilder = settings?.promptBuilderJson || defaultPB;
+  const pb: PromptBuilder = {
+    ...defaultPB,
+    ...(settings?.promptBuilderJson || {}),
+    products: { ...defaultPB.products, ...(settings?.promptBuilderJson?.products || {}) },
+  };
 
   function updatePB(section: keyof PromptBuilder, value: any) {
     const updated = { ...pb, [section]: value };
@@ -117,8 +124,19 @@ export default function BotSettingsPage() {
   async function loadSettings(tenantId: string) {
     setLoading(true);
     try {
-      const data = await api.getBotSettings(tenantId);
+      const [data, integrationsRes] = await Promise.all([
+        api.getBotSettings(tenantId),
+        api.getIntegrations().catch(() => ({ integrations: [] })),
+      ]);
       setSettings(data.settings);
+      const pilot = integrationsRes.integrations?.find((i: any) => i.type === 'pilot_crm' && i.status === 'active');
+      setHasPilot(!!pilot);
+      try {
+        const preview = await api.getFlowPreview(tenantId);
+        setFlowPreview(preview);
+      } catch {
+        setFlowPreview(null);
+      }
     } catch (err) {
       setSettings(null);
     } finally { setLoading(false); }
@@ -357,29 +375,96 @@ export default function BotSettingsPage() {
         return (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Productos / Servicios</h3>
-            <p style={{ ...hintStyle, marginBottom: '20px' }}>Descripción general de lo que ofrecés. No es el catálogo (eso va por WooCommerce), sino contexto general.</p>
+            <p style={{ ...hintStyle, marginBottom: '20px' }}>
+              {hasPilot
+                ? 'Catálogo de vehículos y planes de financiación que usa el bot comercial. Editá acá sin redeploy.'
+                : 'Descripción general de lo que ofrecés. Si tenés WooCommerce activo, el catálogo de compra va por ahí; este bloque es contexto para el bot.'}
+            </p>
+            {hasPilot && (
+              <div style={fieldGap}>
+                <label style={labelStyle}>Catálogo de vehículos</label>
+                <textarea
+                  value={pb.products.catalog || ''}
+                  onChange={(e) => updatePBField('products', 'catalog', e.target.value)}
+                  placeholder="Listado completo de modelos, versiones y equipamiento por marca..."
+                  rows={14}
+                  style={{ ...textareaStyle, minHeight: '280px', fontFamily: 'ui-monospace, monospace', fontSize: '12px' }}
+                />
+              </div>
+            )}
             <div style={fieldGap}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ ...labelStyle, marginBottom: 0 }}>Descripción general</label>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>{hasPilot ? 'Resumen corto' : 'Descripción general'}</label>
                 <AIButton section="products" field="description" />
               </div>
-              <textarea value={pb.products.description} onChange={(e) => updatePBField('products', 'description', e.target.value)} placeholder="Ej: Vendemos libros infantiles, juveniles y para adultos. También tenemos juegos didácticos y artículos de librería." rows={5} style={{ ...textareaStyle, minHeight: '120px' }} />
+              <textarea value={pb.products.description} onChange={(e) => updatePBField('products', 'description', e.target.value)} placeholder={hasPilot ? 'Ej: Concesionaria oficial Peugeot, Citroën, Jeep y RAM en Formosa.' : 'Ej: Vendemos libros infantiles, juveniles y para adultos.'} rows={4} style={{ ...textareaStyle, minHeight: '100px' }} />
             </div>
             <div style={fieldGap}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-                <label style={{ ...labelStyle, marginBottom: 0 }}>Categorías principales</label>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>{hasPilot ? 'Marcas / categorías' : 'Categorías principales'}</label>
                 <AIButton section="products" field="categories" />
               </div>
-              <input value={pb.products.categories} onChange={(e) => updatePBField('products', 'categories', e.target.value)} placeholder="Ej: Libros infantiles, Libros juveniles, Juegos didácticos" style={inputStyle} />
+              <input value={pb.products.categories} onChange={(e) => updatePBField('products', 'categories', e.target.value)} placeholder={hasPilot ? 'Peugeot, Citroën, Jeep, RAM, Utilitarios' : 'Ej: Libros infantiles, Libros juveniles'} style={inputStyle} />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Rango de precios</label>
-              <input value={pb.products.priceRange} onChange={(e) => updatePBField('products', 'priceRange', e.target.value)} placeholder="Ej: $5.000 - $50.000" style={inputStyle} />
+              <label style={labelStyle}>{hasPilot ? 'Planes y financiación' : 'Rango de precios'}</label>
+              <textarea
+                value={pb.products.priceRange}
+                onChange={(e) => updatePBField('products', 'priceRange', e.target.value)}
+                placeholder={hasPilot ? 'Anticipos, cuotas, planes 70/30, tasa 0% por modelo...' : 'Ej: $5.000 - $50.000'}
+                rows={hasPilot ? 8 : 2}
+                style={textareaStyle}
+              />
             </div>
             <div style={fieldGap}>
-              <label style={labelStyle}>Notas</label>
-              <textarea value={pb.products.notes} onChange={(e) => updatePBField('products', 'notes', e.target.value)} placeholder="Ej: Podemos hacer pedidos especiales de libros que no tengamos en stock" rows={2} style={textareaStyle} />
+              <label style={labelStyle}>Notas / beneficios</label>
+              <textarea value={pb.products.notes} onChange={(e) => updatePBField('products', 'notes', e.target.value)} placeholder={hasPilot ? 'Tomamos usado llave por llave, hasta 84 cuotas, tasa 0%...' : 'Notas adicionales'} rows={2} style={textareaStyle} />
             </div>
+          </div>
+        );
+
+      case 'flow':
+        return (
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Vista previa del flujo</h3>
+            <p style={{ ...hintStyle, marginBottom: '20px' }}>Pasos que sigue el bot al capturar leads y secciones activas del prompt.</p>
+            {!flowPreview ? (
+              <p style={{ color: 'var(--color-text-muted)' }}>Cargando vista previa...</p>
+            ) : (
+              <>
+                <div style={{ marginBottom: '16px', padding: '12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>Modo de captura</div>
+                  <div style={{ fontWeight: 600, textTransform: 'capitalize' }}>{flowPreview.captureMode}</div>
+                  {flowPreview.syncTrigger && (
+                    <div style={{ fontSize: '13px', marginTop: '8px', color: 'var(--color-text-secondary)' }}>{flowPreview.syncTrigger}</div>
+                  )}
+                </div>
+                {flowPreview.steps?.length > 0 && (
+                  <div style={{ marginBottom: '16px' }}>
+                    <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Pasos del flujo</h4>
+                    {flowPreview.steps.map((s: any) => (
+                      <div key={s.key} style={{ display: 'flex', gap: '10px', padding: '8px 0', borderBottom: '1px solid var(--color-border)' }}>
+                        <span style={{ color: 'var(--color-primary)', fontWeight: 700, minWidth: '24px' }}>{s.order}</span>
+                        <span style={{ flex: 1 }}>{s.label}{s.required ? ' *' : ''}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                <div style={{ marginBottom: '16px' }}>
+                  <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>Secciones del prompt activas</h4>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {(flowPreview.activePromptSections || []).map((s: string) => (
+                      <span key={s} style={{ fontSize: '12px', padding: '4px 10px', background: 'var(--color-primary-light)', borderRadius: '999px' }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+                <div style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+                  Audio WhatsApp: {flowPreview.audioTranscription ? '✓ Transcripción Groq activa' : '—'}
+                  {flowPreview.hasCatalog && ' · Catálogo cargado'}
+                  {flowPreview.hasFinancing && ' · Planes de financiación cargados'}
+                </div>
+              </>
+            )}
           </div>
         );
 

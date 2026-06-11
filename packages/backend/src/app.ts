@@ -15,6 +15,7 @@ import { saleRoutes } from './routes/sale.routes';
 import { dashboardRoutes } from './routes/dashboard.routes';
 import { offerRoutes } from './routes/offer.routes';
 import { zohoFieldRoutes } from './routes/zoho-field.routes';
+import { pilotFieldRoutes } from './routes/pilot-field.routes';
 import { leadFieldRoutes } from './routes/lead-field.routes';
 import { leadRequestRoutes } from './routes/lead-request.routes';
 
@@ -80,6 +81,7 @@ export async function buildApp() {
     instance.register(dashboardRoutes, { prefix: '/api/dashboard' });
     instance.register(offerRoutes, { prefix: '/api/offers' });
     instance.register(zohoFieldRoutes, { prefix: '/api/zoho-fields' });
+    instance.register(pilotFieldRoutes, { prefix: '/api/pilot-fields' });
     instance.register(leadFieldRoutes, { prefix: '/api/lead-fields' });
     instance.register(leadRequestRoutes, { prefix: '/api' });
   });

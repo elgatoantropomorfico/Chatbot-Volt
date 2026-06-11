@@ -70,6 +70,10 @@ export class LeadExtractionService {
     let fields: FieldDef[] = [];
     let isGenericTenant = false;
 
+    const pilotIntegration = await prisma.integration.findFirst({
+      where: { tenantId, type: 'pilot_crm', status: 'active' },
+    });
+
     if (leadFieldConfigs.length > 0) {
       // Generic tenant with LeadFieldConfig
       isGenericTenant = true;
@@ -82,6 +86,20 @@ export class LeadExtractionService {
           options: (fc.optionsJson as any[]) || [],
           promptHint: fc.promptHint,
           scope: (fc.scope || 'request') as 'lead' | 'request',
+        }));
+    } else if (pilotIntegration) {
+      const pilotConfigs = await prisma.pilotFieldConfig.findMany({
+        where: { tenantId, isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+      fields = pilotConfigs
+        .filter((fc: any) => fc.localKey !== 'phone')
+        .map((fc: any) => ({
+          key: fc.localKey,
+          label: fc.label,
+          fieldType: fc.fieldType,
+          options: (fc.optionsJson as any[]) || [],
+          promptHint: fc.description,
         }));
     } else {
       // Try ZohoFieldConfig for Zoho-integrated tenants
@@ -107,10 +125,14 @@ export class LeadExtractionService {
 
     // Build "already known" context
     const alreadyKnown: string[] = [];
-    if (lead?.firstName) alreadyKnown.push(`firstName: ${lead.firstName}`);
-    if (lead?.lastName) alreadyKnown.push(`lastName: ${lead.lastName}`);
+    if (lead?.firstName) alreadyKnown.push(`firstName/fname: ${lead.firstName}`);
+    if (lead?.lastName) alreadyKnown.push(`lastName/lname: ${lead.lastName}`);
     if (lead?.email) alreadyKnown.push(`email: ${lead.email}`);
     if (lead?.dni) alreadyKnown.push(`dni: ${lead.dni}`);
+    if (lead?.offerInterest) alreadyKnown.push(`product/offerInterest: ${lead.offerInterest}`);
+    for (const [k, v] of Object.entries(customData)) {
+      if (v) alreadyKnown.push(`${k}: ${v}`);
+    }
 
     // Standard lead columns
     const stdKeys = ['offerInterest', 'modalityInterest', 'periodInterest'];
@@ -148,12 +170,21 @@ export class LeadExtractionService {
     }
 
     // Build JSON template for response
-    const jsonTemplate: Record<string, null> = {
-      firstName: null, lastName: null, fullName: null,
-      email: null, dni: null,
-    };
-    // Add standard Zoho keys if present
-    if (!isGenericTenant) {
+    const jsonTemplate: Record<string, null> = {};
+    if (isGenericTenant) {
+      jsonTemplate.firstName = null;
+      jsonTemplate.lastName = null;
+      jsonTemplate.fullName = null;
+    } else if (pilotIntegration) {
+      jsonTemplate.fname = null;
+      jsonTemplate.lname = null;
+      jsonTemplate.fullName = null;
+    } else {
+      jsonTemplate.firstName = null;
+      jsonTemplate.lastName = null;
+      jsonTemplate.fullName = null;
+      jsonTemplate.email = null;
+      jsonTemplate.dni = null;
       jsonTemplate.offerInterest = null;
       jsonTemplate.modalityInterest = null;
       jsonTemplate.periodInterest = null;

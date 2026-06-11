@@ -50,6 +50,7 @@ enum MessageDirection {
 enum IntegrationType {
   woocommerce
   zoho_crm
+  pilot_crm
 }
 
 enum IntegrationStatus {
@@ -68,6 +69,13 @@ enum ZohoSyncStatus {
   pending
   synced
   error
+}
+
+enum PilotSyncStatus {
+  pending
+  synced
+  error
+  needs_update
 }
 
 enum SaleStatus {
@@ -131,10 +139,11 @@ model Tenant {
   integrations  Integration[]
   sales         Sale[]
   eventsOutbox  EventOutbox[]
-  offers           TenantOffer[]
-  zohoFieldConfigs ZohoFieldConfig[]
-  leadFieldConfigs LeadFieldConfig[]
-  leadRequests     LeadRequest[]
+  offers            TenantOffer[]
+  zohoFieldConfigs  ZohoFieldConfig[]
+  pilotFieldConfigs PilotFieldConfig[]
+  leadFieldConfigs  LeadFieldConfig[]
+  leadRequests      LeadRequest[]
 
   @@map("tenants")
 }
@@ -189,6 +198,12 @@ model Lead {
   zohoLastError       String?         @map("zoho_last_error")
   zohoSyncHash        String?         @map("zoho_sync_hash")
 
+  pilotContactId      String?         @map("pilot_contact_id")
+  pilotSyncStatus     PilotSyncStatus @default(pending) @map("pilot_sync_status")
+  pilotLastSyncAt     DateTime?       @map("pilot_last_sync_at")
+  pilotLastError      String?         @map("pilot_last_error")
+  pilotSyncHash       String?         @map("pilot_sync_hash")
+
   assignedUserId      String?         @map("assigned_user_id")
   lastMessageAt       DateTime?       @map("last_message_at")
   createdAt           DateTime        @default(now()) @map("created_at")
@@ -205,6 +220,7 @@ model Lead {
 
   @@unique([tenantId, phone])
   @@index([tenantId, zohoContactId])
+  @@index([tenantId, pilotContactId])
   @@map("leads")
 }
 
@@ -335,6 +351,29 @@ model TenantOffer {
   @@unique([tenantId, slug])
   @@index([tenantId, isActive])
   @@map("tenant_offers")
+}
+
+model PilotFieldConfig {
+  id             String   @id @default(cuid())
+  tenantId       String   @map("tenant_id")
+  localKey       String   @map("local_key")
+  pilotField     String   @map("pilot_field")
+  label          String
+  fieldType      String   @default("text") @map("field_type")
+  isRequired     Boolean  @default(false) @map("is_required")
+  isActive       Boolean  @default(true) @map("is_active")
+  sortOrder      Int      @default(0) @map("sort_order")
+  defaultValue   String?  @map("default_value")
+  includeInNotes Boolean  @default(false) @map("include_in_notes")
+  optionsJson    Json?    @map("options_json")
+  description    String?
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, localKey])
+  @@map("pilot_field_configs")
 }
 
 model ZohoFieldConfig {

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
 import { ZohoSyncService } from '../services/zoho-sync.service';
+import { PilotSyncService } from '../services/pilot-sync.service';
 import { R2Service } from '../services/r2.service';
 
 const updateLeadSchema = z.object({
@@ -16,6 +17,7 @@ const updateLeadSchema = z.object({
   offerInterest: z.string().nullable().optional(),
   modalityInterest: z.string().nullable().optional(),
   periodInterest: z.string().nullable().optional(),
+  customData: z.record(z.any()).optional(),
 });
 
 const createNoteSchema = z.object({
@@ -99,9 +101,24 @@ export async function leadRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Validation failed', details: body.error.flatten() });
     }
 
+    const existing = await prisma.lead.findUnique({ where: { id: request.params.id } });
+    if (!existing) return reply.status(404).send({ error: 'Lead not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && existing.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const { customData, ...rest } = body.data;
+    const data: any = { ...rest };
+    if (customData) {
+      const prev = (existing.customData as Record<string, any>) || {};
+      data.customData = { ...prev, ...customData };
+    }
+
     const lead = await prisma.lead.update({
       where: { id: request.params.id },
-      data: body.data,
+      data,
     });
     return reply.send({ lead });
   });
@@ -187,6 +204,30 @@ export async function leadRoutes(app: FastifyInstance) {
     try {
       const result = await ZohoSyncService.syncLeadToZoho(lead.id, lead.tenantId);
       return reply.send({ message: `Lead ${result.action} in Zoho`, zohoContactId: result.zohoContactId });
+    } catch (err: any) {
+      return reply.status(500).send({ error: err.message });
+    }
+  });
+
+  // Manual Pilot CRM sync for a lead
+  app.post('/:id/sync-pilot', {
+    preHandler: [requireRole('superadmin', 'tenant_admin')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const lead = await prisma.lead.findUnique({ where: { id } });
+    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && lead.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    try {
+      const result = await PilotSyncService.syncLeadToPilot(lead.id, lead.tenantId);
+      return reply.send({
+        message: result.action === 'created' ? 'Lead creado en Pilot' : 'Lead ya existía en Pilot',
+        pilotContactId: result.pilotContactId,
+      });
     } catch (err: any) {
       return reply.status(500).send({ error: err.message });
     }

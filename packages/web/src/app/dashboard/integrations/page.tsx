@@ -131,7 +131,9 @@ export default function IntegrationsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const cfgPayload = createForm.type === 'zoho_crm' ? { ...zohoConfig } : { ...config };
+      const cfgPayload = createForm.type === 'zoho_crm' ? { ...zohoConfig }
+        : createForm.type === 'pilot_crm' ? { serverConfigured: true }
+        : { ...config };
       await api.createIntegration({
         tenantId: isTenantAdmin ? user?.tenantId : createForm.tenantId,
         type: createForm.type,
@@ -150,7 +152,9 @@ export default function IntegrationsPage() {
     setSaving(true);
     setSaveMsg('');
     try {
-      const cfgPayload = editType === 'zoho_crm' ? { ...zohoConfig } : { ...config };
+      const cfgPayload = editType === 'zoho_crm' ? { ...zohoConfig }
+        : editType === 'pilot_crm' ? { serverConfigured: true }
+        : { ...config };
       await api.updateIntegration(editingId, { config: cfgPayload });
       setSaveMsg('Guardado correctamente');
       await loadIntegrations();
@@ -605,10 +609,22 @@ export default function IntegrationsPage() {
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Captura de leads, sync automatico</div>
                 </button>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'pilot_crm' })} style={{ flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'pilot_crm' ? '2px solid #3b82f6' : '1px solid var(--color-border)', background: createForm.type === 'pilot_crm' ? 'rgba(59, 130, 246, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <Cloud size={16} style={{ color: '#3b82f6' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>Pilot CRM</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Concesionarias, sync Pilot Solution</div>
+                </button>
               </div>
             </div>
 
-            {createForm.type === 'zoho_crm' ? renderZohoConfigForm() : renderConfigForm(true)}
+            {createForm.type === 'zoho_crm' ? renderZohoConfigForm()
+              : createForm.type === 'pilot_crm' ? (
+                <div style={{ padding: '16px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', marginBottom: '16px', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                  Las credenciales de Pilot (appkey, suborigen, etc.) se configuran en las variables de entorno del servidor Railway. Activá esta integración y configurá los campos en <strong>Pilot CRM</strong>.
+                </div>
+              ) : renderConfigForm(true)}
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
               <button
@@ -645,13 +661,18 @@ export default function IntegrationsPage() {
       {editingId && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : 'WooCommerce'}</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : 'WooCommerce'}</h2>
             <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
               <X size={20} />
             </button>
           </div>
 
-          {editType === 'zoho_crm' ? renderZohoConfigForm() : renderConfigForm(false)}
+          {editType === 'zoho_crm' ? renderZohoConfigForm()
+            : editType === 'pilot_crm' ? (
+              <div style={{ padding: '16px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                Credenciales Pilot configuradas en el servidor. Gestioná campos de captura en el menú <strong>Pilot CRM</strong>.
+              </div>
+            ) : renderConfigForm(false)}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
             <button
@@ -718,19 +739,29 @@ export default function IntegrationsPage() {
                       width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
                       background: i.type === 'zoho_crm'
                         ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.08))'
-                        : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))',
+                        : i.type === 'pilot_crm'
+                          ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.08))'
+                          : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))',
                       display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
-                      border: i.type === 'zoho_crm' ? '1px solid rgba(245, 158, 11, 0.12)' : '1px solid rgba(139, 92, 246, 0.12)',
+                      border: i.type === 'zoho_crm' ? '1px solid rgba(245, 158, 11, 0.12)'
+                        : i.type === 'pilot_crm' ? '1px solid rgba(59, 130, 246, 0.12)'
+                        : '1px solid rgba(139, 92, 246, 0.12)',
                     }}>
-                      {i.type === 'zoho_crm' ? <Cloud size={20} style={{ color: '#f59e0b' }} /> : <ShoppingCart size={20} style={{ color: '#a78bfa' }} />}
+                      {i.type === 'zoho_crm' ? <Cloud size={20} style={{ color: '#f59e0b' }} />
+                        : i.type === 'pilot_crm' ? <Cloud size={20} style={{ color: '#3b82f6' }} />
+                        : <ShoppingCart size={20} style={{ color: '#a78bfa' }} />}
                     </div>
                     <div>
-                      <div style={{ fontSize: '15px', fontWeight: 600 }}>{i.type === 'zoho_crm' ? 'Zoho CRM' : 'WooCommerce'}</div>
+                      <div style={{ fontSize: '15px', fontWeight: 600 }}>
+                        {i.type === 'zoho_crm' ? 'Zoho CRM' : i.type === 'pilot_crm' ? 'Pilot CRM' : 'WooCommerce'}
+                      </div>
                       <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                         {i.type === 'zoho_crm'
                           ? `Modulo: ${(i.config as any)?.moduleApiName || 'Contacts'}`
-                          : ((i.config as any)?.baseUrl || 'Sin URL configurada')}
+                          : i.type === 'pilot_crm'
+                            ? 'Credenciales en servidor Railway'
+                            : ((i.config as any)?.baseUrl || 'Sin URL configurada')}
                       </div>
                     </div>
                   </div>

@@ -52,6 +52,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
   const [showOffers, setShowOffers] = useState(false);
+  const [showPilot, setShowPilot] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -76,6 +77,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         const zoho = integrations.find((i: any) => i.type === 'zoho_crm' && i.status === 'active');
         if (zoho) {
           setShowOffers(true);
+        }
+        const pilot = integrations.find((i: any) => i.type === 'pilot_crm' && i.status === 'active');
+        if (pilot) {
+          setShowPilot(true);
         }
       } catch {}
     })();
@@ -157,6 +162,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 >
                   <Cloud size={18} />
                   Zoho CRM
+                </Link>
+              )}
+
+              {showPilot && (
+                <Link
+                  href="/dashboard/pilot-crm"
+                  className={`${styles.navItem} ${pathname === '/dashboard/pilot-crm' ? styles.navItemActive : ''}`}
+                >
+                  <Cloud size={18} />
+                  Pilot CRM
                 </Link>
               )}
 

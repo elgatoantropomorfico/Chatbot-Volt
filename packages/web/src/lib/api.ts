@@ -203,6 +203,25 @@ class ApiClient {
   // Zoho Sync
   async syncLeadToZoho(leadId: string) { return this.fetch<{ message: string; zohoContactId: string }>(`/leads/${leadId}/sync-zoho`, { method: 'POST' }); }
 
+  // Pilot Field Configs
+  async getPilotFields(tenantId?: string) {
+    const qs = tenantId ? `?tenantId=${tenantId}` : '';
+    return this.fetch<{ fields: any[] }>(`/pilot-fields${qs}`);
+  }
+  async createPilotField(data: any) { return this.fetch<{ field: any }>('/pilot-fields', { method: 'POST', body: data }); }
+  async updatePilotField(id: string, data: any) { return this.fetch<{ field: any }>(`/pilot-fields/${id}`, { method: 'PATCH', body: data }); }
+  async deletePilotField(id: string) { return this.fetch<{ message: string }>(`/pilot-fields/${id}`, { method: 'DELETE' }); }
+
+  // Pilot Sync
+  async syncLeadToPilot(leadId: string) {
+    return this.fetch<{ message: string; pilotContactId: string }>(`/leads/${leadId}/sync-pilot`, { method: 'POST' });
+  }
+
+  // Bot flow preview
+  async getFlowPreview(tenantId: string) {
+    return this.fetch<any>(`/bot-settings/${tenantId}/flow-preview`);
+  }
+
   // Lead Field Configs
   async getLeadFieldConfigs(tenantId?: string) {
     const qs = tenantId ? `?tenantId=${tenantId}` : '';

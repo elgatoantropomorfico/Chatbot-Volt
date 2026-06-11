@@ -10,6 +10,8 @@ import { LeadExtractionService } from './services/lead-extraction.service';
 import { LeadProfileService } from './services/lead-profile.service';
 import { LeadRequestService } from './services/lead-request.service';
 import { ZohoSyncService } from './services/zoho-sync.service';
+import { PilotSyncService } from './services/pilot-sync.service';
+import { GroqTranscriptionService } from './services/groq-transcription.service';
 import { R2Service } from './services/r2.service';
 import { prisma } from './config/database';
 
@@ -39,6 +41,27 @@ async function processMessage(job: Job<IncomingMessage>) {
     data.text = '[📷 Foto enviada]';
   }
 
+  // Transcribe audio via Groq Whisper before saving/processing
+  if (data.messageType === 'audio' && data.mediaId) {
+    try {
+      if (GroqTranscriptionService.isConfigured()) {
+        const media = await WhatsAppService.downloadMedia(data.mediaId);
+        const transcript = await GroqTranscriptionService.transcribe(
+          media.buffer,
+          data.mediaMimeType || media.mimeType,
+        );
+        data.text = transcript;
+        console.log(`🎤 Audio transcribed (${transcript.length} chars): ${transcript.slice(0, 80)}...`);
+      } else {
+        data.text = '[🎤 Audio recibido — transcripción no configurada]';
+        console.warn('⚠️ Groq not configured, audio message will not be transcribed');
+      }
+    } catch (audioErr: any) {
+      console.error('⚠️ Audio transcription error:', audioErr.message || audioErr);
+      data.text = '[🎤 Audio recibido — no se pudo transcribir]';
+    }
+  }
+
   let resolved;
   try {
     resolved = await ConversationService.resolveOrCreate(data);
@@ -60,8 +83,11 @@ async function processMessage(job: Job<IncomingMessage>) {
     const zohoIntegration = await prisma.integration.findFirst({
       where: { tenantId: tenant.id, type: 'zoho_crm' as any, status: 'active' },
     });
+    const pilotIntegration = await prisma.integration.findFirst({
+      where: { tenantId: tenant.id, type: 'pilot_crm' as any, status: 'active' },
+    });
 
-    if (hasLeadFields > 0 || zohoIntegration) {
+    if (hasLeadFields > 0 || zohoIntegration || pilotIntegration) {
       const extracted = await LeadExtractionService.extract({
         tenantId: tenant.id,
         conversationId: conversation.id,
@@ -78,6 +104,23 @@ async function processMessage(job: Job<IncomingMessage>) {
         if (isReady && (!(enrichedLead as any).zohoContactId || (enrichedLead as any).zohoSyncStatus === 'pending')) {
           console.log(`🚀 Lead ${lead.id} ready for Zoho — auto-syncing`);
           await ZohoSyncService.syncLeadToZoho(enrichedLead.id, tenant.id);
+        }
+      }
+
+      // Auto-sync to Pilot CRM on first readiness
+      if (pilotIntegration) {
+        const pilotFields = await prisma.pilotFieldConfig.findMany({
+          where: { tenantId: tenant.id, isActive: true },
+        });
+        const isReady = LeadProfileService.isReadyForPilot(enrichedLead as any, pilotFields);
+        const el = enrichedLead as any;
+        if (isReady && !el.pilotContactId && (el.pilotSyncStatus === 'pending' || el.pilotSyncStatus === 'error')) {
+          console.log(`🚀 Lead ${lead.id} ready for Pilot — auto-syncing`);
+          try {
+            await PilotSyncService.syncLeadToPilot(enrichedLead.id, tenant.id);
+          } catch (pilotErr: any) {
+            console.error('⚠️ Pilot auto-sync failed (non-fatal):', pilotErr.message);
+          }
         }
       }
     }

@@ -27,7 +27,7 @@ const zohoConfigSchema = z.object({
 
 const createIntegrationSchema = z.object({
   tenantId: z.string(),
-  type: z.enum(['woocommerce', 'zoho_crm']),
+  type: z.enum(['woocommerce', 'zoho_crm', 'pilot_crm']),
   config: z.union([wooConfigSchema, zohoConfigSchema]),
 });
 

@@ -198,4 +198,89 @@ Reglas:
       return reply.status(500).send({ error: 'Error al generar contenido con IA' });
     }
   });
+
+  // Flow preview for tenant (Pilot / capture steps visibility)
+  app.get('/:tenantId/flow-preview', {
+    preHandler: [requireRole('superadmin', 'tenant_admin')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const user = request.user;
+    const { tenantId } = request.params as { tenantId: string };
+
+    if (user.role === 'tenant_admin' && user.tenantId !== tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const [settings, pilotIntegration, zohoIntegration, pilotFields, zohoFields, leadFields] = await Promise.all([
+      prisma.botSettings.findUnique({ where: { tenantId } }),
+      prisma.integration.findFirst({ where: { tenantId, type: 'pilot_crm', status: 'active' } }),
+      prisma.integration.findFirst({ where: { tenantId, type: 'zoho_crm', status: 'active' } }),
+      prisma.pilotFieldConfig.findMany({ where: { tenantId, isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.zohoFieldConfig.findMany({ where: { tenantId, isActive: true }, orderBy: { sortOrder: 'asc' } }),
+      prisma.leadFieldConfig.findMany({ where: { tenantId, isActive: true }, orderBy: [{ step: 'asc' }, { sortOrder: 'asc' }] }),
+    ]);
+
+    const pb = (settings?.promptBuilderJson as Record<string, any>) || {};
+    const activeSections: string[] = [];
+    if (pb.business?.name) activeSections.push('Negocio');
+    if (pb.location?.address || pb.location?.city) activeSections.push('Ubicación');
+    if (pb.hours?.schedule) activeSections.push('Horarios');
+    if (pb.contact?.phone || pb.contact?.email) activeSections.push('Contacto');
+    if (pb.products?.catalog || pb.products?.description || pb.products?.priceRange) activeSections.push('Productos/Catálogo');
+    if (pb.shipping?.methods) activeSections.push('Envíos');
+    if (pb.promotions?.active) activeSections.push('Promociones');
+    if (pb.policies?.returns || pb.policies?.warranty) activeSections.push('Políticas');
+    if (pb.faq?.length) activeSections.push('FAQ');
+    if (pb.personality?.greeting) activeSections.push('Personalidad');
+
+    let captureMode: 'pilot' | 'zoho' | 'generic' | 'none' = 'none';
+    const steps: Array<{ order: number; label: string; required: boolean; key: string }> = [];
+
+    if (leadFields.length > 0) {
+      captureMode = 'generic';
+      let order = 1;
+      steps.push({ order: order++, label: 'Confirmar nombre', required: true, key: 'name' });
+      for (const f of leadFields) {
+        if (f.fieldType === 'photo' || f.fieldType === 'multi_photo') continue;
+        steps.push({ order: order++, label: f.label, required: f.isRequired, key: f.fieldKey });
+      }
+    } else if (pilotIntegration) {
+      captureMode = 'pilot';
+      let order = 1;
+      steps.push({ order: order++, label: 'Responder consulta (catálogo)', required: false, key: '_answer' });
+      steps.push({ order: order++, label: 'Confirmar nombre', required: true, key: 'fname' });
+      for (const f of pilotFields) {
+        if (f.localKey === 'phone' || f.localKey === 'fname' || f.localKey === 'lname') continue;
+        steps.push({ order: order++, label: f.label, required: f.isRequired, key: f.localKey });
+      }
+    } else if (zohoIntegration) {
+      captureMode = 'zoho';
+      const zohoSteps = ['Responder consulta', 'Confirmar nombre', 'Email', 'Modalidad', 'DNI', 'Período'];
+      zohoSteps.forEach((label, i) => {
+        steps.push({ order: i + 1, label, required: i < 3, key: `zoho_${i}` });
+      });
+    }
+
+    const requiredFields = pilotFields.filter((f) => f.isRequired && f.localKey !== 'phone');
+
+    return reply.send({
+      captureMode,
+      steps,
+      pilotFields: pilotFields.map((f) => ({
+        localKey: f.localKey,
+        label: f.label,
+        pilotField: f.pilotField,
+        isRequired: f.isRequired,
+        fieldType: f.fieldType,
+      })),
+      syncTrigger: pilotIntegration
+        ? 'Auto-sync a Pilot cuando todos los campos obligatorios están completos y no hay pilotContactId'
+        : zohoIntegration
+          ? 'Auto-sync a Zoho cuando firstName, lastName, email y offerInterest están completos'
+          : null,
+      activePromptSections: activeSections,
+      hasCatalog: !!(pb.products?.catalog),
+      hasFinancing: !!(pb.products?.priceRange),
+      audioTranscription: true,
+    });
+  });
 }

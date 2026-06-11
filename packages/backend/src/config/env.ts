@@ -28,6 +28,19 @@ const envSchema = z.object({
   R2_BUCKET_NAME: z.string().default('volt-media'),
   R2_PUBLIC_URL: z.string().optional(),
 
+  PILOT_APPKEY: z.string().optional(),
+  PILOT_API_URL: z.string().url().optional(),
+  PILOT_SUBORIGIN_ID: z.string().optional(),
+  PILOT_PROVIDER_SERVICE: z.string().optional(),
+  PILOT_CONTACT_TYPE_ID: z.string().optional(),
+  PILOT_BUSINESS_TYPE_DEFAULT: z.string().optional(),
+  PILOT_DEBUG: z.string().optional(),
+
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_API_BASE: z.string().url().optional(),
+  GROQ_WHISPER_MODEL: z.string().optional(),
+  GROQ_WHISPER_LANGUAGE: z.string().optional(),
+
   PORT: z.coerce.number().default(3001),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),

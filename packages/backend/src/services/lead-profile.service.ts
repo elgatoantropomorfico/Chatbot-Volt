@@ -10,6 +10,22 @@ const STANDARD_LEAD_KEYS = new Set([
   'offerInterest', 'modalityInterest', 'periodInterest', 'intentLevel',
 ]);
 
+/** Pilot extraction aliases → Lead columns / customData */
+const PILOT_KEY_MAP: Record<string, 'column' | 'custom'> = {
+  fname: 'column',
+  lname: 'column',
+  product: 'column',
+  biz: 'custom',
+  has_trade_in: 'custom',
+  notes: 'custom',
+};
+
+const PILOT_COLUMN_MAP: Record<string, string> = {
+  fname: 'firstName',
+  lname: 'lastName',
+  product: 'offerInterest',
+};
+
 export class LeadProfileService {
   /**
    * Merge extracted data onto existing lead.
@@ -54,6 +70,26 @@ export class LeadProfileService {
         picklistMap.set(fc.fieldKey, { options: opts, useSlug: false });
       }
     }
+
+    // Normalize Pilot extraction keys (fname → firstName, etc.)
+    if ((extracted as any).fname && !extracted.firstName) {
+      extracted.firstName = (extracted as any).fname;
+    }
+    if ((extracted as any).lname && !extracted.lastName) {
+      extracted.lastName = (extracted as any).lname;
+    }
+    if ((extracted as any).product && !extracted.offerInterest) {
+      extracted.offerInterest = (extracted as any).product;
+    }
+
+    const pilotIntegration = await prisma.integration.findFirst({
+      where: { tenantId: lead.tenantId, type: 'pilot_crm', status: 'active' },
+    });
+    const pilotConfigs = pilotIntegration
+      ? await prisma.pilotFieldConfig.findMany({
+          where: { tenantId: lead.tenantId, isActive: true },
+        })
+      : [];
 
     const updates: Record<string, any> = {};
     const existingCustomData = ((lead as any).customData as Record<string, any>) || {};
@@ -117,6 +153,16 @@ export class LeadProfileService {
       return activeRequest;
     };
 
+    // Pilot custom fields (biz, has_trade_in, notes)
+    if (pilotConfigs.length > 0) {
+      for (const [key, value] of Object.entries(extracted)) {
+        if (!value || STANDARD_LEAD_KEYS.has(key)) continue;
+        if (PILOT_KEY_MAP[key] !== 'custom') continue;
+        if (existingCustomData[key]) continue;
+        customDataUpdates[key] = value;
+      }
+    }
+
     // Custom fields from LeadFieldConfig → split by scope:
     //  - scope='lead'    → lead.customData
     //  - scope='request' → LeadRequest.data
@@ -172,7 +218,22 @@ export class LeadProfileService {
 
     // Compute sync hash for change detection
     const mergedData = { ...lead, ...updates };
-    updates.zohoSyncHash = this.calculateSyncHash(mergedData);
+    const zohoIntegration = await prisma.integration.findFirst({
+      where: { tenantId: lead.tenantId, type: 'zoho_crm', status: 'active' },
+    });
+    if (zohoIntegration) {
+      updates.zohoSyncHash = this.calculateSyncHash(mergedData);
+    }
+    if (pilotIntegration) {
+      updates.pilotSyncHash = this.calculatePilotSyncHash(mergedData);
+      if ((lead as any).pilotContactId && (lead as any).pilotSyncStatus === 'synced') {
+        const prevHash = (lead as any).pilotSyncHash;
+        const newHash = updates.pilotSyncHash;
+        if (prevHash && newHash && prevHash !== newHash) {
+          updates.pilotSyncStatus = 'needs_update';
+        }
+      }
+    }
 
     // Update name field for backward compatibility
     if ((updates.firstName || lead.firstName) && (updates.lastName || lead.lastName)) {
@@ -231,6 +292,61 @@ export class LeadProfileService {
   /**
    * Calculate MD5 hash of relevant lead fields for change detection
    */
+  static isReadyForPilot(
+    lead: {
+      phone: string;
+      firstName?: string | null;
+      lastName?: string | null;
+      offerInterest?: string | null;
+      customData?: Record<string, any> | null;
+    },
+    fieldConfigs: Array<{ localKey: string; isRequired: boolean }>,
+  ): boolean {
+    if (!lead.phone) return false;
+    const custom = (lead.customData as Record<string, any>) || {};
+
+    for (const fc of fieldConfigs) {
+      if (!fc.isRequired || fc.localKey === 'phone') continue;
+      if (fc.localKey === 'fname' || fc.localKey === 'firstName') {
+        if (!lead.firstName) return false;
+        continue;
+      }
+      if (fc.localKey === 'lname' || fc.localKey === 'lastName') {
+        if (!lead.lastName) return false;
+        continue;
+      }
+      if (fc.localKey === 'product' || fc.localKey === 'offerInterest') {
+        if (!lead.offerInterest) return false;
+        continue;
+      }
+      const col = PILOT_COLUMN_MAP[fc.localKey];
+      if (col) {
+        if (!(lead as any)[col]) return false;
+        continue;
+      }
+      if (!custom[fc.localKey]) return false;
+    }
+    return true;
+  }
+
+  static calculatePilotSyncHash(lead: Record<string, any>): string {
+    const custom = (lead.customData as Record<string, any>) || {};
+    const relevantData = {
+      firstName: lead.firstName || null,
+      lastName: lead.lastName || null,
+      phone: lead.phone || null,
+      offerInterest: lead.offerInterest || null,
+      biz: custom.biz || null,
+      has_trade_in: custom.has_trade_in || null,
+      notes: custom.notes || null,
+    };
+
+    return crypto
+      .createHash('md5')
+      .update(JSON.stringify(relevantData))
+      .digest('hex');
+  }
+
   static calculateSyncHash(lead: Record<string, any>): string {
     const relevantData = {
       firstName: lead.firstName || null,

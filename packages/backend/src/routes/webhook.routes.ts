@@ -72,7 +72,7 @@ export async function webhookRoutes(app: FastifyInstance) {
 
           for (const message of messages) {
             console.log(`📝 Message type: ${message.type}, from: ${message.from}`);
-            if (message.type !== 'text' && message.type !== 'image') {
+            if (message.type !== 'text' && message.type !== 'image' && message.type !== 'audio') {
               console.log(`⚠️ Skipping unsupported message type: ${message.type}`);
               continue;
             }
@@ -80,7 +80,11 @@ export async function webhookRoutes(app: FastifyInstance) {
             const incomingMessage: any = {
               phoneNumberId,
               from: message.from,
-              text: message.type === 'text' ? (message.text?.body || '') : (message.image?.caption || ''),
+              text: message.type === 'text'
+                ? (message.text?.body || '')
+                : message.type === 'image'
+                  ? (message.image?.caption || '')
+                  : '',
               messageId: message.id,
               timestamp: message.timestamp,
               profileName: value.contacts?.[0]?.profile?.name || null,
@@ -92,6 +96,12 @@ export async function webhookRoutes(app: FastifyInstance) {
               incomingMessage.mediaId = message.image.id;
               incomingMessage.mediaMimeType = message.image.mime_type;
               console.log(`📷 Image message: mediaId=${message.image.id}, mime=${message.image.mime_type}`);
+            }
+
+            if (message.type === 'audio' && message.audio) {
+              incomingMessage.mediaId = message.audio.id;
+              incomingMessage.mediaMimeType = message.audio.mime_type;
+              console.log(`🎤 Audio message: mediaId=${message.audio.id}, mime=${message.audio.mime_type}`);
             }
 
             // Deduplication check

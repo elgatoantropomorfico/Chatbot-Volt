@@ -37,9 +37,13 @@ export default function LeadsPage() {
   const [noteText, setNoteText] = useState('');
   const [loading, setLoading] = useState(true);
   const [hasZoho, setHasZoho] = useState(false);
+  const [hasPilot, setHasPilot] = useState(false);
   const [zohoFields, setZohoFields] = useState<any[]>([]);
+  const [pilotFields, setPilotFields] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
+  const [pilotSyncing, setPilotSyncing] = useState(false);
   const [syncMsg, setSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
+  const [pilotSyncMsg, setPilotSyncMsg] = useState<{ type: 'ok' | 'err'; text: string } | null>(null);
   const [leadFieldConfigs, setLeadFieldConfigs] = useState<any[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
@@ -56,6 +60,12 @@ export default function LeadsPage() {
         if (zoho) {
           const { fields } = await api.getZohoFields();
           setZohoFields((fields || []).filter((f: any) => f.isActive && !f.localKey.startsWith('_fixed_') && f.localKey !== 'phone'));
+        }
+        const pilot = integrations.find((i: any) => i.type === 'pilot_crm' && i.status === 'active');
+        setHasPilot(!!pilot);
+        if (pilot) {
+          const { fields } = await api.getPilotFields();
+          setPilotFields((fields || []).filter((f: any) => f.isActive && f.localKey !== 'phone'));
         }
       } catch {}
       try {
@@ -133,6 +143,45 @@ export default function LeadsPage() {
       setSyncMsg({ type: 'err', text: err.message || 'Error al sincronizar' });
     } finally {
       setSyncing(false);
+    }
+  }
+
+  async function syncToPilot() {
+    if (!selectedLead) return;
+    setPilotSyncing(true);
+    setPilotSyncMsg(null);
+    try {
+      const res = await api.syncLeadToPilot(selectedLead.id);
+      setPilotSyncMsg({ type: 'ok', text: res.message });
+      await selectLead(selectedLead.id);
+    } catch (err: any) {
+      setPilotSyncMsg({ type: 'err', text: err.message || 'Error al sincronizar' });
+    } finally {
+      setPilotSyncing(false);
+    }
+  }
+
+  function getPilotVal(lead: any, key: string) {
+    const colMap: Record<string, string> = { fname: 'firstName', lname: 'lastName', product: 'offerInterest' };
+    if (colMap[key]) return lead[colMap[key]] || '';
+    return (lead.customData as any)?.[key] || '';
+  }
+
+  async function savePilotField(key: string, value: string) {
+    if (!selectedLead) return;
+    const colMap: Record<string, string> = { fname: 'firstName', lname: 'lastName', product: 'offerInterest' };
+    try {
+      if (colMap[key]) {
+        const patch: any = { [colMap[key]]: value || null };
+        await api.updateLead(selectedLead.id, patch);
+        setSelectedLead({ ...selectedLead, [colMap[key]]: value || null });
+      } else {
+        const customData = { ...(selectedLead.customData || {}), [key]: value || null };
+        await api.updateLead(selectedLead.id, { customData });
+        setSelectedLead({ ...selectedLead, customData });
+      }
+    } catch (err) {
+      console.error('Error saving pilot field:', err);
     }
   }
 
@@ -457,6 +506,115 @@ export default function LeadsPage() {
                     color: syncMsg.type === 'ok' ? 'var(--color-success)' : 'var(--color-danger)',
                   }}>
                     {syncMsg.text}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
+          {hasPilot && (() => {
+            const editableFields = pilotFields.filter((f: any) => f.localKey !== 'phone');
+            const filled = editableFields.filter((f: any) => getPilotVal(selectedLead, f.localKey)).length;
+            const total = editableFields.filter((f: any) => f.isRequired).length;
+
+            const inputStyle: React.CSSProperties = {
+              width: '100%', padding: '4px 8px', fontSize: '12px',
+              background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-sm)', color: 'var(--color-text)', outline: 'none',
+            };
+            const selectStyle: React.CSSProperties = { ...inputStyle, cursor: 'pointer' };
+
+            return (
+              <div className={styles.detailSection}>
+                <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span>Pilot CRM</span>
+                  <span style={{ fontSize: '10px', fontWeight: 500, color: filled >= total ? 'var(--color-success)' : 'var(--color-warning)', textTransform: 'none', letterSpacing: 0 }}>
+                    {filled}/{editableFields.length} campos
+                  </span>
+                </h3>
+                {editableFields.map((f: any) => {
+                  const opts = (f.optionsJson || []) as any[];
+                  const isSelect = f.fieldType === 'select' && opts.length > 0;
+                  const val = getPilotVal(selectedLead, f.localKey);
+
+                  return (
+                    <div key={f.localKey} style={{ marginBottom: '8px' }}>
+                      <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-muted)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '3px' }}>
+                        {f.label}
+                        {f.isRequired && <span style={{ color: '#fb7185', marginLeft: 3 }}>*</span>}
+                      </div>
+                      {isSelect ? (
+                        <select
+                          style={selectStyle}
+                          value={val}
+                          onChange={(e) => savePilotField(f.localKey, e.target.value)}
+                        >
+                          <option value="">— Seleccionar —</option>
+                          {opts.map((opt: any, i: number) => (
+                            <option key={i} value={opt.value}>{opt.label || opt.value}</option>
+                          ))}
+                        </select>
+                      ) : (
+                        <input
+                          style={inputStyle}
+                          type="text"
+                          defaultValue={val}
+                          placeholder={`Ingresar ${f.label.toLowerCase()}...`}
+                          onBlur={(e) => { if (e.target.value !== val) savePilotField(f.localKey, e.target.value); }}
+                          onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                        />
+                      )}
+                    </div>
+                  );
+                })}
+                {selectedLead.pilotContactId && (
+                  <div className={styles.detailField}>
+                    <span>ID Pilot</span>
+                    <span>{selectedLead.pilotContactId}</span>
+                  </div>
+                )}
+                <div className={styles.detailField} style={{ marginTop: '6px' }}>
+                  <span>Sync</span>
+                  <span style={{
+                    color: selectedLead.pilotSyncStatus === 'synced' ? 'var(--color-success)'
+                      : selectedLead.pilotSyncStatus === 'error' ? 'var(--color-danger)'
+                      : selectedLead.pilotSyncStatus === 'needs_update' ? 'var(--color-warning)'
+                      : 'var(--color-warning)',
+                    fontWeight: 600, fontSize: '12px',
+                  }}>
+                    {selectedLead.pilotSyncStatus === 'synced' ? '✓ Sincronizado'
+                      : selectedLead.pilotSyncStatus === 'error' ? '✗ Error'
+                      : selectedLead.pilotSyncStatus === 'needs_update' ? '↻ Necesita actualización'
+                      : '⏳ Pendiente'}
+                  </span>
+                </div>
+                {selectedLead.pilotLastError && (
+                  <div style={{ fontSize: '11px', color: 'var(--color-danger)', marginTop: 4, wordBreak: 'break-all' }}>
+                    {selectedLead.pilotLastError}
+                  </div>
+                )}
+                {selectedLead.pilotLastSyncAt && (
+                  <div className={styles.detailField}>
+                    <span>Último sync</span>
+                    <span>{new Date(selectedLead.pilotLastSyncAt).toLocaleString('es-AR')}</span>
+                  </div>
+                )}
+                <button
+                  className={styles.noteBtn}
+                  onClick={syncToPilot}
+                  disabled={pilotSyncing}
+                  style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 6 }}
+                >
+                  <RefreshCw size={13} className={pilotSyncing ? 'spin' : ''} />
+                  {pilotSyncing ? 'Sincronizando...' : 'Enviar a Pilot CRM'}
+                </button>
+                {pilotSyncMsg && (
+                  <div style={{
+                    marginTop: 8,
+                    fontSize: '12px',
+                    color: pilotSyncMsg.type === 'ok' ? 'var(--color-success)' : 'var(--color-danger)',
+                  }}>
+                    {pilotSyncMsg.text}
                   </div>
                 )}
               </div>
