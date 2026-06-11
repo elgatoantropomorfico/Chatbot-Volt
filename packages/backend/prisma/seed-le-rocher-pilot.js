@@ -126,10 +126,14 @@ async function main() {
     },
     products,
     personality: {
-      greeting: 'Hola, soy el asistente de Le Rocher Peugeot. ¿En qué modelo o plan estás interesado?',
-      style: 'Español argentino, claro, breve. Una pregunta por mensaje.',
-      restrictions: 'No inventar precios ni modelos fuera del catálogo.',
       ...(existingPb.personality || {}),
+      greeting: existingPb.personality?.greeting?.includes('Peugeot') && !existingPb.personality?.greeting?.includes('Citro')
+        ? 'Hola, soy el asistente de Le Rocher. ¿En qué modelo o plan estás interesado? Trabajamos con Peugeot, Citroën, Jeep y RAM.'
+        : (existingPb.personality?.greeting || 'Hola, soy el asistente de Le Rocher. ¿En qué modelo o plan estás interesado? Trabajamos con Peugeot, Citroën, Jeep y RAM.'),
+      style: existingPb.personality?.style || 'Español argentino, claro, breve. Una pregunta por mensaje.',
+      restrictions: existingPb.personality?.restrictions
+        ? `${existingPb.personality.restrictions} Nunca decir que solo vendemos Peugeot.`
+        : 'No inventar precios ni modelos fuera del catálogo. Nunca decir que solo vendemos Peugeot; somos multimarca.',
     },
   };
 
@@ -142,7 +146,7 @@ async function main() {
     await p.botSettings.create({
       data: {
         tenantId: TENANT_ID,
-        systemPrompt: 'Sos el asistente comercial de Le Rocher, concesionaria en Formosa.',
+        systemPrompt: 'Sos el asistente comercial de Le Rocher, concesionaria multimarca en Formosa (Peugeot, Citroën, Jeep, RAM). Usá el catálogo cargado en productos para listar modelos.',
         model: 'gpt-4o-mini',
         temperature: 0.7,
         promptBuilderJson,

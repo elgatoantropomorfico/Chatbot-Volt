@@ -106,10 +106,24 @@ export class OpenAIService {
       if (pb.products) {
         const p = pb.products;
         const parts: string[] = [];
-        if (p.catalog) parts.push(`CATÁLOGO COMPLETO:\n${p.catalog}`);
+        if (p.categories) {
+          parts.push(
+            `MARCAS OFICIALES (debés poder ofrecer y mencionar TODAS): ${p.categories}`,
+          );
+        }
+        if (p.catalog) {
+          parts.push(
+            `CATÁLOGO COMPLETO — única fuente de verdad para modelos, versiones y marcas.\n` +
+            `NUNCA digas que solo vendemos una marca. Si preguntan qué hay, listá modelos de TODAS las marcas del catálogo.\n\n` +
+            p.catalog,
+          );
+        }
         if (p.description) parts.push(p.description);
-        if (p.categories) parts.push(`Categorías/marcas: ${p.categories}`);
-        if (p.priceRange) parts.push(`Planes y financiación:\n${p.priceRange}`);
+        if (p.priceRange) {
+          parts.push(
+            `Planes y financiación (puede detallar solo algunas marcas; para modelos disponibles usá el CATÁLOGO COMPLETO):\n${p.priceRange}`,
+          );
+        }
         if (p.notes) parts.push(`Notas: ${p.notes}`);
         if (parts.length) sections.push(`[PRODUCTOS/SERVICIOS]\n${parts.join('\n\n')}`);
       }
@@ -363,11 +377,17 @@ ${nextField.localKey === 'fname' || nextField.localKey === 'lname'
   : nextField.description || `Pedí: ${nextField.label}`}`
           : `✅ Todos los datos obligatorios están completos. Confirmá al usuario que quedó registrado y que un asesor lo va a contactar.`;
 
+        const brands = pb?.products?.categories || 'Peugeot, Citroën, Jeep, RAM';
+        const catalogReminder = pb?.products?.catalog
+          ? `\n🚗 Al listar vehículos usá el CATÁLOGO COMPLETO de [PRODUCTOS/SERVICIOS]. Marcas: ${brands}. No limites la respuesta a Peugeot salvo que el cliente pregunte solo por esa marca.\n`
+          : '';
+
         systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
 
-Sos un asistente comercial de concesionaria. Cuando alguien pregunte por vehículos, modelos, planes, financiación o precios, ES un lead: respondé Y capturá datos.
-
+Sos un asistente comercial de concesionaria multimarca (${brands}). Cuando alguien pregunte por vehículos, modelos, planes, financiación o precios, ES un lead: respondé Y capturá datos.
+${catalogReminder}
 🚗 USÁ SOLO el catálogo y planes del contexto [PRODUCTOS/SERVICIOS]. No inventes modelos ni precios.
+🚫 NUNCA digas que solo vendemos Peugeot — somos concesionaria multimarca.
 ${picklistInfo.length > 0 ? '\n📊 OPCIONES:\n' + picklistInfo.join('\n') : ''}
 ${knownLines.length > 0 ? `\n✅ DATOS YA CONFIRMADOS:\n${knownLines.join('\n')}` : ''}
 ${missingLines.length > 0 ? `\n⏳ DATOS QUE FALTAN (orden estricto — no saltees):\n${missingLines.join('\n')}` : ''}
