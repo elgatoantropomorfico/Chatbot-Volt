@@ -7,18 +7,10 @@
   flex-direction: column;
   gap: 18px;
   max-width: 1100px;
-  margin: 0 auto;
-  width: 100%;
-  flex: 1;
-  min-height: 0;
 }
 
 .volt-page-wide {
-  max-width: 1100px;
-}
-
-.volt-page-narrow {
-  max-width: 720px;
+  max-width: 1200px;
 }
 
 .volt-page-header {
@@ -310,17 +302,16 @@
   border: 1px solid var(--color-border);
 }
 
-/* Split-panel config layout (Bot/IA, Turnera, etc.) */
+/* Bot settings split layout */
 .volt-bot-shell {
   display: flex;
-  flex: 1;
-  min-height: 0;
+  height: calc(100vh - 140px);
+  min-height: 520px;
+  max-height: 860px;
   border-radius: 22px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.07);
   box-shadow: var(--shadow-lg);
-  backdrop-filter: blur(24px) saturate(1.2);
-  -webkit-backdrop-filter: blur(24px) saturate(1.2);
 }
 
 .volt-bot-sidebar {
@@ -404,36 +395,13 @@
 
 @media (max-width: 768px) {
   .volt-bot-shell {
-    flex: none;
-    min-height: 0;
+    flex-direction: column;
+    height: auto;
+    max-height: none;
   }
 
   .volt-bot-sidebar {
-    display: flex;
-    width: 100%;
-    min-width: unset;
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 0;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  .volt-bot-nav-group {
     display: none;
-  }
-
-  .volt-bot-nav-item {
-    flex: 0 0 auto;
-    border-left: none;
-    border-bottom: 3px solid transparent;
-    padding: 12px 16px;
-    white-space: nowrap;
-  }
-
-  .volt-bot-nav-item-active {
-    border-left-color: transparent;
-    border-bottom-color: #8b5cf6;
   }
 
   .volt-grid-2,

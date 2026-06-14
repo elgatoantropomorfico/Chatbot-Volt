@@ -106,7 +106,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }[user.role];
 
   const isFullBleed = pathname === '/dashboard/inbox';
-  const isConfigFill = ['/dashboard/settings', '/dashboard/bot-settings', '/dashboard/turnera', '/dashboard/integrations'].includes(pathname);
 
   return (
     <div className={styles.wrapper}>
@@ -267,8 +266,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`${styles.main} dashboard-main ${isFullBleed ? styles.mainFullBleed : ''} ${isConfigFill ? styles.mainConfigFill : ''}`}>
-        <div className={`${styles.contentArea} ${isFullBleed ? styles.contentAreaFullBleed : ''} ${isConfigFill ? styles.contentAreaConfigFill : ''}`}>
+      <main className={`${styles.main} dashboard-main ${isFullBleed ? styles.mainFullBleed : ''}`}>
+        <div className={`${styles.contentArea} ${isFullBleed ? styles.contentAreaFullBleed : ''}`}>
           {children}
         </div>
       </main>

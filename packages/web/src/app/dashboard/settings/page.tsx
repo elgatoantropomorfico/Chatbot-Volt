@@ -93,7 +93,7 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="volt-page volt-page-narrow">
+    <div className="volt-page">
       <div className="volt-page-header">
         <div>
           <h1 className="volt-page-title">Configuración</h1>
