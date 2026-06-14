@@ -3,6 +3,7 @@
 import { useState, FormEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { VoltLogo } from '@/components/ui/VoltLogo';
 import styles from './page.module.css';
 
 export default function LoginPage() {
@@ -32,6 +33,7 @@ export default function LoginPage() {
     <div className={styles.container}>
       <div className={styles.card}>
         <div className={styles.logo}>
+          <VoltLogo size={64} className={styles.logoMark} />
           <h1>Volt</h1>
           <p>Plataforma de ChatBot con IA</p>
         </div>

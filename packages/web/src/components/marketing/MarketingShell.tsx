@@ -1,8 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { ChevronDown, Menu, X, Zap } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 import Link from 'next/link';
+import { VoltBrand, VoltLogo } from '@/components/ui/VoltLogo';
 import { MarketingStyles } from './MarketingStyles';
 import {
   DEMO_MAILTO,
@@ -54,13 +55,7 @@ function MarketingNavbar() {
       <nav className="mkt-nav">
         <div className="mkt-nav-inner">
           <Link href="/" className="mkt-brand">
-            <div className="mkt-brand-icon">
-              <Zap size={18} color="#fff" />
-            </div>
-            <span className="mkt-brand-text">
-              <span className="mkt-brand-volt">Volt</span>
-              <span className="mkt-brand-ia"> IA</span>
-            </span>
+            <VoltBrand size={34} />
           </Link>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
@@ -255,19 +250,7 @@ function MarketingFooter() {
       >
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-            <div
-              style={{
-                width: 28,
-                height: 28,
-                borderRadius: 8,
-                background: 'linear-gradient(135deg, #8b5cf6, #e879f9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <Zap size={14} color="#fff" />
-            </div>
+            <VoltLogo size={28} />
             <span style={{ fontSize: 14, fontWeight: 700, color: 'var(--color-text-secondary)' }}>
               Volt IA Agents
             </span>

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api';
 import { getTenantDisplayName } from '@/lib/tenant';
+import { VoltBrand, VoltLogo } from '@/components/ui/VoltLogo';
 import styles from './layout.module.css';
 
 // Super admin: only tenant management
@@ -120,7 +121,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>
-        <h2 className={styles.mobileTitle}>Volt</h2>
+        <div className={styles.mobileBrand}>
+          <VoltLogo size={28} />
+          <h2 className={styles.mobileTitle}>Volt</h2>
+        </div>
       </div>
 
       {/* Backdrop */}
@@ -131,11 +135,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
           <div className={styles.brandMark}>
-            <div className={styles.brandIcon}>V</div>
-            <div className={styles.brandText}>
-              <h2>Volt</h2>
-              <span>{isSuperAdmin ? 'Super Admin' : getTenantDisplayName(user.tenant) || 'Panel'}</span>
-            </div>
+            <VoltBrand
+              size={36}
+              iaSuffix={false}
+              subtitle={isSuperAdmin ? 'Super Admin' : getTenantDisplayName(user.tenant) || 'Panel'}
+            />
           </div>
         </div>
 

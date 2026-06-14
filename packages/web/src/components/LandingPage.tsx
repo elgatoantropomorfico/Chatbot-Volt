@@ -6,9 +6,9 @@ import {
   Code2,
   MessageSquare,
   Sparkles,
-  Zap,
   ArrowRight,
 } from 'lucide-react';
+import { VoltLogo } from '@/components/ui/VoltLogo';
 import { MarketingShell } from './marketing/MarketingShell';
 import {
   DEMO_MAILTO,
@@ -54,7 +54,7 @@ function Hero() {
 
       <div className="mkt-hero-inner">
         <div className="mkt-badge">
-          <Sparkles size={14} />
+          <VoltLogo size={20} />
           Inteligencia artificial para tu operación
         </div>
 
@@ -157,7 +157,7 @@ function WhatWeDo() {
                 lineHeight: 1.5,
               }}
             >
-              <Zap size={18} color="var(--color-primary)" style={{ flexShrink: 0, marginTop: 2 }} />
+              <VoltLogo size={18} style={{ flexShrink: 0, marginTop: 2 }} />
               {a}
             </li>
           ))}

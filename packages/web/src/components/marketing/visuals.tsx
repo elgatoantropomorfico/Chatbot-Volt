@@ -14,6 +14,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { ReactNode } from 'react';
+import { VoltLogo } from '@/components/ui/VoltLogo';
 
 export function HeroOrbs() {
   return null;
@@ -95,7 +96,7 @@ export function ChatMockup({ variant = 'commerce' }: { variant?: 'commerce' | 'l
 
   return (
     <div className="mkt-mockup-panel" style={{ maxWidth: 700, width: '100%', margin: '0 auto' }}>
-      <MockHeader title="Volt Assistant" subtitle="Online" icon={<Bot size={18} color="#fff" />} />
+      <MockHeader title="Volt Assistant" subtitle="Online" icon={<VoltLogo size={32} />} />
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 360 }}>
         {messages.map((msg, i) => (
           <div
@@ -162,6 +163,7 @@ export function DashboardMockup() {
             gap: 10,
           }}
         >
+          <VoltLogo size={22} />
           {[Inbox, Users, BarChart3, MessageSquare].map((Icon, i) => (
             <div
               key={i}
@@ -468,19 +470,7 @@ function MockHeader({
         borderBottom: '1px solid var(--color-border)',
       }}
     >
-      <div
-        style={{
-          width: 36,
-          height: 36,
-          borderRadius: '50%',
-          background: 'linear-gradient(135deg, #7c3aed, #e879f9)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {icon}
-      </div>
+      {icon}
       <div>
         <div style={{ fontSize: 14, fontWeight: 600, color: '#fff' }}>{title}</div>
         <div style={{ fontSize: 11, color: 'var(--color-success)', display: 'flex', alignItems: 'center', gap: 4 }}>

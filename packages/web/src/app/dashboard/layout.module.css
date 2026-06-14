@@ -369,6 +369,10 @@
   display: none;
 }
 
+.mobileBrand {
+  display: none;
+}
+
 .mobileTitle {
   display: none;
 }
@@ -411,6 +415,12 @@
   .hamburgerBtn:hover {
     background: var(--color-primary-light);
     border-color: var(--color-border-accent);
+  }
+
+  .mobileBrand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .mobileTitle {

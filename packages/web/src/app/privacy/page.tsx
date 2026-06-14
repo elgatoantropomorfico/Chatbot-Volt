@@ -1,6 +1,7 @@
 'use client';
 
-import { Zap, ArrowLeft } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
+import { VoltBrand } from '@/components/ui/VoltLogo';
 
 export default function PrivacyPage() {
   return (
@@ -16,18 +17,8 @@ export default function PrivacyPage() {
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           height: 64,
         }}>
-          <a href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div style={{
-              width: 34, height: 34, borderRadius: 10,
-              background: 'linear-gradient(135deg, #8b5cf6, #e879f9)',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <Zap size={18} color="#fff" />
-            </div>
-            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.03em' }}>
-              <span style={{ color: '#fff' }}>Volt</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> IA Agents</span>
-            </span>
+          <a href="/" style={{ textDecoration: 'none' }}>
+            <VoltBrand size={34} suffix=" IA Agents" />
           </a>
           <a href="/" style={{
             display: 'flex', alignItems: 'center', gap: 6,
