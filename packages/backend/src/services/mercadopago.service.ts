@@ -64,7 +64,7 @@ export class MercadoPagoService {
     const notificationUrl = this.buildNotificationUrl(params.tenantId);
     const baseUrl = this.getApiPublicUrl();
     const receiptPath = params.receiptToken
-      ? `${baseUrl}/api/booking/receipt/${params.receiptToken}`
+      ? `${baseUrl}/api/booking/payment-return/${params.receiptToken}`
       : `${baseUrl}/health`;
 
     const body = {
@@ -177,8 +177,9 @@ export class MercadoPagoService {
 
     const balance = Math.max(0, Number(appointment.finalPrice) - paid);
 
-    await prisma.appointment.update({
-      where: { id: appointment.id },
+    // Atomic confirm — MP may POST+GET at once; only the first wins and sends WhatsApp
+    const confirmed = await prisma.appointment.updateMany({
+      where: { id: appointment.id, status: { not: 'confirmado' } },
       data: {
         status: 'confirmado',
         mpPaymentId: String(paymentId),
@@ -189,6 +190,8 @@ export class MercadoPagoService {
         receiptToken: appointment.receiptToken || crypto.randomBytes(16).toString('hex'),
       },
     });
+
+    if (confirmed.count === 0) return;
 
     await BookingNotificationService.sendPaymentConfirmation(appointment.id);
   }

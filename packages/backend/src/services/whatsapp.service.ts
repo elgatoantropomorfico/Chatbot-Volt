@@ -50,6 +50,26 @@ export class WhatsAppService {
     return phone;
   }
 
+  /** Business line in E164 digits (no +) — for wa.me return links after checkout. */
+  static async getBusinessPhoneE164(phoneNumberId: string): Promise<string | null> {
+    if (!env.WHATSAPP_ACCESS_TOKEN) return null;
+    try {
+      const response = await axios.get(
+        `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${phoneNumberId}`,
+        {
+          params: { fields: 'display_phone_number' },
+          headers: { Authorization: `Bearer ${env.WHATSAPP_ACCESS_TOKEN}` },
+        },
+      );
+      const raw = response.data?.display_phone_number as string | undefined;
+      if (!raw) return null;
+      return raw.replace(/\D/g, '');
+    } catch (err: any) {
+      console.warn('⚠️ Could not fetch WA business phone:', err.response?.data || err.message);
+      return null;
+    }
+  }
+
   static async downloadMedia(mediaId: string): Promise<{ buffer: Buffer; mimeType: string }> {
     const metaRes = await axios.get(
       `https://graph.facebook.com/${env.WHATSAPP_API_VERSION}/${mediaId}`,

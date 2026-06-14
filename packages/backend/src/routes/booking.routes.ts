@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
 import { BookingAvailabilityService } from '../services/booking-availability.service';
+import { WhatsAppService } from '../services/whatsapp.service';
 
 function resolveTenantId(user: any, queryTenantId?: string): string | null {
   if (user.role === 'superadmin' && queryTenantId) return queryTenantId;
@@ -444,27 +445,107 @@ export async function bookingRoutes(app: FastifyInstance) {
   });
 }
 
+async function resolveWhatsAppReturnUrl(tenantId: string, phoneNumberId?: string | null): Promise<string | null> {
+  if (phoneNumberId) {
+    const fromMeta = await WhatsAppService.getBusinessPhoneE164(phoneNumberId);
+    if (fromMeta) return `https://wa.me/${fromMeta}`;
+  }
+  const bot = await prisma.botSettings.findUnique({ where: { tenantId } });
+  if (bot?.handoffPhoneE164) {
+    const digits = bot.handoffPhoneE164.replace(/\D/g, '');
+    if (digits) return `https://wa.me/${digits}`;
+  }
+  return null;
+}
+
+function paymentReturnHtml(params: {
+  tenantName: string;
+  serviceName: string;
+  date: string;
+  time: string;
+  waUrl: string | null;
+}): string {
+  const redirect = params.waUrl
+    ? `<meta http-equiv="refresh" content="1;url=${params.waUrl}">`
+    : '';
+  const cta = params.waUrl
+    ? `<a href="${params.waUrl}" style="display:inline-block;margin-top:16px;padding:12px 24px;background:#25D366;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;">Volver a WhatsApp</a>`
+    : '<p style="color:#666;">Volvé a WhatsApp para ver la confirmación de tu turno.</p>';
+
+  return `<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  ${redirect}
+  <title>Turno confirmado</title>
+</head>
+<body style="font-family:system-ui,sans-serif;max-width:420px;margin:40px auto;padding:0 20px;text-align:center;color:#1a1a1a;">
+  <p style="font-size:48px;margin:0;">🌿</p>
+  <h1 style="font-size:22px;margin:12px 0 8px;">¡Turno confirmado!</h1>
+  <p style="color:#555;line-height:1.5;">
+    <strong>${params.serviceName}</strong><br>
+    ${params.date} — ${params.time}<br>
+    ${params.tenantName}
+  </p>
+  ${params.waUrl ? '<p style="color:#888;font-size:14px;">Te redirigimos a WhatsApp…</p>' : ''}
+  ${cta}
+</body>
+</html>`;
+}
+
 /** Public booking endpoints (no JWT) — registered outside auth in app.ts */
 export async function bookingPublicRoutes(app: FastifyInstance) {
-  app.get('/receipt/:token', async (request: FastifyRequest, reply: FastifyReply) => {
-    const { token } = request.params as { token: string };
-    const appointment = await prisma.appointment.findUnique({
+  async function loadAppointmentByReceipt(token: string) {
+    return prisma.appointment.findUnique({
       where: { receiptToken: token },
-      include: { service: true, tenant: { select: { name: true, timezone: true } } },
-    });
-    if (!appointment) return reply.status(404).send({ error: 'Comprobante no encontrado' });
-    return reply.send({
-      appointment: {
-        id: appointment.id,
-        status: appointment.status,
-        customerName: appointment.customerName,
-        appointmentDate: appointment.appointmentDate,
-        appointmentTime: appointment.appointmentTime,
-        amountPaid: appointment.amountPaid,
-        balanceDue: appointment.balanceDue,
-        service: appointment.service,
-        tenant: appointment.tenant,
+      include: {
+        service: true,
+        tenant: { select: { name: true, timezone: true } },
+        conversation: { include: { channel: true } },
       },
     });
+  }
+
+  app.get('/receipt/:token', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token } = request.params as { token: string };
+    const format = (request.query as { format?: string }).format;
+    const appointment = await loadAppointmentByReceipt(token);
+    if (!appointment) return reply.status(404).send({ error: 'Comprobante no encontrado' });
+
+    if (format === 'json') {
+      return reply.send({
+        appointment: {
+          id: appointment.id,
+          status: appointment.status,
+          customerName: appointment.customerName,
+          appointmentDate: appointment.appointmentDate,
+          appointmentTime: appointment.appointmentTime,
+          amountPaid: appointment.amountPaid,
+          balanceDue: appointment.balanceDue,
+          service: appointment.service,
+          tenant: appointment.tenant,
+        },
+      });
+    }
+
+    const waUrl = await resolveWhatsAppReturnUrl(
+      appointment.tenantId,
+      appointment.conversation?.channel?.phoneNumberId,
+    );
+    const date = appointment.appointmentDate.toISOString().slice(0, 10);
+    return reply.type('text/html').send(paymentReturnHtml({
+      tenantName: appointment.tenant.name,
+      serviceName: appointment.service.name,
+      date,
+      time: appointment.appointmentTime,
+      waUrl,
+    }));
+  });
+
+  // Alias used by Mercado Pago back_urls
+  app.get('/payment-return/:token', async (request: FastifyRequest, reply: FastifyReply) => {
+    const { token } = request.params as { token: string };
+    return reply.redirect(`/api/booking/receipt/${token}`);
   });
 }
