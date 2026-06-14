@@ -93,10 +93,21 @@ function pickOption(text: string, max: number): number | null {
 
 /** Texto libre que claramente no es elección de menú */
 function isFreeTextOffFlow(rawText: string, input: string, maxOptions?: number): boolean {
+  if (looksLikePersonName(rawText)) return false;
   if (BookingAiService.looksLikeGreeting(rawText)) return false;
   if (maxOptions != null && pickOption(input, maxOptions) !== null) return false;
   if (isMoreOptionsInput(input, maxOptions || 99)) return false;
-  return rawText.trim().length >= 6 || BookingAiService.looksLikeQuestion(rawText);
+  return BookingAiService.looksLikeQuestion(rawText) || rawText.trim().length >= 12;
+}
+
+function looksLikePersonName(raw: string): boolean {
+  const t = raw.trim();
+  if (!t || t.length < 2 || t.includes('?')) return false;
+  if (BookingAiService.looksLikeQuestion(t)) return false;
+  if (!/^[\p{L}\s'.-]{2,80}$/u.test(t)) return false;
+  const words = t.split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return true;
+  return words.length === 1 && words[0].length >= 3;
 }
 
 function isMoreOptionsInput(input: string, totalOptions: number): boolean {
@@ -222,7 +233,7 @@ export class BookingFlowService {
       case 'slot_selection':
         return this.handleSlotSelection(tenantId, conversationId, settings, flow, input, text);
       case 'customer_name':
-        return this.handleCustomerName(tenantId, conversationId, settings, flow, input, text, params.profileName);
+        return this.handleCustomerName(tenantId, conversationId, leadId, settings, flow, input, text, params.profileName);
       case 'customer_first_time':
         return this.handleFirstTime(conversationId, settings, flow, input);
       case 'customer_notes':
@@ -587,13 +598,26 @@ export class BookingFlowService {
   private static async handleCustomerName(
     tenantId: string,
     conversationId: string,
+    leadId: string,
     settings: any,
     flow: BookingFlowContext,
     input: string,
     rawText: string,
     profileName?: string | null,
   ): Promise<FlowHandleResult> {
-    if (isFreeTextOffFlow(rawText, input)) {
+    if (looksLikePersonName(rawText)) {
+      const name = textCapitalize(rawText.trim());
+      try {
+        await prisma.lead.update({ where: { id: leadId }, data: { name } });
+      } catch (err: any) {
+        console.warn('⚠️ No se pudo actualizar nombre del lead:', err.message);
+      }
+      flow = { ...flow, state: 'customer_first_time', customerName: name };
+      await this.saveFlow(conversationId, flow);
+      return flowReply(`Gracias, ${name.split(' ')[0]}. ¿Es tu primera vez?`, ['Sí', 'No']);
+    }
+
+    if (BookingAiService.looksLikeQuestion(rawText)) {
       const answer = await BookingAiService.answerOffFlow(tenantId, rawText, settings, flow.state);
       if (answer) {
         return {
@@ -603,15 +627,17 @@ export class BookingFlowService {
       }
     }
 
-    const name = input.length >= 2 && !rawText.includes('?')
-      ? textCapitalize(input)
-      : (profileName || '');
-    if (!name || name.length < 2) {
-      return { handled: true, text: 'Necesito tu nombre y apellido para continuar.' };
+    if (profileName && profileName.length >= 2) {
+      const name = textCapitalize(profileName);
+      try {
+        await prisma.lead.update({ where: { id: leadId }, data: { name } });
+      } catch {}
+      flow = { ...flow, state: 'customer_first_time', customerName: name };
+      await this.saveFlow(conversationId, flow);
+      return flowReply(`Gracias, ${name.split(' ')[0]}. ¿Es tu primera vez?`, ['Sí', 'No']);
     }
-    flow = { ...flow, state: 'customer_first_time', customerName: name };
-    await this.saveFlow(conversationId, flow);
-    return flowReply(`Gracias, ${name.split(' ')[0]}. ¿Es tu primera vez?`, ['Sí', 'No']);
+
+    return { handled: true, text: 'Necesito tu *nombre y apellido* para continuar con la reserva.' };
   }
 
   private static async handleFirstTime(
