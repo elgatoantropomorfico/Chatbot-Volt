@@ -344,7 +344,22 @@ export default function TurnosPage() {
                 <span className={styles.detailLabel}>Saldo</span>
                 <span className={styles.detailValue}>{formatPrice(Number(selected.balanceDue || 0))}</span>
               </div>
-            </div>
+              {selected.paymentType && (
+                <div className={styles.detailRow}>
+                  <span className={styles.detailLabel}>Tipo</span>
+                  <span className={styles.detailValue}>
+                    {selected.paymentType === 'total' ? 'Pago total' : 'Seña'}
+                  </span>
+                </div>
+              )}
+              {selected.mpPaymentId && (
+                <div className={styles.detailRow}>
+                  <span className={styles.detailLabel}>ID transacción MP</span>
+                  <span className={styles.detailValue} style={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all' }}>
+                    {selected.mpPaymentId}
+                  </span>
+                </div>
+              )}
 
             <div className={styles.detailActions}>
               {selected.status === 'confirmado' && (
