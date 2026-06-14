@@ -18,6 +18,8 @@ import {
   Menu,
   X,
   DollarSign,
+  Calendar,
+  CalendarClock,
   Cloud,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -53,6 +55,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showSales, setShowSales] = useState(false);
   const [showOffers, setShowOffers] = useState(false);
   const [showPilot, setShowPilot] = useState(false);
+  const [showBooking, setShowBooking] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -82,6 +85,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (pilot) {
           setShowPilot(true);
         }
+        try {
+          const { settings } = await api.getBookingSettings();
+          if (settings?.bookingEnabled) setShowBooking(true);
+        } catch {}
       } catch {}
     })();
   }, [user]);
@@ -173,6 +180,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   <Cloud size={18} />
                   Pilot CRM
                 </Link>
+              )}
+
+              {showBooking && (
+                <>
+                  <Link
+                    href="/dashboard/turnos"
+                    className={`${styles.navItem} ${pathname === '/dashboard/turnos' ? styles.navItemActive : ''}`}
+                  >
+                    <Calendar size={18} />
+                    Turnos
+                  </Link>
+                  <Link
+                    href="/dashboard/turnera"
+                    className={`${styles.navItem} ${pathname === '/dashboard/turnera' ? styles.navItemActive : ''}`}
+                  >
+                    <CalendarClock size={18} />
+                    Configuración de turnera
+                  </Link>
+                </>
               )}
 
               {filterByRole(adminItems).length > 0 && (

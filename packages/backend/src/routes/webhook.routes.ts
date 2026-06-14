@@ -72,23 +72,40 @@ export async function webhookRoutes(app: FastifyInstance) {
 
           for (const message of messages) {
             console.log(`📝 Message type: ${message.type}, from: ${message.from}`);
-            if (message.type !== 'text' && message.type !== 'image' && message.type !== 'audio') {
+            if (message.type !== 'text' && message.type !== 'image' && message.type !== 'audio' && message.type !== 'interactive') {
               console.log(`⚠️ Skipping unsupported message type: ${message.type}`);
               continue;
+            }
+
+            let messageText = '';
+            if (message.type === 'text') {
+              messageText = message.text?.body || '';
+            } else if (message.type === 'interactive') {
+              const br = message.interactive?.button_reply;
+              const lr = message.interactive?.list_reply;
+              const reply = br || lr;
+              if (reply?.id?.startsWith('opt_')) {
+                messageText = reply.id.replace('opt_', '');
+              } else {
+                messageText = reply?.title || reply?.id || '';
+              }
+              console.log(`🔘 Interactive reply: id=${reply?.id} → text="${messageText}"`);
             }
 
             const incomingMessage: any = {
               phoneNumberId,
               from: message.from,
-              text: message.type === 'text'
-                ? (message.text?.body || '')
-                : message.type === 'image'
-                  ? (message.image?.caption || '')
-                  : '',
+              text: message.type === 'interactive'
+                ? messageText
+                : message.type === 'text'
+                  ? messageText
+                  : message.type === 'image'
+                    ? (message.image?.caption || '')
+                    : '',
               messageId: message.id,
               timestamp: message.timestamp,
               profileName: value.contacts?.[0]?.profile?.name || null,
-              messageType: message.type,
+              messageType: message.type === 'interactive' ? 'text' : message.type,
             };
 
             // Attach image metadata if present

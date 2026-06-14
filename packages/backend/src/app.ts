@@ -18,6 +18,8 @@ import { zohoFieldRoutes } from './routes/zoho-field.routes';
 import { pilotFieldRoutes } from './routes/pilot-field.routes';
 import { leadFieldRoutes } from './routes/lead-field.routes';
 import { leadRequestRoutes } from './routes/lead-request.routes';
+import { bookingRoutes } from './routes/booking.routes';
+import { mercadopagoWebhookRoutes } from './routes/mercadopago-webhook.routes';
 
 export async function buildApp() {
   const app = Fastify({
@@ -65,6 +67,7 @@ export async function buildApp() {
   // Public routes
   app.register(authRoutes, { prefix: '/api/auth' });
   app.register(webhookRoutes, { prefix: '/api/webhook' });
+  app.register(mercadopagoWebhookRoutes, { prefix: '/api/webhooks' });
 
   // Protected routes
   app.register(async function protectedRoutes(instance) {
@@ -84,6 +87,7 @@ export async function buildApp() {
     instance.register(pilotFieldRoutes, { prefix: '/api/pilot-fields' });
     instance.register(leadFieldRoutes, { prefix: '/api/lead-fields' });
     instance.register(leadRequestRoutes, { prefix: '/api' });
+    instance.register(bookingRoutes, { prefix: '/api/booking' });
   });
 
   return app;

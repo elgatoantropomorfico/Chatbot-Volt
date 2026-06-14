@@ -254,6 +254,31 @@ class ApiClient {
   async getSale(id: string) { return this.fetch<{ sale: any }>(`/sales/${id}`); }
   async updateSale(id: string, data: any) { return this.fetch<{ sale: any }>(`/sales/${id}`, { method: 'PATCH', body: data }); }
   async deleteSale(id: string) { return this.fetch<{ message: string }>(`/sales/${id}`, { method: 'DELETE' }); }
+
+  // Booking / Turnera
+  async getBookingSettings() { return this.fetch<{ settings: any }>('/booking/settings'); }
+  async updateBookingSettings(data: any) { return this.fetch<{ settings: any }>('/booking/settings', { method: 'PATCH', body: data }); }
+  async getBookingServices() { return this.fetch<{ services: any[] }>('/booking/services'); }
+  async createBookingService(data: any) { return this.fetch<{ service: any }>('/booking/services', { method: 'POST', body: data }); }
+  async updateBookingService(id: string, data: any) { return this.fetch<{ service: any }>(`/booking/services/${id}`, { method: 'PATCH', body: data }); }
+  async deleteBookingService(id: string) { return this.fetch<{ message: string }>(`/booking/services/${id}`, { method: 'DELETE' }); }
+  async getBookingSlots() { return this.fetch<{ slots: any[] }>('/booking/slots'); }
+  async createBookingSlot(data: any) { return this.fetch<{ slot: any }>('/booking/slots', { method: 'POST', body: data }); }
+  async updateBookingSlot(id: string, data: any) { return this.fetch<{ slot: any }>(`/booking/slots/${id}`, { method: 'PATCH', body: data }); }
+  async deleteBookingSlot(id: string) { return this.fetch<{ message: string }>(`/booking/slots/${id}`, { method: 'DELETE' }); }
+  async getBookingBlocks() { return this.fetch<{ blocks: any[] }>('/booking/blocks'); }
+  async createBookingBlock(data: any) { return this.fetch<{ block: any }>('/booking/blocks', { method: 'POST', body: data }); }
+  async deleteBookingBlock(id: string) { return this.fetch<{ message: string }>(`/booking/blocks/${id}`, { method: 'DELETE' }); }
+  async getBookingPriceRules() { return this.fetch<{ rules: any[] }>('/booking/price-rules'); }
+  async createBookingPriceRule(data: any) { return this.fetch<{ rule: any }>('/booking/price-rules', { method: 'POST', body: data }); }
+  async updateBookingPriceRule(id: string, data: any) { return this.fetch<{ rule: any }>(`/booking/price-rules/${id}`, { method: 'PATCH', body: data }); }
+  async deleteBookingPriceRule(id: string) { return this.fetch<{ message: string }>(`/booking/price-rules/${id}`, { method: 'DELETE' }); }
+  async getAppointments(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.fetch<{ appointments: any[] }>(`/booking/appointments${qs}`);
+  }
+  async getAppointment(id: string) { return this.fetch<{ appointment: any }>(`/booking/appointments/${id}`); }
+  async updateAppointment(id: string, data: any) { return this.fetch<{ appointment: any }>(`/booking/appointments/${id}`, { method: 'PATCH', body: data }); }
 }
 
 export const api = new ApiClient();

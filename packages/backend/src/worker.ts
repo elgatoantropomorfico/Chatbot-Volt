@@ -14,6 +14,8 @@ import { PilotSyncService } from './services/pilot-sync.service';
 import { GroqTranscriptionService } from './services/groq-transcription.service';
 import { R2Service } from './services/r2.service';
 import { prisma } from './config/database';
+import { BookingAvailabilityService } from './services/booking-availability.service';
+import { BookingFlowService } from './services/booking-flow.service';
 
 // Store last search results per conversation for "agregar el 2" cart operations
 const lastSearchResults = new Map<string, any[]>();
@@ -288,6 +290,30 @@ async function processMessage(job: Job<IncomingMessage>) {
     }
   }
 
+  // 5b. Booking flow (turnera) — closed state machine, before OpenAI
+  let bookingFlowResult: import('./services/booking-flow.service').FlowHandleResult | null = null;
+  try {
+    if (await BookingAvailabilityService.isBookingEnabled(tenant.id)) {
+      const flowResult = await BookingFlowService.handle({
+        tenantId: tenant.id,
+        conversationId: conversation.id,
+        leadId: lead.id,
+        phone: data.from,
+        text: data.text,
+        profileName: data.profileName,
+      });
+      if (flowResult.handled) {
+        if (flowResult.handoff) {
+          await HandoffService.executeHandoff(conversation.id, 'Booking flow — human requested');
+          return;
+        }
+        bookingFlowResult = flowResult;
+      }
+    }
+  } catch (bookingErr: any) {
+    console.error('⚠️ Booking flow error (non-fatal):', bookingErr.message);
+  }
+
   // 5. Check for WooCommerce intent (wrapped in try/catch to prevent crashes)
   let wooDirectResponse: string | null = null;
   try {
@@ -484,9 +510,12 @@ async function processMessage(job: Job<IncomingMessage>) {
     console.error('⚠️ WooCommerce error (non-fatal):', wooErr.message || wooErr);
   }
 
-  // 6. If WooCommerce handled it directly, send that response
+  // 6. If booking or WooCommerce handled it directly, send that response
   let aiResponse: string;
-  if (wooDirectResponse) {
+  if (bookingFlowResult?.text) {
+    console.log(`📅 Booking direct response (${bookingFlowResult.text.length} chars)`);
+    aiResponse = bookingFlowResult.text;
+  } else if (wooDirectResponse) {
     console.log(`📤 WooCommerce direct response (${wooDirectResponse.length} chars)`);
     aiResponse = wooDirectResponse;
   } else {
@@ -510,11 +539,26 @@ async function processMessage(job: Job<IncomingMessage>) {
   }
 
   // 8. Send response via WhatsApp
-  const providerMessageId = await WhatsAppService.sendTextMessage({
-    phoneNumberId: channel.phoneNumberId,
-    to: data.from,
-    text: aiResponse,
-  });
+  let providerMessageId: string | null = null;
+  if (bookingFlowResult?.interactive) {
+    const ix = bookingFlowResult.interactive;
+    providerMessageId = await WhatsAppService.sendInteractive({
+      phoneNumberId: channel.phoneNumberId,
+      to: data.from,
+      body: ix.body,
+      type: ix.type,
+      buttons: ix.buttons,
+      listButtonText: ix.listButtonText,
+      listRows: ix.listRows,
+      listSectionTitle: ix.listSectionTitle,
+    });
+  } else {
+    providerMessageId = await WhatsAppService.sendTextMessage({
+      phoneNumberId: channel.phoneNumberId,
+      to: data.from,
+      text: aiResponse,
+    });
+  }
 
   // 8. Save outgoing message
   await ConversationService.saveOutgoingMessage(conversation.id, aiResponse, providerMessageId);

@@ -51,6 +51,18 @@ enum IntegrationType {
   woocommerce
   zoho_crm
   pilot_crm
+  mercadopago
+}
+
+enum AppointmentStatus {
+  pendiente_datos
+  pendiente_pago
+  confirmado
+  cancelado
+  reprogramado
+  completado
+  no_asistio
+  vencido
 }
 
 enum IntegrationStatus {
@@ -144,6 +156,12 @@ model Tenant {
   pilotFieldConfigs PilotFieldConfig[]
   leadFieldConfigs  LeadFieldConfig[]
   leadRequests      LeadRequest[]
+  bookingSettings   BookingSettings?
+  bookingServices   BookingService[]
+  bookingSlots      BookingSlot[]
+  bookingBlocks     BookingBlock[]
+  bookingPriceRules BookingPriceRule[]
+  appointments      Appointment[]
 
   @@map("tenants")
 }
@@ -217,6 +235,7 @@ model Lead {
   sales               Sale[]
   photos              LeadPhoto[]
   requests            LeadRequest[]
+  appointments        Appointment[]
 
   @@unique([tenantId, phone])
   @@index([tenantId, zohoContactId])
@@ -246,6 +265,7 @@ model Conversation {
   handoffReason   String?            @map("handoff_reason")
   handoffAt       DateTime?          @map("handoff_at")
   isArchived      Boolean            @default(false) @map("is_archived")
+  bookingFlowJson Json?              @map("booking_flow_json")
   createdAt       DateTime           @default(now()) @map("created_at")
   updatedAt       DateTime           @updatedAt @map("updated_at")
 
@@ -253,6 +273,7 @@ model Conversation {
   lead            Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
   channel         Channel            @relation(fields: [channelId], references: [id])
   messages        Message[]
+  appointments    Appointment[]
 
   @@map("conversations")
 }
@@ -477,4 +498,161 @@ model EventOutbox {
 
   @@index([processed, createdAt])
   @@map("events_outbox")
+}
+
+// ============================================
+// BOOKING / TURNERA (El Gabinete, etc.)
+// ============================================
+
+model BookingSettings {
+  tenantId                     String   @id @map("tenant_id")
+  bookingEnabled               Boolean  @default(false) @map("booking_enabled")
+  bookingMode                  String   @default("fixed_slots") @map("booking_mode")
+  sessionDurationMinutes       Int      @default(80) @map("session_duration_minutes")
+  slotIntervalMinutes          Int      @default(90) @map("slot_interval_minutes")
+  bufferMinutes                Int      @default(10) @map("buffer_minutes")
+  timezone                     String   @default("America/Argentina/Cordoba")
+  currency                     String   @default("ARS")
+  priceMode                    String   @default("same_price_for_all_services") @map("price_mode")
+  basePrice                    Decimal? @map("base_price") @db.Decimal(12, 2)
+  depositEnabled               Boolean  @default(true) @map("deposit_enabled")
+  depositPercentage            Int      @default(50) @map("deposit_percentage")
+  depositRefundable            Boolean  @default(false) @map("deposit_refundable")
+  allowFullPayment             Boolean  @default(true) @map("allow_full_payment")
+  paymentLinkExpirationMinutes Int      @default(15) @map("payment_link_expiration_minutes")
+  workingDaysJson              Json     @default("[1,2,3,4,5]") @map("working_days_json")
+  cancellationPolicyJson       Json?    @map("cancellation_policy_json")
+  messagesJson                 Json?    @map("messages_json")
+  allowCustomSlots             Boolean  @default(true) @map("allow_custom_slots")
+  allowCustomServices          Boolean  @default(true) @map("allow_custom_services")
+  createdAt                    DateTime @default(now()) @map("created_at")
+  updatedAt                    DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@map("booking_settings")
+}
+
+model BookingService {
+  id                   String   @id @default(cuid())
+  tenantId             String   @map("tenant_id")
+  slug                 String
+  name                 String
+  serviceType          String?  @map("service_type")
+  shortDescription     String?  @map("short_description")
+  longDescription      String?  @map("long_description")
+  durationMinutes      Int      @default(80) @map("duration_minutes")
+  price                Decimal? @db.Decimal(12, 2)
+  usesBasePrice        Boolean  @default(true) @map("uses_base_price")
+  isActive             Boolean  @default(true) @map("is_active")
+  sortOrder            Int      @default(0) @map("sort_order")
+  recommendationTags   Json     @default("[]") @map("recommendation_tags")
+  recommendedWhen      Json     @default("[]") @map("recommended_when")
+  botSummary           String?  @map("bot_summary")
+  botRecommendationText String? @map("bot_recommendation_text")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@unique([tenantId, slug])
+  @@index([tenantId, isActive])
+  @@map("booking_services")
+}
+
+model BookingSlot {
+  id              String   @id @default(cuid())
+  tenantId        String   @map("tenant_id")
+  time            String
+  durationMinutes Int      @default(80) @map("duration_minutes")
+  isActive        Boolean  @default(true) @map("is_active")
+  sortOrder       Int      @default(0) @map("sort_order")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, time])
+  @@index([tenantId, isActive])
+  @@map("booking_slots")
+}
+
+model BookingBlock {
+  id        String   @id @default(cuid())
+  tenantId  String   @map("tenant_id")
+  date      DateTime @db.Date
+  time      String?
+  reason    String?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, date])
+  @@map("booking_blocks")
+}
+
+model BookingPriceRule {
+  id         String    @id @default(cuid())
+  tenantId   String    @map("tenant_id")
+  label      String
+  ruleType   String    @map("rule_type")
+  value      Decimal   @db.Decimal(12, 2)
+  validFrom  DateTime? @map("valid_from")
+  validUntil DateTime? @map("valid_until")
+  isActive   Boolean   @default(true) @map("is_active")
+  sortOrder  Int       @default(0) @map("sort_order")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments Appointment[]
+
+  @@index([tenantId, isActive])
+  @@map("booking_price_rules")
+}
+
+model Appointment {
+  id               String            @id @default(cuid())
+  tenantId         String            @map("tenant_id")
+  leadId           String            @map("lead_id")
+  conversationId   String?           @map("conversation_id")
+  serviceId        String            @map("service_id")
+  customerName     String?           @map("customer_name")
+  customerPhone    String            @map("customer_phone")
+  appointmentDate  DateTime          @map("appointment_date") @db.Date
+  appointmentTime  String            @map("appointment_time")
+  status           AppointmentStatus @default(pendiente_datos)
+  listPrice        Decimal           @map("list_price") @db.Decimal(12, 2)
+  finalPrice       Decimal           @map("final_price") @db.Decimal(12, 2)
+  priceRuleId      String?           @map("price_rule_id")
+  discountLabel    String?           @map("discount_label")
+  amountTotal      Decimal           @map("amount_total") @db.Decimal(12, 2)
+  amountPaid       Decimal           @default(0) @map("amount_paid") @db.Decimal(12, 2)
+  balanceDue       Decimal           @default(0) @map("balance_due") @db.Decimal(12, 2)
+  paymentType      String?           @map("payment_type")
+  mpPreferenceId   String?           @map("mp_preference_id")
+  mpPaymentId      String?           @map("mp_payment_id")
+  mpStatus         String?           @map("mp_status")
+  mpPaymentLink    String?           @map("mp_payment_link")
+  receiptToken     String?           @unique @map("receipt_token")
+  customerNotes    String?           @map("customer_notes")
+  isFirstTime      Boolean?          @map("is_first_time")
+  holdExpiresAt    DateTime?         @map("hold_expires_at")
+  confirmedAt      DateTime?         @map("confirmed_at")
+  cancelledAt      DateTime?         @map("cancelled_at")
+  completedAt      DateTime?         @map("completed_at")
+  createdAt        DateTime          @default(now()) @map("created_at")
+  updatedAt        DateTime          @updatedAt @map("updated_at")
+
+  tenant       Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  lead         Lead              @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  conversation Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
+  service      BookingService    @relation(fields: [serviceId], references: [id])
+  priceRule    BookingPriceRule? @relation(fields: [priceRuleId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, appointmentDate, appointmentTime])
+  @@index([tenantId, status])
+  @@index([leadId])
+  @@map("appointments")
 }

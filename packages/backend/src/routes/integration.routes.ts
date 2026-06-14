@@ -25,14 +25,19 @@ const zohoConfigSchema = z.object({
   fixedValues: z.record(z.string()).optional(),
 });
 
+const mercadoPagoConfigSchema = z.object({
+  accessToken: z.string().min(1),
+  publicKey: z.string().optional(),
+});
+
 const createIntegrationSchema = z.object({
   tenantId: z.string(),
-  type: z.enum(['woocommerce', 'zoho_crm', 'pilot_crm']),
-  config: z.union([wooConfigSchema, zohoConfigSchema]),
+  type: z.enum(['woocommerce', 'zoho_crm', 'pilot_crm', 'mercadopago']),
+  config: z.union([wooConfigSchema, zohoConfigSchema, mercadoPagoConfigSchema]),
 });
 
 const updateIntegrationSchema = z.object({
-  config: z.union([wooConfigSchema, zohoConfigSchema]).optional(),
+  config: z.union([wooConfigSchema, zohoConfigSchema, mercadoPagoConfigSchema]).optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });
 

@@ -32,6 +32,16 @@ interface WooConfig {
   checkoutPhone: string;
 }
 
+interface MercadoPagoConfig {
+  accessToken: string;
+  publicKey: string;
+}
+
+const defaultMpConfig: MercadoPagoConfig = {
+  accessToken: '',
+  publicKey: '',
+};
+
 interface ZohoConfig {
   clientId: string;
   clientSecret: string;
@@ -75,6 +85,7 @@ export default function IntegrationsPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [config, setConfig] = useState<WooConfig>({ ...defaultWooConfig });
   const [zohoConfig, setZohoConfig] = useState<ZohoConfig>({ ...defaultZohoConfig });
+  const [mpConfig, setMpConfig] = useState<MercadoPagoConfig>({ ...defaultMpConfig });
   const [createForm, setCreateForm] = useState({ tenantId: '', type: 'woocommerce' });
   const [editType, setEditType] = useState<string>('woocommerce');
   const [saveMsg, setSaveMsg] = useState('');
@@ -108,7 +119,12 @@ export default function IntegrationsPage() {
         fieldMapping: c.fieldMapping || {},
         fixedValues: c.fixedValues || {},
       });
-    } else {
+    } else if (integration.type === 'mercadopago') {
+      setMpConfig({
+        accessToken: c.accessToken || '',
+        publicKey: c.publicKey || '',
+      });
+    } else if (integration.type !== 'pilot_crm') {
       setConfig({
         baseUrl: c.baseUrl || '',
         consumerKey: c.consumerKey || '',
@@ -133,6 +149,7 @@ export default function IntegrationsPage() {
     try {
       const cfgPayload = createForm.type === 'zoho_crm' ? { ...zohoConfig }
         : createForm.type === 'pilot_crm' ? { serverConfigured: true }
+        : createForm.type === 'mercadopago' ? { ...mpConfig }
         : { ...config };
       await api.createIntegration({
         tenantId: isTenantAdmin ? user?.tenantId : createForm.tenantId,
@@ -142,6 +159,7 @@ export default function IntegrationsPage() {
       setShowCreate(false);
       setConfig({ ...defaultWooConfig });
       setZohoConfig({ ...defaultZohoConfig });
+      setMpConfig({ ...defaultMpConfig });
       await loadIntegrations();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
@@ -154,6 +172,7 @@ export default function IntegrationsPage() {
     try {
       const cfgPayload = editType === 'zoho_crm' ? { ...zohoConfig }
         : editType === 'pilot_crm' ? { serverConfigured: true }
+        : editType === 'mercadopago' ? { ...mpConfig }
         : { ...config };
       await api.updateIntegration(editingId, { config: cfgPayload });
       setSaveMsg('Guardado correctamente');
@@ -198,6 +217,37 @@ export default function IntegrationsPage() {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '14px 0', borderBottom: '1px solid rgba(139, 92, 246, 0.06)',
   };
+
+  function renderMpConfigForm() {
+    const webhookHint = typeof window !== 'undefined'
+      ? `${window.location.origin.replace('3000', '4000')}/api/webhooks/mercadopago/{tenantId}`
+      : '/api/webhooks/mercadopago/{tenantId}';
+
+    return (
+      <div style={{ ...sectionStyle, marginBottom: '16px' }}>
+        <label style={labelStyle}>Access Token</label>
+        <input
+          type="password"
+          value={mpConfig.accessToken}
+          onChange={(e) => setMpConfig({ ...mpConfig, accessToken: e.target.value })}
+          placeholder="APP_USR-..."
+          required
+          style={inputStyle}
+        />
+        <label style={{ ...labelStyle, marginTop: '12px' }}>Public Key (opcional)</label>
+        <input
+          value={mpConfig.publicKey}
+          onChange={(e) => setMpConfig({ ...mpConfig, publicKey: e.target.value })}
+          placeholder="APP_USR-..."
+          style={inputStyle}
+        />
+        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px', lineHeight: 1.5 }}>
+          Webhook en Mercado Pago Developers: <code style={{ fontSize: '11px' }}>{webhookHint}</code>
+          {' '}— reemplazá {'{tenantId}'} por el ID del tenant.
+        </p>
+      </div>
+    );
+  }
 
   function renderZohoConfigForm() {
     return (
@@ -553,7 +603,7 @@ export default function IntegrationsPage() {
         <h1 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Integraciones</h1>
         {!showCreate && !editingId && (
           <button
-            onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultWooConfig }); setZohoConfig({ ...defaultZohoConfig }); setCreateForm({ tenantId: '', type: 'woocommerce' }); }}
+            onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultWooConfig }); setZohoConfig({ ...defaultZohoConfig }); setMpConfig({ ...defaultMpConfig }); setCreateForm({ tenantId: '', type: 'woocommerce' }); }}
             style={{
               display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px',
               background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none',
@@ -594,27 +644,34 @@ export default function IntegrationsPage() {
 
             <div style={{ ...sectionStyle, marginBottom: '16px' }}>
               <label style={labelStyle}>Tipo de integracion</label>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'woocommerce' })} style={{ flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'woocommerce' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: createForm.type === 'woocommerce' ? 'var(--color-primary-light)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'woocommerce' })} style={{ flex: '1 1 45%', minWidth: '140px', padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'woocommerce' ? '2px solid var(--color-primary)' : '1px solid var(--color-border)', background: createForm.type === 'woocommerce' ? 'var(--color-primary-light)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <ShoppingCart size={16} style={{ color: '#a78bfa' }} />
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>WooCommerce</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>E-commerce, productos, carrito</div>
                 </button>
-                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'zoho_crm' })} style={{ flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'zoho_crm' ? '2px solid #f59e0b' : '1px solid var(--color-border)', background: createForm.type === 'zoho_crm' ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'zoho_crm' })} style={{ flex: '1 1 45%', minWidth: '140px', padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'zoho_crm' ? '2px solid #f59e0b' : '1px solid var(--color-border)', background: createForm.type === 'zoho_crm' ? 'rgba(245, 158, 11, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <Cloud size={16} style={{ color: '#f59e0b' }} />
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>Zoho CRM</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Captura de leads, sync automatico</div>
                 </button>
-                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'pilot_crm' })} style={{ flex: 1, padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'pilot_crm' ? '2px solid #3b82f6' : '1px solid var(--color-border)', background: createForm.type === 'pilot_crm' ? 'rgba(59, 130, 246, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'pilot_crm' })} style={{ flex: '1 1 45%', minWidth: '140px', padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'pilot_crm' ? '2px solid #3b82f6' : '1px solid var(--color-border)', background: createForm.type === 'pilot_crm' ? 'rgba(59, 130, 246, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                     <Cloud size={16} style={{ color: '#3b82f6' }} />
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>Pilot CRM</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Concesionarias, sync Pilot Solution</div>
+                </button>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'mercadopago' })} style={{ flex: '1 1 45%', minWidth: '140px', padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'mercadopago' ? '2px solid #00b1ea' : '1px solid var(--color-border)', background: createForm.type === 'mercadopago' ? 'rgba(0, 177, 234, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <CreditCard size={16} style={{ color: '#00b1ea' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>Mercado Pago</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Señas y pagos de turnera</div>
                 </button>
               </div>
             </div>
@@ -624,7 +681,8 @@ export default function IntegrationsPage() {
                 <div style={{ padding: '16px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', marginBottom: '16px', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
                   Las credenciales de Pilot (appkey, suborigen, etc.) se configuran en las variables de entorno del servidor Railway. Activá esta integración y configurá los campos en <strong>Pilot CRM</strong>.
                 </div>
-              ) : renderConfigForm(true)}
+              ) : createForm.type === 'mercadopago' ? renderMpConfigForm()
+              : renderConfigForm(true)}
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
               <button
@@ -661,7 +719,7 @@ export default function IntegrationsPage() {
       {editingId && (
         <div>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : 'WooCommerce'}</h2>
+            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : editType === 'mercadopago' ? 'Mercado Pago' : 'WooCommerce'}</h2>
             <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
               <X size={20} />
             </button>
@@ -672,7 +730,8 @@ export default function IntegrationsPage() {
               <div style={{ padding: '16px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
                 Credenciales Pilot configuradas en el servidor. Gestioná campos de captura en el menú <strong>Pilot CRM</strong>.
               </div>
-            ) : renderConfigForm(false)}
+            ) : editType === 'mercadopago' ? renderMpConfigForm()
+            : renderConfigForm(false)}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
             <button
@@ -741,26 +800,32 @@ export default function IntegrationsPage() {
                         ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.08))'
                         : i.type === 'pilot_crm'
                           ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.08))'
+                          : i.type === 'mercadopago'
+                            ? 'linear-gradient(135deg, rgba(0, 177, 234, 0.15), rgba(56, 189, 248, 0.08))'
                           : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))',
                       display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
                       border: i.type === 'zoho_crm' ? '1px solid rgba(245, 158, 11, 0.12)'
                         : i.type === 'pilot_crm' ? '1px solid rgba(59, 130, 246, 0.12)'
+                        : i.type === 'mercadopago' ? '1px solid rgba(0, 177, 234, 0.12)'
                         : '1px solid rgba(139, 92, 246, 0.12)',
                     }}>
                       {i.type === 'zoho_crm' ? <Cloud size={20} style={{ color: '#f59e0b' }} />
                         : i.type === 'pilot_crm' ? <Cloud size={20} style={{ color: '#3b82f6' }} />
+                        : i.type === 'mercadopago' ? <CreditCard size={20} style={{ color: '#00b1ea' }} />
                         : <ShoppingCart size={20} style={{ color: '#a78bfa' }} />}
                     </div>
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                        {i.type === 'zoho_crm' ? 'Zoho CRM' : i.type === 'pilot_crm' ? 'Pilot CRM' : 'WooCommerce'}
+                        {i.type === 'zoho_crm' ? 'Zoho CRM' : i.type === 'pilot_crm' ? 'Pilot CRM' : i.type === 'mercadopago' ? 'Mercado Pago' : 'WooCommerce'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                         {i.type === 'zoho_crm'
                           ? `Modulo: ${(i.config as any)?.moduleApiName || 'Contacts'}`
                           : i.type === 'pilot_crm'
                             ? 'Credenciales en servidor Railway'
+                            : i.type === 'mercadopago'
+                              ? ((i.config as any)?.accessToken ? 'Token configurado' : 'Sin token')
                             : ((i.config as any)?.baseUrl || 'Sin URL configurada')}
                       </div>
                     </div>
@@ -773,7 +838,9 @@ export default function IntegrationsPage() {
                           <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Leads</span>
                           <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Auto-sync</span>
                         </>
-                      ) : (
+                      ) : i.type === 'mercadopago' ? (
+                        <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(0, 177, 234, 0.1)', color: '#00b1ea' }}>Turnera</span>
+                      ) : i.type === 'pilot_crm' ? null : (
                         <>
                           {(i.config as any)?.enableProductSearch !== false && (
                             <span title="Busqueda de productos" style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'var(--color-success-light)', color: 'var(--color-success)' }}>Productos</span>

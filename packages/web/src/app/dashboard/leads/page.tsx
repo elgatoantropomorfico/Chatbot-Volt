@@ -38,6 +38,7 @@ export default function LeadsPage() {
   const [loading, setLoading] = useState(true);
   const [hasZoho, setHasZoho] = useState(false);
   const [hasPilot, setHasPilot] = useState(false);
+  const [leadAppointments, setLeadAppointments] = useState<any[]>([]);
   const [zohoFields, setZohoFields] = useState<any[]>([]);
   const [pilotFields, setPilotFields] = useState<any[]>([]);
   const [syncing, setSyncing] = useState(false);
@@ -100,6 +101,12 @@ export default function LeadsPage() {
     try {
       const data = await api.getLead(id);
       setSelectedLead(data.lead);
+      try {
+        const { appointments } = await api.getAppointments({ leadId: id, status: 'confirmado' });
+        setLeadAppointments(appointments || []);
+      } catch {
+        setLeadAppointments([]);
+      }
     } catch (err) {
       console.error('Error loading lead:', err);
     }
@@ -366,6 +373,24 @@ export default function LeadsPage() {
               </div>
             );
           })()}
+
+          {/* Turnos confirmados (booking) */}
+          {leadAppointments.length > 0 && (
+            <div className={styles.detailSection}>
+              <h3 style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <ClipboardList size={12} /> Turnos confirmados
+              </h3>
+              {leadAppointments.map((a: any) => (
+                <div key={a.id} style={{ fontSize: 12, padding: '6px 0', borderBottom: '1px solid var(--color-border)' }}>
+                  <strong>{a.appointmentDate?.slice(0, 10)} — {a.appointmentTime}</strong>
+                  <div style={{ color: 'var(--color-text-muted)' }}>{a.service?.name}</div>
+                </div>
+              ))}
+              <a href="/dashboard/turnos" style={{ fontSize: 12, color: 'var(--color-primary)', marginTop: 8, display: 'inline-block' }}>
+                Ver en Turnos →
+              </a>
+            </div>
+          )}
 
           {/* Solicitudes (turnos / presupuestos) */}
           <LeadRequestsPanel
