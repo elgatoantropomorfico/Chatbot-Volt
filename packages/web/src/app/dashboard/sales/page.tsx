@@ -84,6 +84,13 @@ export default function SalesPage() {
     loadStats();
   }, [loadStats]);
 
+  // Deep link: /dashboard/sales?sale=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('sale');
+    if (!id) return;
+    api.getSale(id).then(({ sale }) => setSelectedSale(sale)).catch(() => {});
+  }, []);
+
   // Real-time polling every 10s
   const loadSalesRef = useRef(loadSales);
   const loadStatsRef = useRef(loadStats);

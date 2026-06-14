@@ -132,8 +132,19 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         modules: {
           sales: false,
           booking: false,
+          zoho: false,
+          pilot: false,
         },
       };
+
+      if (tenantId) {
+        const integrations = await prisma.integration.findMany({
+          where: { tenantId, status: 'active' },
+          select: { type: true },
+        });
+        stats.modules.zoho = integrations.some((i) => i.type === 'zoho_crm');
+        stats.modules.pilot = integrations.some((i) => i.type === 'pilot_crm');
+      }
 
       // Sales stats (only if WooCommerce integration exists and Sale model is available)
       try {
@@ -334,6 +345,140 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
     } catch (error) {
       console.error('Dashboard actions error:', error);
       reply.status(500).send({ error: 'Failed to load dashboard actions' });
+    }
+  });
+
+  // GET /api/dashboard/search — global tenant search
+  fastify.get('/search', async (request, reply) => {
+    try {
+      const user = request.user as any;
+      const tenantId = user.tenantId;
+      if (!tenantId) return reply.send({ results: [] });
+
+      const q = String((request.query as any).q || '').trim();
+      const limit = Math.min(Number((request.query as any).limit) || 8, 20);
+      if (q.length < 2) return reply.send({ results: [] });
+
+      const perType = Math.ceil(limit / 2);
+      const results: any[] = [];
+      const textFilter = {
+        OR: [
+          { name: { contains: q, mode: 'insensitive' as const } },
+          { phone: { contains: q } },
+        ],
+      };
+
+      const [conversations, leads, appointments, wooIntegration] = await Promise.all([
+        prisma.conversation.findMany({
+          where: {
+            tenantId,
+            isArchived: false,
+            lead: textFilter,
+          },
+          include: {
+            lead: { select: { id: true, name: true, phone: true, stage: true } },
+            messages: { orderBy: { createdAt: 'desc' }, take: 1, select: { text: true } },
+          },
+          orderBy: { updatedAt: 'desc' },
+          take: perType,
+        }),
+        prisma.lead.findMany({
+          where: { tenantId, ...textFilter },
+          orderBy: { updatedAt: 'desc' },
+          take: perType,
+        }),
+        prisma.bookingSettings.findFirst({ where: { tenantId } }).then(async (settings) => {
+          if (!settings?.bookingEnabled) return [];
+          return prisma.appointment.findMany({
+            where: {
+              tenantId,
+              OR: [
+                { customerName: { contains: q, mode: 'insensitive' } },
+                { customerPhone: { contains: q } },
+                { lead: textFilter },
+                { service: { name: { contains: q, mode: 'insensitive' } } },
+              ],
+            },
+            include: {
+              service: { select: { name: true } },
+              lead: { select: { name: true, phone: true } },
+            },
+            orderBy: [{ appointmentDate: 'desc' }, { appointmentTime: 'desc' }],
+            take: perType,
+          });
+        }),
+        prisma.integration.findFirst({
+          where: { tenantId, type: 'woocommerce', status: 'active' },
+        }),
+      ]);
+
+      for (const c of conversations) {
+        const preview = c.messages[0]?.text?.slice(0, 60) || 'Sin mensajes';
+        results.push({
+          type: 'conversation',
+          id: c.id,
+          title: c.lead?.name || c.lead?.phone || 'Conversación',
+          subtitle: c.lead?.phone || preview,
+          badge: c.status === 'pending_human' ? 'Atención humana' : c.status,
+          href: `/dashboard/inbox?c=${c.id}`,
+        });
+      }
+
+      for (const l of leads) {
+        results.push({
+          type: 'lead',
+          id: l.id,
+          title: l.name || l.phone,
+          subtitle: l.phone,
+          badge: l.stage,
+          href: `/dashboard/leads?lead=${l.id}`,
+        });
+      }
+
+      for (const a of appointments) {
+        const dateStr = a.appointmentDate instanceof Date
+          ? a.appointmentDate.toISOString().slice(0, 10)
+          : String(a.appointmentDate).slice(0, 10);
+        results.push({
+          type: 'appointment',
+          id: a.id,
+          title: a.customerName || a.lead?.name || a.customerPhone,
+          subtitle: `${dateStr} ${a.appointmentTime} · ${a.service?.name || 'Turno'}`,
+          badge: a.status,
+          href: `/dashboard/turnos?appointment=${a.id}`,
+        });
+      }
+
+      if (wooIntegration && (prisma as any).sale) {
+        const sales = await (prisma as any).sale.findMany({
+          where: {
+            tenantId,
+            OR: [
+              { customerName: { contains: q, mode: 'insensitive' } },
+              { customerPhone: { contains: q } },
+              { lead: textFilter },
+            ],
+          },
+          orderBy: { createdAt: 'desc' },
+          take: perType,
+          include: { lead: { select: { name: true, phone: true } } },
+        });
+        for (const s of sales) {
+          results.push({
+            type: 'sale',
+            id: s.id,
+            title: s.customerName || s.lead?.name || s.customerPhone || 'Venta',
+            subtitle: s.customerPhone || s.lead?.phone || '',
+            badge: s.status,
+            href: `/dashboard/sales?sale=${s.id}`,
+          });
+        }
+      }
+
+      reply.send({ results: results.slice(0, limit) });
+    } catch (error) {
+      console.error('Dashboard search error:', error);
+      reply.status(500).send({ error: 'Search failed' });
     }
   });
 }

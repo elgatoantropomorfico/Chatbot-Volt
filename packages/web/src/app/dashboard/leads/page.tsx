@@ -77,6 +77,13 @@ export default function LeadsPage() {
     })();
   }, []);
 
+  // Deep link: /dashboard/leads?lead=<leadId>
+  useEffect(() => {
+    const leadId = new URLSearchParams(window.location.search).get('lead');
+    if (leadId) selectLead(leadId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   async function loadLeads() {
     setLoading(true);
     try {

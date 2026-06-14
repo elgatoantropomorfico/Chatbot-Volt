@@ -181,6 +181,16 @@ class ApiClient {
   // Dashboard
   async getDashboardStats() { return this.fetch<any>('/dashboard/stats'); }
   async getDashboardActions() { return this.fetch<{ actions: any[] }>('/dashboard/actions'); }
+  async dashboardSearch(q: string, limit = 12) {
+    return this.fetch<{ results: Array<{
+      type: 'conversation' | 'lead' | 'appointment' | 'sale';
+      id: string;
+      title: string;
+      subtitle: string;
+      badge?: string;
+      href: string;
+    }> }>(`/dashboard/search?q=${encodeURIComponent(q)}&limit=${limit}`);
+  }
 
   // Offers
   async getOffers(tenantId?: string) {

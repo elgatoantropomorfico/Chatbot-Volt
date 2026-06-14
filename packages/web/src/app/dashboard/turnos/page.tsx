@@ -185,6 +185,13 @@ export default function TurnosPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  // Deep link: /dashboard/turnos?appointment=<id>
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get('appointment');
+    if (!id) return;
+    api.getAppointment(id).then(({ appointment }) => setSelected(appointment)).catch(() => {});
+  }, []);
+
   const byDate = useMemo(() => {
     const map = new Map<string, any[]>();
     for (const a of appointments) {

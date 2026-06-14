@@ -41,6 +41,12 @@ export default function InboxPage() {
     return () => { if (convPollTimerRef.current) clearInterval(convPollTimerRef.current); };
   }, []);
 
+  // Deep link: /dashboard/inbox?c=<conversationId>
+  useEffect(() => {
+    const c = new URLSearchParams(window.location.search).get('c');
+    if (c) setSelectedId(c);
+  }, []);
+
   // Load messages when selecting a conversation + start polling
   useEffect(() => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);

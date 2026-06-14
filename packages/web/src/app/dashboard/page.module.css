@@ -25,38 +25,26 @@
   flex: 1;
   min-width: 200px;
   max-width: 420px;
-  display: flex;
+}
+
+.statusPill {
+  display: inline-flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 18px;
+  gap: 6px;
+  padding: 8px 14px;
   border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
-  background: rgba(255, 255, 255, 0.025);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  color: var(--color-text-muted);
-  font-size: 13px;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(167, 139, 250, 0.08));
+  border: 1px solid rgba(34, 211, 238, 0.18);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--dash-cyan);
+  white-space: nowrap;
 }
 
-.searchPill:focus-within {
-  border-color: var(--color-border-glow);
-  box-shadow: var(--shadow-focus);
-}
-
-.searchPill input {
-  flex: 1;
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  font-size: 13px;
-  color: var(--color-text);
-  outline: none;
-}
-
-.searchPill input::placeholder {
-  color: var(--color-text-faint);
+.statusPillUrgent {
+  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(251, 113, 133, 0.08));
+  border-color: rgba(251, 191, 36, 0.3);
+  color: #fbbf24;
 }
 
 .topBarRight {
@@ -64,6 +52,94 @@
   align-items: center;
   gap: 10px;
   margin-left: auto;
+  flex-shrink: 0;
+}
+
+.notifWrap {
+  position: relative;
+}
+
+.notifDropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(340px, calc(100vw - 32px));
+  z-index: 200;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  background: rgba(8, 8, 18, 0.94);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  box-shadow: var(--shadow-lg);
+  overflow: hidden;
+}
+
+.notifDropdownHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.notifDropdownHead strong {
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.notifEmpty {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.notifItem {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--transition-fast);
+}
+
+.notifItem:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.notifItemIcon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notifItemBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.notifItemBody strong {
+  font-size: 12.5px;
+  color: var(--color-text);
+}
+
+.notifItemBody span {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  line-height: 1.4;
 }
 
 .xpPill {
@@ -125,6 +201,93 @@
   border-radius: var(--radius-full);
   border: 1px solid var(--color-border);
   background: rgba(255, 255, 255, 0.03);
+  max-width: 200px;
+}
+
+.userChipText {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.userChipName {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.userChipRole {
+  font-size: 9.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-text-faint);
+}
+
+.liveDotSmall {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 8px #34d399;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+.floatCardSub {
+  font-size: 10px;
+  color: var(--color-text-faint);
+  margin-bottom: 8px;
+}
+
+.chartEmpty {
+  color: var(--color-text-muted);
+  font-size: 13px;
+  padding: 20px 0;
+}
+
+.funnelList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.funnelRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.funnelDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.funnelLabel {
+  flex: 1;
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.funnelCount {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.miniWidgetUrgent {
+  border-color: rgba(251, 191, 36, 0.25);
+  background: rgba(251, 191, 36, 0.04);
+  cursor: pointer;
+}
+
+.miniWidgetUrgent:hover {
+  border-color: rgba(251, 191, 36, 0.4);
 }
 
 .userAvatar {
@@ -138,16 +301,7 @@
   font-size: 12px;
   font-weight: 800;
   color: white;
-}
-
-.userChip span {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--color-text-secondary);
-  max-width: 120px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 /* ── Hero stage ── */
@@ -242,16 +396,18 @@
 }
 
 .heroTitle {
-  font-size: clamp(28px, 4vw, 42px);
+  font-size: clamp(24px, 3.5vw, 38px);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1.05;
+  line-height: 1.15;
   margin: 0 0 10px;
   color: var(--color-text);
+  word-break: break-word;
 }
 
 .heroTitle em {
   font-style: normal;
+  display: inline;
   background: linear-gradient(135deg, #e9d5ff, #c4b5fd, #a78bfa);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
@@ -828,7 +984,7 @@
     min-width: 140px;
   }
 
-  .topBarRight .userChip span {
+  .topBarRight .userChipText {
     display: none;
   }
 

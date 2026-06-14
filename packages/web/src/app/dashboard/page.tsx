@@ -1,19 +1,26 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import {
-  Users, ShoppingCart, Bot, Bell, Search,
-  AlertTriangle, Info, Settings, ArrowRight, LayoutGrid, Calendar,
-  Zap, BarChart3, Check, Inbox, Sparkles, TrendingUp,
+  Users, ShoppingCart, Bot, Bell, AlertTriangle, Info, Settings, ArrowRight,
+  LayoutGrid, Calendar, Zap, BarChart3, Check, Inbox, TrendingUp, Phone,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SuperAdminPanel } from '@/components/superadmin/SuperAdminPanel';
+import { DashboardSearch } from '@/components/dashboard/DashboardSearch';
 import {
   GlowingBarChart, HeroOrb, MiniSparkline, useDelta, pct, type TrendDay,
 } from '@/components/dashboard/DashboardVisuals';
 import styles from './page.module.css';
+
+interface TenantModules {
+  sales: boolean;
+  booking: boolean;
+  zoho: boolean;
+  pilot: boolean;
+}
 
 interface DashboardStats {
   conversations: { total: number; active: number; pendingHuman: number };
@@ -23,19 +30,38 @@ interface DashboardStats {
   booking?: { todayAppointments: number; confirmed: number; pendingPayment: number; weekRevenue: number };
   trends?: TrendDay[];
   leadStages?: { stage: string; count: number }[];
-  modules?: { sales: boolean; booking: boolean };
+  modules?: TenantModules;
 }
 
-type WidgetId = 'leads-funnel' | 'response-time' | 'booking-module' | 'sales-module';
+type WidgetId =
+  | 'activity-chart'
+  | 'pipeline-modules'
+  | 'leads-funnel'
+  | 'response-time'
+  | 'human-queue'
+  | 'booking-overview'
+  | 'sales-overview'
+  | 'bot-activity';
 
-const WIDGET_META: Record<WidgetId, { label: string; requires?: 'sales' | 'booking' }> = {
-  'leads-funnel': { label: 'Embudo leads' },
-  'response-time': { label: 'Tiempo respuesta' },
-  'booking-module': { label: 'Turnera', requires: 'booking' },
-  'sales-module': { label: 'Ventas', requires: 'sales' },
+const WIDGET_META: Record<WidgetId, { label: string; requires?: keyof TenantModules }> = {
+  'activity-chart': { label: 'Actividad semanal' },
+  'pipeline-modules': { label: 'Módulos activos' },
+  'leads-funnel': { label: 'Embudo de leads' },
+  'response-time': { label: 'Tiempo de respuesta' },
+  'human-queue': { label: 'Cola humana' },
+  'booking-overview': { label: 'Turnera', requires: 'booking' },
+  'sales-overview': { label: 'Ventas', requires: 'sales' },
+  'bot-activity': { label: 'Actividad del bot' },
 };
 
-const DEFAULT_WIDGETS: WidgetId[] = ['leads-funnel', 'response-time', 'booking-module', 'sales-module'];
+function defaultWidgetsForTenant(stats: DashboardStats): WidgetId[] {
+  const m = stats.modules || { sales: false, booking: false, zoho: false, pilot: false };
+  const widgets: WidgetId[] = ['activity-chart', 'pipeline-modules', 'leads-funnel', 'response-time', 'bot-activity'];
+  if ((stats.conversations.pendingHuman ?? 0) > 0) widgets.push('human-queue');
+  if (m.booking) widgets.push('booking-overview');
+  if (m.sales) widgets.push('sales-overview');
+  return widgets;
+}
 
 const STAGE_COLORS: Record<string, string> = {
   nuevo: '#34d399', contactado: '#60a5fa', interesado: '#fbbf24', venta: '#a78bfa', perdido: '#6b7280',
@@ -45,6 +71,11 @@ const STAGE_LABELS: Record<string, string> = {
   nuevo: 'Nuevo', contactado: 'Contactado', interesado: 'Interesado', venta: 'Venta', perdido: 'Perdido',
 };
 
+const ROLE_LABELS: Record<string, string> = {
+  tenant_admin: 'Admin',
+  agent: 'Agente',
+};
+
 function TenantDashboard() {
   const { user } = useAuth();
   const router = useRouter();
@@ -52,21 +83,24 @@ function TenantDashboard() {
   const [actions, setActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [editMode, setEditMode] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
   const [chartMetric, setChartMetric] = useState<'messages' | 'conversations' | 'leads'>('messages');
-  const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>(DEFAULT_WIDGETS);
+  const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>([]);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const widgetsInitRef = useRef(false);
 
   const storageKey = `volt-dashboard-widgets-${user?.tenantId || 'default'}`;
+
+  const saveWidgets = useCallback((widgets: WidgetId[]) => {
+    setVisibleWidgets(widgets);
+    try { localStorage.setItem(storageKey, JSON.stringify(widgets)); } catch { /* ignore */ }
+  }, [storageKey]);
 
   useEffect(() => {
     try {
       const saved = localStorage.getItem(storageKey);
       if (saved) setVisibleWidgets(JSON.parse(saved));
     } catch { /* ignore */ }
-  }, [storageKey]);
-
-  const saveWidgets = useCallback((widgets: WidgetId[]) => {
-    setVisibleWidgets(widgets);
-    try { localStorage.setItem(storageKey, JSON.stringify(widgets)); } catch { /* ignore */ }
   }, [storageKey]);
 
   useEffect(() => {
@@ -78,9 +112,29 @@ function TenantDashboard() {
         ]);
         setStats(statsData);
         setActions(actionsData.actions);
+        if (!widgetsInitRef.current) {
+          widgetsInitRef.current = true;
+          try {
+            if (!localStorage.getItem(storageKey)) {
+              saveWidgets(defaultWidgetsForTenant(statsData));
+            }
+          } catch {
+            saveWidgets(defaultWidgetsForTenant(statsData));
+          }
+        }
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
+  }, [storageKey, saveWidgets]);
+
+  useEffect(() => {
+    function onClickOutside(e: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(e.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onClickOutside);
+    return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
   const trends = stats?.trends || [];
@@ -180,15 +234,66 @@ function TenantDashboard() {
   };
 
   const isVisible = (id: WidgetId) => visibleWidgets.includes(id);
-  const availableWidgets = DEFAULT_WIDGETS.filter((id) => {
-    const m = WIDGET_META[id];
-    if (m.requires === 'sales') return stats?.modules?.sales;
-    if (m.requires === 'booking') return stats?.modules?.booking;
-    return true;
-  });
+
+  const availableWidgets = useMemo(() => {
+    if (!stats) return Object.keys(WIDGET_META) as WidgetId[];
+    return (Object.keys(WIDGET_META) as WidgetId[]).filter((id) => {
+      const req = WIDGET_META[id].requires;
+      if (!req) return true;
+      if (req === 'booking' || req === 'sales') return stats.modules?.[req];
+      return stats.modules?.[req];
+    });
+  }, [stats]);
 
   const tenantName = user?.tenant?.name || 'Tu negocio';
-  const todayMsgs = stats?.messages.todayCount ?? 0;
+  const displayName = user?.name || user?.email?.split('@')[0] || 'Usuario';
+  const roleLabel = ROLE_LABELS[user?.role || 'agent'] || user?.role;
+
+  const statusPill = useMemo(() => {
+    if (!stats) return null;
+    if (stats.conversations.pendingHuman > 0) {
+      return { text: `${stats.conversations.pendingHuman} requieren agente`, urgent: true, icon: <Phone size={13} /> };
+    }
+    if (stats.modules?.booking && stats.booking && stats.booking.pendingPayment > 0) {
+      return { text: `${stats.booking.pendingPayment} turnos pend. pago`, urgent: false, icon: <Calendar size={13} /> };
+    }
+    if (stats.modules?.sales && stats.sales && stats.sales.pendingOrders > 0) {
+      return { text: `${stats.sales.pendingOrders} ventas pendientes`, urgent: false, icon: <ShoppingCart size={13} /> };
+    }
+    return { text: `${stats.messages.todayCount} mensajes hoy`, urgent: false, icon: <Bot size={13} /> };
+  }, [stats]);
+
+  const thirdFloatCard = useMemo(() => {
+    if (!stats) return null;
+    if (stats.modules?.booking && stats.booking) {
+      return {
+        label: 'Turnos hoy',
+        value: String(stats.booking.todayAppointments),
+        sub: `${stats.booking.pendingPayment} pend. pago`,
+        delta: `+${stats.booking.confirmed} conf.`,
+        progress: pct(stats.booking.confirmed, stats.booking.confirmed + stats.booking.pendingPayment || 1),
+        glow: 'rgba(232,121,249,0.2)', from: '#e879f9', to: '#c026d3',
+      };
+    }
+    if (stats.modules?.sales && stats.sales) {
+      return {
+        label: 'Ventas pend.',
+        value: String(stats.sales.pendingOrders),
+        sub: `$${(stats.sales.todayRevenue || 0).toLocaleString('es-AR')} hoy`,
+        delta: `${stats.sales.total} total`,
+        progress: pct(stats.sales.total - stats.sales.pendingOrders, stats.sales.total || 1),
+        glow: 'rgba(52,211,153,0.2)', from: '#34d399', to: '#059669',
+      };
+    }
+    return {
+      label: 'Respuesta IA',
+      value: formatResponse(stats.messages.avgResponseTime || 0),
+      sub: 'promedio bot',
+      delta: 'bot',
+      progress: Math.min(100, Math.max(8, 100 - (stats.messages.avgResponseTime || 0) / 3)),
+      glow: 'rgba(232,121,249,0.2)', from: '#e879f9', to: '#c026d3',
+    };
+  }, [stats]);
 
   if (loading) {
     return (
@@ -204,17 +309,15 @@ function TenantDashboard() {
 
   return (
     <div className={styles.shell}>
-      {/* Top bar */}
       <div className={styles.topBar}>
-        <label className={styles.searchPill}>
-          <Search size={16} />
-          <input type="text" placeholder="Buscar conversaciones, leads, turnos..." />
-        </label>
+        <DashboardSearch modules={stats?.modules} />
         <div className={styles.topBarRight}>
-          <span className={styles.xpPill}>
-            <Sparkles size={14} />
-            <strong>+{todayMsgs}</strong> msgs hoy
-          </span>
+          {statusPill && (
+            <span className={`${styles.statusPill} ${statusPill.urgent ? styles.statusPillUrgent : ''}`}>
+              {statusPill.icon}
+              {statusPill.text}
+            </span>
+          )}
           <button
             type="button"
             className={`${styles.iconBtn} ${editMode ? styles.iconBtnActive : ''}`}
@@ -223,20 +326,61 @@ function TenantDashboard() {
           >
             <LayoutGrid size={16} />
           </button>
-          <button type="button" className={styles.iconBtn} onClick={() => router.push('/dashboard/inbox')} title="Notificaciones">
-            <Bell size={16} />
-            {actions.length > 0 && <span className={styles.notifDot} />}
-          </button>
-          <div className={styles.userChip}>
-            <div className={styles.userAvatar}>{user?.email?.[0]?.toUpperCase()}</div>
-            <span>{user?.email}</span>
+          <div className={styles.notifWrap} ref={notifRef}>
+            <button
+              type="button"
+              className={`${styles.iconBtn} ${notifOpen ? styles.iconBtnActive : ''}`}
+              onClick={() => setNotifOpen(!notifOpen)}
+              title="Notificaciones"
+            >
+              <Bell size={16} />
+              {actions.length > 0 && <span className={styles.notifDot} />}
+            </button>
+            {notifOpen && (
+              <div className={styles.notifDropdown}>
+                <div className={styles.notifDropdownHead}>
+                  <strong>Notificaciones</strong>
+                  <span>{actions.length} pendiente{actions.length !== 1 ? 's' : ''}</span>
+                </div>
+                {actions.length === 0 ? (
+                  <div className={styles.notifEmpty}>Todo al día</div>
+                ) : (
+                  actions.map((action: any) => {
+                    const c = actionStyle(action.type);
+                    return (
+                      <button
+                        key={action.id}
+                        type="button"
+                        className={styles.notifItem}
+                        onClick={() => { setNotifOpen(false); router.push(action.link); }}
+                      >
+                        <span className={styles.notifItemIcon} style={{ background: c.bg, color: c.color }}>
+                          {actionIcon(action.type)}
+                        </span>
+                        <span className={styles.notifItemBody}>
+                          <strong>{action.title}</strong>
+                          <span>{action.description}</span>
+                        </span>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+            )}
+          </div>
+          <div className={styles.userChip} title={user?.email}>
+            <div className={styles.userAvatar}>{displayName[0]?.toUpperCase()}</div>
+            <div className={styles.userChipText}>
+              <span className={styles.userChipName}>{displayName}</span>
+              <span className={styles.userChipRole}>{roleLabel}</span>
+            </div>
           </div>
         </div>
       </div>
 
       {editMode && (
         <div className={styles.widgetEditor}>
-          <div className={styles.widgetEditorTitle}><BarChart3 size={14} /> Widgets del panel</div>
+          <div className={styles.widgetEditorTitle}><BarChart3 size={14} /> Widgets para {tenantName}</div>
           <div className={styles.widgetToggles}>
             {availableWidgets.map((id) => (
               <button
@@ -256,23 +400,20 @@ function TenantDashboard() {
         </div>
       )}
 
-      {/* Hero stage */}
       <section className={styles.heroStage}>
-        <div className={styles.heroVisual}>
-          <HeroOrb />
-        </div>
-
+        <div className={styles.heroVisual}><HeroOrb /></div>
         <div className={styles.heroContent}>
           <div className={styles.heroEyebrow}>
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#34d399', boxShadow: '0 0 8px #34d399' }} />
-            Operación en vivo
+            <span className={styles.liveDotSmall} />
+            {tenantName} · en vivo
           </div>
           <h1 className={styles.heroTitle}>
-            Hola, <em>{tenantName.split(' ')[0]}</em>
+            Hola, <em>{tenantName}</em>
           </h1>
           <p className={styles.heroSub}>
             {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
             {' · '}{stats?.conversations.active ?? 0} conversaciones activas
+            {stats?.modules?.booking ? ` · ${stats.booking?.todayAppointments ?? 0} turnos hoy` : ''}
           </p>
         </div>
 
@@ -307,44 +448,35 @@ function TenantDashboard() {
             </div>
           </div>
 
-          <div className={styles.floatCard} style={{ '--card-glow': 'rgba(232,121,249,0.2)', '--bar-from': '#e879f9', '--bar-to': '#c026d3' } as React.CSSProperties}>
-            <div className={styles.floatCardHead}>
-              <span className={styles.floatCardLabel}>Respuesta IA</span>
-              <span className={styles.floatCardDelta}>
-                <Zap size={10} style={{ display: 'inline', marginRight: 2 }} />
-                bot
-              </span>
+          {thirdFloatCard && (
+            <div className={styles.floatCard} style={{ '--card-glow': thirdFloatCard.glow, '--bar-from': thirdFloatCard.from, '--bar-to': thirdFloatCard.to } as React.CSSProperties}>
+              <div className={styles.floatCardHead}>
+                <span className={styles.floatCardLabel}>{thirdFloatCard.label}</span>
+                <span className={styles.floatCardDelta}>{thirdFloatCard.delta}</span>
+              </div>
+              <div className={styles.floatCardValue}>{thirdFloatCard.value}</div>
+              <div className={styles.floatCardSub}>{thirdFloatCard.sub}</div>
+              <div className={styles.progressTrack}>
+                <div className={styles.progressFill} style={{ width: `${thirdFloatCard.progress}%` }} />
+              </div>
             </div>
-            <div className={styles.floatCardValue}>
-              {formatResponse(stats?.messages.avgResponseTime || 0)}
-            </div>
-            <div className={styles.progressTrack}>
-              <div
-                className={styles.progressFill}
-                style={{
-                  width: `${Math.min(100, Math.max(8, 100 - (stats?.messages.avgResponseTime || 0) / 3))}%`,
-                }}
-              />
-            </div>
-          </div>
+          )}
         </div>
 
         <div className={styles.heroAlerts}>
           <div className={styles.heroAlertsHead}>
             <div>
-              <h3 className={styles.heroAlertsTitle}>Centro de alertas</h3>
+              <h3 className={styles.heroAlertsTitle}>Acciones requeridas</h3>
               <p className={styles.heroAlertsSub}>
-                {actions.length > 0 ? `${actions.length} acción${actions.length > 1 ? 'es' : ''} pendiente${actions.length > 1 ? 's' : ''}` : 'Todo bajo control'}
+                {actions.length > 0 ? `${actions.length} tarea${actions.length > 1 ? 's' : ''} para tu operación` : 'Sin pendientes críticos'}
               </p>
             </div>
             {actions.length > 0 && (
-              <span className={styles.alertBadge}>
-                <AlertTriangle size={11} /> {actions.length}
-              </span>
+              <span className={styles.alertBadge}><AlertTriangle size={11} /> {actions.length}</span>
             )}
           </div>
           {actions.length === 0 ? (
-            <div className={styles.alertOk}>✓ Sin tareas urgentes</div>
+            <div className={styles.alertOk}>✓ Operación al día</div>
           ) : (
             actions.slice(0, 3).map((action: any) => {
               const c = actionStyle(action.type);
@@ -365,95 +497,96 @@ function TenantDashboard() {
         </div>
       </section>
 
-      {/* Main grid */}
       <div className={styles.mainGrid}>
-        <div className={styles.glassPanel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <h2 className={styles.panelTitle}>Actividad semanal</h2>
-              <p className={styles.panelSub}>Últimos 7 días de operación</p>
+        {isVisible('activity-chart') && (
+          <div className={styles.glassPanel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2 className={styles.panelTitle}>Actividad semanal</h2>
+                <p className={styles.panelSub}>Últimos 7 días · {tenantName}</p>
+              </div>
+              <div className={styles.periodToggle}>
+                {(['messages', 'conversations', 'leads'] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    className={`${styles.periodBtn} ${chartMetric === m ? styles.periodBtnActive : ''}`}
+                    onClick={() => setChartMetric(m)}
+                  >
+                    {m === 'messages' ? 'Mensajes' : m === 'conversations' ? 'Chats' : 'Leads'}
+                  </button>
+                ))}
+              </div>
             </div>
-            <div className={styles.periodToggle}>
-              {(['messages', 'conversations', 'leads'] as const).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  className={`${styles.periodBtn} ${chartMetric === m ? styles.periodBtnActive : ''}`}
-                  onClick={() => setChartMetric(m)}
-                >
-                  {m === 'messages' ? 'Mensajes' : m === 'conversations' ? 'Chats' : 'Leads'}
-                </button>
+            <div className={styles.chartArea}>
+              {trends.length > 0 ? (
+                <GlowingBarChart data={trends} metric={chartMetric} colors={chartColors[chartMetric]} id={`chart-${chartMetric}`} />
+              ) : (
+                <div className={styles.chartEmpty}>Sin datos de tendencia aún</div>
+              )}
+            </div>
+            <div className={styles.chartFooter}>
+              <div className={styles.chartStat}><div className={styles.chartStatValue}>{chartTotals.messages}</div><div className={styles.chartStatLabel}>Mensajes</div></div>
+              <div className={styles.chartStat}><div className={styles.chartStatValue}>{chartTotals.conversations}</div><div className={styles.chartStatLabel}>Chats</div></div>
+              <div className={styles.chartStat}><div className={styles.chartStatValue}>{chartTotals.leads}</div><div className={styles.chartStatLabel}>Leads</div></div>
+              {(stats?.conversations.pendingHuman ?? 0) > 0 && (
+                <div className={styles.chartStat}>
+                  <div className={styles.chartStatValue} style={{ color: '#fbbf24' }}>{stats?.conversations.pendingHuman}</div>
+                  <div className={styles.chartStatLabel}>Humana</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {isVisible('pipeline-modules') && (
+          <div className={styles.glassPanel}>
+            <div className={styles.panelHeader}>
+              <div>
+                <h2 className={styles.panelTitle}>Módulos activos</h2>
+                <p className={styles.panelSub}>
+                  {[
+                    'Inbox',
+                    'Leads',
+                    stats?.modules?.booking ? 'Turnera' : null,
+                    stats?.modules?.sales ? 'Ventas' : null,
+                  ].filter(Boolean).join(' · ')}
+                </p>
+              </div>
+              <TrendingUp size={18} style={{ color: 'var(--color-primary)', opacity: 0.6 }} />
+            </div>
+            <div className={styles.pipelineList}>
+              {pipelines.map((p) => (
+                <div key={p.id} className={styles.pipelineRow} onClick={() => router.push(p.href)}>
+                  <div className={styles.pipelineIcon} style={{ '--pipe-bg': p.bg, '--pipe-color': p.color } as React.CSSProperties}>{p.icon}</div>
+                  <div className={styles.pipelineBody}>
+                    <div className={styles.pipelineName}>{p.name}</div>
+                    <div className={styles.pipelineMeta}>{p.meta}</div>
+                  </div>
+                  <div className={styles.pipelineProgress}>
+                    <div className={styles.pipelinePct}>{p.progress}%</div>
+                    <div className={styles.pipelineBar}>
+                      <div className={styles.pipelineBarFill} style={{ width: `${p.progress}%`, '--pipe-color': p.color } as React.CSSProperties} />
+                    </div>
+                  </div>
+                </div>
               ))}
             </div>
           </div>
-          <div className={styles.chartArea}>
-            {trends.length > 0 ? (
-              <GlowingBarChart
-                data={trends}
-                metric={chartMetric}
-                colors={chartColors[chartMetric]}
-                id={`chart-${chartMetric}`}
-              />
-            ) : (
-              <div style={{ color: 'var(--color-text-muted)', fontSize: 13 }}>Sin datos de tendencia aún</div>
-            )}
-          </div>
-          <div className={styles.chartFooter}>
-            <div className={styles.chartStat}>
-              <div className={styles.chartStatValue}>{chartTotals.messages}</div>
-              <div className={styles.chartStatLabel}>Mensajes</div>
-            </div>
-            <div className={styles.chartStat}>
-              <div className={styles.chartStatValue}>{chartTotals.conversations}</div>
-              <div className={styles.chartStatLabel}>Conversaciones</div>
-            </div>
-            <div className={styles.chartStat}>
-              <div className={styles.chartStatValue}>{chartTotals.leads}</div>
-              <div className={styles.chartStatLabel}>Leads</div>
-            </div>
-            <div className={styles.chartStat}>
-              <div className={styles.chartStatValue}>{stats?.conversations.pendingHuman ?? 0}</div>
-              <div className={styles.chartStatLabel}>Humana</div>
-            </div>
-          </div>
-        </div>
-
-        <div className={styles.glassPanel}>
-          <div className={styles.panelHeader}>
-            <div>
-              <h2 className={styles.panelTitle}>Módulos activos</h2>
-              <p className={styles.panelSub}>Progreso operativo por canal</p>
-            </div>
-            <TrendingUp size={18} style={{ color: 'var(--color-primary)', opacity: 0.6 }} />
-          </div>
-          <div className={styles.pipelineList}>
-            {pipelines.map((p) => (
-              <div
-                key={p.id}
-                className={styles.pipelineRow}
-                onClick={() => router.push(p.href)}
-              >
-                <div className={styles.pipelineIcon} style={{ '--pipe-bg': p.bg, '--pipe-color': p.color } as React.CSSProperties}>
-                  {p.icon}
-                </div>
-                <div className={styles.pipelineBody}>
-                  <div className={styles.pipelineName}>{p.name}</div>
-                  <div className={styles.pipelineMeta}>{p.meta}</div>
-                </div>
-                <div className={styles.pipelineProgress}>
-                  <div className={styles.pipelinePct}>{p.progress}%</div>
-                  <div className={styles.pipelineBar}>
-                    <div className={styles.pipelineBarFill} style={{ width: `${p.progress}%`, '--pipe-color': p.color } as React.CSSProperties} />
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        )}
       </div>
 
-      {/* Secondary widgets */}
       <div className={styles.secondaryGrid}>
+        {isVisible('human-queue') && (stats?.conversations.pendingHuman ?? 0) > 0 && (
+          <div className={`${styles.miniWidget} ${styles.miniWidgetUrgent}`} onClick={() => router.push('/dashboard/inbox')} role="button">
+            <div className={styles.miniWidgetHead}>
+              <span className={styles.miniWidgetTitle}><Phone size={12} /> Cola humana</span>
+            </div>
+            <div className={styles.miniWidgetValue}>{stats?.conversations.pendingHuman}</div>
+            <div className={styles.miniWidgetSub}>conversaciones esperando agente</div>
+          </div>
+        )}
+
         {isVisible('response-time') && (
           <div className={styles.miniWidget}>
             <div className={styles.miniWidgetHead}>
@@ -468,35 +601,35 @@ function TenantDashboard() {
         {isVisible('leads-funnel') && (stats?.leadStages?.length ?? 0) > 0 && (
           <div className={styles.miniWidget}>
             <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><Users size={12} /> Embudo</span>
+              <span className={styles.miniWidgetTitle}><Users size={12} /> Embudo leads</span>
               <MiniSparkline values={leadTrend} color="#e879f9" />
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 4 }}>
+            <div className={styles.funnelList}>
               {(stats?.leadStages || []).slice(0, 4).map((s) => (
-                <div key={s.stage} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: STAGE_COLORS[s.stage] || '#6b7280', flexShrink: 0 }} />
-                  <span style={{ flex: 1, fontSize: 11, color: 'var(--color-text-muted)' }}>{STAGE_LABELS[s.stage] || s.stage}</span>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--color-text)' }}>{s.count}</span>
+                <div key={s.stage} className={styles.funnelRow}>
+                  <span className={styles.funnelDot} style={{ background: STAGE_COLORS[s.stage] || '#6b7280' }} />
+                  <span className={styles.funnelLabel}>{STAGE_LABELS[s.stage] || s.stage}</span>
+                  <span className={styles.funnelCount}>{s.count}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        {isVisible('booking-module') && stats?.booking && (
-          <div className={styles.miniWidget}>
+        {isVisible('booking-overview') && stats?.booking && (
+          <div className={styles.miniWidget} onClick={() => router.push('/dashboard/turnos')} role="button">
             <div className={styles.miniWidgetHead}>
               <span className={styles.miniWidgetTitle}><Calendar size={12} /> Turnera</span>
             </div>
-            <div className={styles.miniWidgetValue}>{stats.booking.confirmed}</div>
+            <div className={styles.miniWidgetValue}>{stats.booking.todayAppointments}</div>
             <div className={styles.miniWidgetSub}>
-              confirmados · ${stats.booking.weekRevenue.toLocaleString('es-AR')} semana
+              turnos hoy · {stats.booking.pendingPayment} pend. pago · ${stats.booking.weekRevenue.toLocaleString('es-AR')}
             </div>
           </div>
         )}
 
-        {isVisible('sales-module') && stats?.sales && (
-          <div className={styles.miniWidget}>
+        {isVisible('sales-overview') && stats?.sales && (
+          <div className={styles.miniWidget} onClick={() => router.push('/dashboard/sales')} role="button">
             <div className={styles.miniWidgetHead}>
               <span className={styles.miniWidgetTitle}><ShoppingCart size={12} /> Ventas</span>
             </div>
@@ -505,18 +638,20 @@ function TenantDashboard() {
           </div>
         )}
 
-        <div className={styles.miniWidget}>
-          <div className={styles.miniWidgetHead}>
-            <span className={styles.miniWidgetTitle}><Bot size={12} /> Bot hoy</span>
-            <MiniSparkline values={convTrend} color="#a78bfa" />
+        {isVisible('bot-activity') && (
+          <div className={styles.miniWidget}>
+            <div className={styles.miniWidgetHead}>
+              <span className={styles.miniWidgetTitle}><Bot size={12} /> Bot hoy</span>
+              <MiniSparkline values={convTrend} color="#a78bfa" />
+            </div>
+            <div className={styles.miniWidgetValue}>{stats?.messages.todayCount ?? 0}</div>
+            <div className={styles.miniWidgetSub}>
+              <span className={`${styles.floatCardDelta} ${msgDelta < 0 ? styles.floatCardDeltaNeg : ''}`} style={{ display: 'inline-flex' }}>
+                {msgDelta >= 0 ? '+' : ''}{msgDelta}% vs período anterior
+              </span>
+            </div>
           </div>
-          <div className={styles.miniWidgetValue}>{stats?.messages.todayCount ?? 0}</div>
-          <div className={styles.miniWidgetSub}>
-            <span className={`${styles.floatCardDelta} ${msgDelta < 0 ? styles.floatCardDeltaNeg : ''}`} style={{ display: 'inline-flex' }}>
-              {msgDelta >= 0 ? '+' : ''}{msgDelta}% vs prev.
-            </span>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );
