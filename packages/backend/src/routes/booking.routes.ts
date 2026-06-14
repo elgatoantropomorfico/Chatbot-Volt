@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { prisma } from '../config/database';
 import { requireRole } from '../middleware/roles';
 import { BookingAvailabilityService } from '../services/booking-availability.service';
+import { BookingPricingService } from '../services/booking-pricing.service';
 import { WhatsAppService } from '../services/whatsapp.service';
 
 function resolveTenantId(user: any, queryTenantId?: string): string | null {
@@ -72,6 +73,21 @@ const priceRuleSchema = z.object({
   sortOrder: z.number().int().optional(),
 });
 
+const appointmentCreateSchema = z.object({
+  serviceId: z.string().min(1),
+  appointmentDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  appointmentTime: z.string().regex(/^\d{2}:\d{2}$/),
+  customerName: z.string().min(1),
+  customerPhone: z.string().min(8),
+  status: z.enum([
+    'pendiente_datos', 'pendiente_pago', 'confirmado', 'cancelado',
+    'reprogramado', 'completado', 'no_asistio', 'vencido',
+  ]).default('confirmado'),
+  customerNotes: z.string().nullable().optional(),
+  amountPaid: z.number().min(0).optional(),
+  finalPrice: z.number().positive().optional(),
+});
+
 const appointmentPatchSchema = z.object({
   status: z.enum([
     'pendiente_datos', 'pendiente_pago', 'confirmado', 'cancelado',
@@ -81,8 +97,40 @@ const appointmentPatchSchema = z.object({
   appointmentDate: z.string().optional(),
   appointmentTime: z.string().optional(),
   customerNotes: z.string().nullable().optional(),
-  amountPaid: z.number().optional(),
+  amountPaid: z.number().min(0).optional(),
+  finalPrice: z.number().positive().optional(),
+  serviceId: z.string().optional(),
 });
+
+async function getOrCreateLeadForAppointment(
+  tenantId: string,
+  phone: string,
+  name: string,
+) {
+  const cleanPhone = phone.replace(/\s/g, '');
+  let lead = await prisma.lead.findFirst({
+    where: { tenantId, phone: cleanPhone },
+  });
+  if (!lead) {
+    const channel = await prisma.channel.findFirst({
+      where: { tenantId, isActive: true },
+    });
+    lead = await prisma.lead.create({
+      data: {
+        tenantId,
+        phone: cleanPhone,
+        name,
+        channelId: channel?.id,
+      },
+    });
+  } else if (name && lead.name !== name) {
+    lead = await prisma.lead.update({
+      where: { id: lead.id },
+      data: { name },
+    });
+  }
+  return lead;
+}
 
 export async function bookingRoutes(app: FastifyInstance) {
   // ── Settings ──
@@ -402,6 +450,70 @@ export async function bookingRoutes(app: FastifyInstance) {
     return reply.send({ appointments });
   });
 
+  app.post('/appointments', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const tenantId = resolveTenantId(request.user, (request.body as any)?.tenantId);
+    if (!tenantId) return reply.status(400).send({ error: 'tenantId required' });
+
+    const body = appointmentCreateSchema.safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: 'Validation failed', details: body.error.flatten() });
+
+    const service = await prisma.bookingService.findFirst({
+      where: { id: body.data.serviceId, tenantId, isActive: true },
+    });
+    if (!service) return reply.status(400).send({ error: 'Servicio no encontrado' });
+
+    const pricing = body.data.finalPrice != null
+      ? {
+          listPrice: body.data.finalPrice,
+          finalPrice: body.data.finalPrice,
+          priceRuleId: null,
+          discountLabel: null,
+        }
+      : await BookingPricingService.resolvePrice(tenantId, service.id);
+
+    const amountPaid = body.data.amountPaid ?? (
+      ['confirmado', 'completado'].includes(body.data.status) ? pricing.finalPrice : 0
+    );
+    const balanceDue = Math.max(0, pricing.finalPrice - amountPaid);
+
+    const lead = await getOrCreateLeadForAppointment(
+      tenantId,
+      body.data.customerPhone,
+      body.data.customerName,
+    );
+
+    const now = new Date();
+    const appointment = await prisma.appointment.create({
+      data: {
+        tenantId,
+        leadId: lead.id,
+        conversationId: null,
+        serviceId: service.id,
+        customerName: body.data.customerName,
+        customerPhone: lead.phone,
+        appointmentDate: new Date(body.data.appointmentDate + 'T12:00:00'),
+        appointmentTime: body.data.appointmentTime,
+        status: body.data.status,
+        listPrice: pricing.listPrice,
+        finalPrice: pricing.finalPrice,
+        priceRuleId: pricing.priceRuleId,
+        discountLabel: pricing.discountLabel,
+        amountTotal: pricing.finalPrice,
+        amountPaid,
+        balanceDue,
+        customerNotes: body.data.customerNotes,
+        confirmedAt: ['confirmado', 'completado'].includes(body.data.status) ? now : null,
+        completedAt: body.data.status === 'completado' ? now : null,
+        cancelledAt: body.data.status === 'cancelado' ? now : null,
+      },
+      include: { service: true, lead: { select: { id: true, name: true, phone: true } } },
+    });
+
+    return reply.status(201).send({ appointment });
+  });
+
   app.get('/appointments/:id', {
     preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
@@ -418,7 +530,7 @@ export async function bookingRoutes(app: FastifyInstance) {
   });
 
   app.patch('/appointments/:id', {
-    preHandler: [requireRole('superadmin', 'tenant_admin')],
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const { id } = request.params as { id: string };
     const existing = await prisma.appointment.findUnique({ where: { id } });
@@ -426,20 +538,33 @@ export async function bookingRoutes(app: FastifyInstance) {
     if (request.user.role === 'tenant_admin' && request.user.tenantId !== existing.tenantId) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
+    if (request.user.role === 'agent' && request.user.tenantId !== existing.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
 
     const body = appointmentPatchSchema.safeParse(request.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation failed' });
 
     const data: any = { ...body.data };
-    if (data.appointmentDate) data.appointmentDate = new Date(data.appointmentDate);
-    if (data.status === 'confirmado' && !existing.confirmedAt) data.confirmedAt = new Date();
-    if (data.status === 'cancelado' && !existing.cancelledAt) data.cancelledAt = new Date();
-    if (data.status === 'completado' && !existing.completedAt) data.completedAt = new Date();
+    if (data.appointmentDate) data.appointmentDate = new Date(data.appointmentDate + (data.appointmentDate.includes('T') ? '' : 'T12:00:00'));
+    if (data.status === 'confirmado' && existing.status !== 'confirmado') data.confirmedAt = new Date();
+    if (data.status === 'cancelado' && existing.status !== 'cancelado') data.cancelledAt = new Date();
+    if (data.status === 'completado' && existing.status !== 'completado') data.completedAt = new Date();
+
+    const finalPrice = data.finalPrice ?? Number(existing.finalPrice);
+    const amountPaid = data.amountPaid ?? Number(existing.amountPaid);
+    if (data.finalPrice != null || data.amountPaid != null) {
+      data.balanceDue = Math.max(0, finalPrice - amountPaid);
+      if (data.finalPrice != null) {
+        data.amountTotal = data.finalPrice;
+        data.listPrice = data.finalPrice;
+      }
+    }
 
     const appointment = await prisma.appointment.update({
       where: { id },
       data,
-      include: { service: true },
+      include: { service: true, lead: { select: { id: true, name: true, phone: true } } },
     });
     return reply.send({ appointment });
   });

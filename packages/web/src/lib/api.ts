@@ -278,6 +278,7 @@ class ApiClient {
     return this.fetch<{ appointments: any[] }>(`/booking/appointments${qs}`);
   }
   async getAppointment(id: string) { return this.fetch<{ appointment: any }>(`/booking/appointments/${id}`); }
+  async createAppointment(data: any) { return this.fetch<{ appointment: any }>('/booking/appointments', { method: 'POST', body: data }); }
   async updateAppointment(id: string, data: any) { return this.fetch<{ appointment: any }>(`/booking/appointments/${id}`, { method: 'PATCH', body: data }); }
 }
 

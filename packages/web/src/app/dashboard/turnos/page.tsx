@@ -17,6 +17,12 @@ import {
   Sparkles,
   AlertCircle,
   Ban,
+  Plus,
+  ChevronLeft,
+  ChevronRight,
+  MessageCircle,
+  PenLine,
+  LayoutGrid,
 } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -38,6 +44,8 @@ const STATUS_BADGE: Record<string, string> = {
   cancelado: styles.badgeCancelado,
   completado: styles.badgeCompletado,
   vencido: styles.badgeVencido,
+  reprogramado: styles.badgeDefault,
+  no_asistio: styles.badgeCancelado,
 };
 
 const STATUS_ICON: Record<string, typeof CheckCircle> = {
@@ -47,36 +55,94 @@ const STATUS_ICON: Record<string, typeof CheckCircle> = {
   cancelado: XCircle,
   completado: CheckCircle,
   vencido: Ban,
+  reprogramado: Clock,
+  no_asistio: Ban,
 };
+
+const WEEKDAYS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+const MONTHS = [
+  'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+  'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+];
 
 function formatPrice(n: number) {
   return `$${Math.round(n).toLocaleString('es-AR')}`;
 }
 
+function dateKey(dateStr: string) {
+  return dateStr?.slice(0, 10) || '';
+}
+
+function todayKey() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function formatDateLabel(dateStr: string) {
-  const d = new Date(dateStr.slice(0, 10) + 'T12:00:00');
+  const d = new Date(dateStr + 'T12:00:00');
   return d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
 }
 
-function isToday(dateStr: string) {
-  const today = new Date().toISOString().slice(0, 10);
-  return dateStr?.slice(0, 10) === today;
+function buildMonthGrid(year: number, month: number) {
+  const first = new Date(year, month, 1);
+  const startPad = (first.getDay() + 6) % 7;
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: Array<{ date: string | null; day: number | null }> = [];
+
+  for (let i = 0; i < startPad; i++) cells.push({ date: null, day: null });
+  for (let d = 1; d <= daysInMonth; d++) {
+    const iso = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    cells.push({ date: iso, day: d });
+  }
+  while (cells.length % 7 !== 0) cells.push({ date: null, day: null });
+  return cells;
 }
 
+function isManualAppointment(a: any) {
+  return !a.conversationId;
+}
+
+const EMPTY_FORM = {
+  serviceId: '',
+  appointmentDate: todayKey(),
+  appointmentTime: '16:30',
+  customerName: '',
+  customerPhone: '',
+  status: 'confirmado',
+  amountPaid: '',
+  customerNotes: '',
+};
+
 export default function TurnosPage() {
-  const [tab, setTab] = useState<'lista' | 'calendario'>('lista');
+  const [view, setView] = useState<'calendar' | 'list'>('calendar');
   const [appointments, setAppointments] = useState<any[]>([]);
+  const [services, setServices] = useState<any[]>([]);
+  const [slots, setSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
   const [selected, setSelected] = useState<any>(null);
+  const [selectedDate, setSelectedDate] = useState(todayKey());
+  const [monthCursor, setMonthCursor] = useState(() => {
+    const n = new Date();
+    return { year: n.getFullYear(), month: n.getMonth() };
+  });
+  const [showCreate, setShowCreate] = useState(false);
+  const [createForm, setCreateForm] = useState({ ...EMPTY_FORM });
+  const [saving, setSaving] = useState(false);
+  const [createError, setCreateError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const params: Record<string, string> = {};
       if (filter) params.status = filter;
-      const res = await api.getAppointments(params);
-      setAppointments(res.appointments || []);
+      const [apptRes, svcRes, slotRes] = await Promise.all([
+        api.getAppointments(params),
+        api.getBookingServices(),
+        api.getBookingSlots(),
+      ]);
+      setAppointments(apptRes.appointments || []);
+      setServices((svcRes.services || []).filter((s: any) => s.isActive));
+      setSlots((slotRes.slots || []).filter((s: any) => s.isActive));
     } catch (e) {
       console.error(e);
     } finally {
@@ -86,34 +152,49 @@ export default function TurnosPage() {
 
   useEffect(() => { load(); }, [load]);
 
+  const byDate = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of appointments) {
+      const key = dateKey(a.appointmentDate);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+    for (const [, list] of map) {
+      list.sort((x, y) => x.appointmentTime.localeCompare(y.appointmentTime));
+    }
+    return map;
+  }, [appointments]);
+
+  const monthCells = useMemo(
+    () => buildMonthGrid(monthCursor.year, monthCursor.month),
+    [monthCursor],
+  );
+
+  const dayAppointments = useMemo(
+    () => byDate.get(selectedDate) || [],
+    [byDate, selectedDate],
+  );
+
   const stats = useMemo(() => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = todayKey();
     const confirmados = appointments.filter((a) => a.status === 'confirmado').length;
     const pendientesPago = appointments.filter((a) => a.status === 'pendiente_pago').length;
-    const hoy = appointments.filter((a) => a.appointmentDate?.slice(0, 10) === today && !['cancelado', 'vencido'].includes(a.status)).length;
+    const hoy = appointments.filter(
+      (a) => dateKey(a.appointmentDate) === today && !['cancelado', 'vencido'].includes(a.status),
+    ).length;
     const ingresos = appointments
       .filter((a) => ['confirmado', 'completado'].includes(a.status))
       .reduce((sum, a) => sum + Number(a.amountPaid || 0), 0);
     return { confirmados, pendientesPago, hoy, ingresos };
   }, [appointments]);
 
-  const groupedByDate = useMemo(() => {
-    const map = new Map<string, any[]>();
-    for (const a of appointments) {
-      const key = a.appointmentDate?.slice(0, 10) || 'sin-fecha';
-      if (!map.has(key)) map.set(key, []);
-      map.get(key)!.push(a);
+  const slotTimes = useMemo(() => {
+    const times = slots.map((s) => s.time);
+    if (!times.includes(createForm.appointmentTime) && createForm.appointmentTime) {
+      return [...times, createForm.appointmentTime].sort();
     }
-    return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [appointments]);
-
-  async function updateStatus(id: string, status: string) {
-    await api.updateAppointment(id, { status });
-    await load();
-    if (selected?.id === id) {
-      setSelected((prev: any) => (prev ? { ...prev, status } : null));
-    }
-  }
+    return times.length ? times : ['16:30', '18:00', '19:30'];
+  }, [slots, createForm.appointmentTime]);
 
   function statusBadge(status: string) {
     const Icon = STATUS_ICON[status] || AlertCircle;
@@ -125,15 +206,114 @@ export default function TurnosPage() {
     );
   }
 
+  function sourceBadge(a: any) {
+    return isManualAppointment(a) ? (
+      <span className={styles.sourceBadgeManual}><PenLine size={11} /> Manual</span>
+    ) : (
+      <span className={styles.sourceBadgeBot}><MessageCircle size={11} /> WhatsApp</span>
+    );
+  }
+
+  async function updateAppointment(id: string, data: Record<string, unknown>) {
+    const res = await api.updateAppointment(id, data);
+    await load();
+    if (selected?.id === id) setSelected(res.appointment);
+    return res.appointment;
+  }
+
+  async function handleStatusChange(id: string, status: string) {
+    await updateAppointment(id, { status });
+  }
+
+  function openCreate(date?: string) {
+    setCreateForm({
+      ...EMPTY_FORM,
+      appointmentDate: date || selectedDate || todayKey(),
+      appointmentTime: slotTimes[0] || '16:30',
+      serviceId: services[0]?.id || '',
+    });
+    setCreateError('');
+    setShowCreate(true);
+  }
+
+  async function handleCreate(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setCreateError('');
+    try {
+      const payload: Record<string, unknown> = {
+        serviceId: createForm.serviceId,
+        appointmentDate: createForm.appointmentDate,
+        appointmentTime: createForm.appointmentTime,
+        customerName: createForm.customerName.trim(),
+        customerPhone: createForm.customerPhone.trim(),
+        status: createForm.status,
+        customerNotes: createForm.customerNotes.trim() || null,
+      };
+      if (createForm.amountPaid !== '') {
+        payload.amountPaid = Number(createForm.amountPaid);
+      }
+      const res = await api.createAppointment(payload);
+      setShowCreate(false);
+      setCreateForm({ ...EMPTY_FORM });
+      setSelectedDate(createForm.appointmentDate);
+      await load();
+      setSelected(res.appointment);
+    } catch (err: any) {
+      setCreateError(err.message || 'No se pudo crear el turno');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function shiftMonth(delta: number) {
+    setMonthCursor((prev) => {
+      let { year, month } = prev;
+      month += delta;
+      if (month > 11) { month = 0; year++; }
+      if (month < 0) { month = 11; year--; }
+      return { year, month };
+    });
+  }
+
+  function renderAppointmentCard(a: any, compact = false) {
+    return (
+      <button
+        key={a.id}
+        type="button"
+        className={`${styles.apptCard} ${compact ? styles.apptCardCompact : ''}`}
+        onClick={() => setSelected(a)}
+      >
+        <div className={styles.apptCardTime}>{a.appointmentTime}</div>
+        <div className={styles.apptCardBody}>
+          <div className={styles.apptCardTop}>
+            <span className={styles.apptCardName}>{a.customerName || a.lead?.name || 'Sin nombre'}</span>
+            {sourceBadge(a)}
+          </div>
+          <div className={styles.apptCardService}>{a.service?.name}</div>
+        </div>
+        <div className={styles.apptCardMeta}>
+          {statusBadge(a.status)}
+          <span className={styles.apptCardPrice}>{formatPrice(Number(a.finalPrice || 0))}</span>
+        </div>
+      </button>
+    );
+  }
+
   return (
     <div className={styles.container}>
-      <div className={styles.header}>
-        <h1>
-          <Calendar size={24} style={{ color: '#a78bfa', WebkitTextFillColor: 'initial' }} />
-          Turnos
-        </h1>
+      <div className={styles.headerRow}>
+        <div>
+          <h1 className={styles.title}>
+            <Calendar size={24} style={{ color: '#a78bfa' }} />
+            Turnos
+          </h1>
+          <p className={styles.subtitle}>Agenda premium · reservas WhatsApp y carga manual</p>
+        </div>
+        <button type="button" className={styles.primaryBtn} onClick={() => openCreate()}>
+          <Plus size={18} /> Nuevo turno
+        </button>
       </div>
-      <p className={styles.subtitle}>Gestión de reservas confirmadas y pendientes</p>
 
       <div className={styles.statsGrid}>
         <div className={styles.statCard}>
@@ -162,24 +342,20 @@ export default function TurnosPage() {
         <div className={styles.viewTabs}>
           <button
             type="button"
-            className={`${styles.viewTab} ${tab === 'lista' ? styles.viewTabActive : ''}`}
-            onClick={() => setTab('lista')}
+            className={`${styles.viewTab} ${view === 'calendar' ? styles.viewTabActive : ''}`}
+            onClick={() => setView('calendar')}
           >
-            <List size={15} /> Lista
+            <LayoutGrid size={15} /> Calendario
           </button>
           <button
             type="button"
-            className={`${styles.viewTab} ${tab === 'calendario' ? styles.viewTabActive : ''}`}
-            onClick={() => setTab('calendario')}
+            className={`${styles.viewTab} ${view === 'list' ? styles.viewTabActive : ''}`}
+            onClick={() => setView('list')}
           >
-            <CalendarDays size={15} /> Agenda
+            <List size={15} /> Lista
           </button>
         </div>
-        <select
-          className={styles.filterSelect}
-          value={filter}
-          onChange={(e) => setFilter(e.target.value)}
-        >
+        <select className={styles.filterSelect} value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="">Todos los estados</option>
           {Object.entries(STATUS_LABELS).map(([k, v]) => (
             <option key={k} value={k}>{v}</option>
@@ -192,41 +368,115 @@ export default function TurnosPage() {
 
       {loading ? (
         <div className={styles.loading}>Cargando turnos...</div>
+      ) : view === 'calendar' ? (
+        <div className={styles.calendarLayout}>
+          <div className={styles.calendarShell}>
+            <div className={styles.calendarNav}>
+              <button type="button" className={styles.navBtn} onClick={() => shiftMonth(-1)}>
+                <ChevronLeft size={18} />
+              </button>
+              <div className={styles.calendarMonthLabel}>
+                {MONTHS[monthCursor.month]} {monthCursor.year}
+              </div>
+              <button type="button" className={styles.navBtn} onClick={() => shiftMonth(1)}>
+                <ChevronRight size={18} />
+              </button>
+              <button
+                type="button"
+                className={styles.todayBtn}
+                onClick={() => {
+                  const t = todayKey();
+                  setSelectedDate(t);
+                  const n = new Date();
+                  setMonthCursor({ year: n.getFullYear(), month: n.getMonth() });
+                }}
+              >
+                Hoy
+              </button>
+            </div>
+
+            <div className={styles.weekdayRow}>
+              {WEEKDAYS.map((d) => (
+                <div key={d} className={styles.weekdayCell}>{d}</div>
+              ))}
+            </div>
+
+            <div className={styles.monthGrid}>
+              {monthCells.map((cell, idx) => {
+                if (!cell.date) {
+                  return <div key={`empty-${idx}`} className={styles.dayCellEmpty} />;
+                }
+                const count = byDate.get(cell.date)?.length || 0;
+                const isSelected = cell.date === selectedDate;
+                const isToday = cell.date === todayKey();
+                const hasConfirmed = byDate.get(cell.date)?.some((a) => a.status === 'confirmado');
+                const hasPending = byDate.get(cell.date)?.some((a) =>
+                  ['pendiente_pago', 'pendiente_datos'].includes(a.status),
+                );
+
+                return (
+                  <button
+                    key={cell.date}
+                    type="button"
+                    className={[
+                      styles.dayCell,
+                      isSelected ? styles.dayCellSelected : '',
+                      isToday ? styles.dayCellToday : '',
+                      count > 0 ? styles.dayCellHasAppts : '',
+                    ].filter(Boolean).join(' ')}
+                    onClick={() => setSelectedDate(cell.date!)}
+                    onDoubleClick={() => openCreate(cell.date!)}
+                  >
+                    <span className={styles.dayNumber}>{cell.day}</span>
+                    {count > 0 && (
+                      <div className={styles.dayDots}>
+                        {hasConfirmed && <span className={styles.dotConfirmado} />}
+                        {hasPending && <span className={styles.dotPendiente} />}
+                        <span className={styles.dayCount}>{count}</span>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className={styles.dayPanel}>
+            <div className={styles.dayPanelHeader}>
+              <div>
+                <h2 className={styles.dayPanelTitle}>{formatDateLabel(selectedDate)}</h2>
+                <p className={styles.dayPanelSub}>
+                  {dayAppointments.length} turno{dayAppointments.length !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button type="button" className={styles.secondaryBtn} onClick={() => openCreate(selectedDate)}>
+                <Plus size={16} /> Agregar
+              </button>
+            </div>
+
+            {dayAppointments.length === 0 ? (
+              <div className={styles.dayEmpty}>
+                <CalendarDays size={36} style={{ opacity: 0.25 }} />
+                <p>Sin turnos este día</p>
+                <button type="button" className={styles.secondaryBtn} onClick={() => openCreate(selectedDate)}>
+                  Crear turno manual
+                </button>
+              </div>
+            ) : (
+              <div className={styles.dayTimeline}>
+                {dayAppointments.map((a) => renderAppointmentCard(a))}
+              </div>
+            )}
+          </div>
+        </div>
       ) : appointments.length === 0 ? (
         <div className={styles.empty}>
           <Calendar size={48} style={{ opacity: 0.3 }} />
           <h3>Sin turnos todavía</h3>
-          <p>Cuando un cliente reserve por WhatsApp, el turno aparecerá acá.</p>
-        </div>
-      ) : tab === 'calendario' ? (
-        <div className={styles.agenda}>
-          {groupedByDate.map(([date, items]) => (
-            <div key={date} className={styles.agendaDay}>
-              <div className={styles.agendaDayHeader}>
-                <CalendarDays size={16} style={{ color: '#a78bfa' }} />
-                {formatDateLabel(date)}
-                {isToday(date) && (
-                  <span className={styles.agendaDayCount} style={{ background: 'rgba(139, 92, 246, 0.15)', color: '#a78bfa' }}>Hoy</span>
-                )}
-                <span className={styles.agendaDayCount}>{items.length} turno{items.length !== 1 ? 's' : ''}</span>
-              </div>
-              <div className={styles.agendaList}>
-                {items.map((a) => (
-                  <div key={a.id} className={styles.agendaItem} onClick={() => setSelected(a)}>
-                    <div className={styles.agendaTime}>{a.appointmentTime}</div>
-                    <div className={styles.agendaBody}>
-                      <div className={styles.agendaClient}>{a.customerName || a.lead?.name || a.customerPhone}</div>
-                      <div className={styles.agendaService}>{a.service?.name}</div>
-                    </div>
-                    <div className={styles.agendaMeta}>
-                      {statusBadge(a.status)}
-                      <div className={styles.agendaPrice}>{formatPrice(Number(a.finalPrice || 0))}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          <p>Cuando un cliente reserve por WhatsApp o cargues uno manual, aparecerá acá.</p>
+          <button type="button" className={styles.primaryBtn} onClick={() => openCreate()}>
+            <Plus size={18} /> Crear primer turno
+          </button>
         </div>
       ) : (
         <div className={styles.tableWrap}>
@@ -237,50 +487,148 @@ export default function TurnosPage() {
                 <th>Hora</th>
                 <th>Cliente</th>
                 <th>Camino</th>
+                <th>Origen</th>
                 <th>Estado</th>
                 <th>Pagado</th>
-                <th>Acciones</th>
               </tr>
             </thead>
             <tbody>
               {appointments.map((a) => (
                 <tr key={a.id} onClick={() => setSelected(a)}>
-                  <td>{a.appointmentDate?.slice(0, 10)}</td>
-                  <td style={{ fontWeight: 600, color: '#a78bfa' }}>{a.appointmentTime}</td>
+                  <td>{dateKey(a.appointmentDate)}</td>
+                  <td className={styles.tableTime}>{a.appointmentTime}</td>
                   <td>
                     <div>{a.customerName || a.lead?.name || '—'}</div>
-                    <div style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>{a.customerPhone || a.lead?.phone}</div>
+                    <div className={styles.tableMuted}>{a.customerPhone || a.lead?.phone}</div>
                   </td>
                   <td>{a.service?.name}</td>
+                  <td>{sourceBadge(a)}</td>
                   <td>{statusBadge(a.status)}</td>
                   <td style={{ fontWeight: 600 }}>{formatPrice(Number(a.amountPaid || 0))}</td>
-                  <td>
-                    <div className={styles.actions} onClick={(e) => e.stopPropagation()}>
-                      {a.status === 'confirmado' && (
-                        <button
-                          type="button"
-                          className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}
-                          onClick={() => updateStatus(a.id, 'completado')}
-                        >
-                          <CheckCircle size={14} /> Completar
-                        </button>
-                      )}
-                      {!['cancelado', 'completado'].includes(a.status) && (
-                        <button
-                          type="button"
-                          className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                          onClick={() => updateStatus(a.id, 'cancelado')}
-                        >
-                          <XCircle size={14} />
-                        </button>
-                      )}
-                    </div>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+      )}
+
+      {showCreate && (
+        <>
+          <div className={styles.detailBackdrop} onClick={() => setShowCreate(false)} />
+          <div className={styles.createModal}>
+            <div className={styles.detailHeader}>
+              <h2>Nuevo turno manual</h2>
+              <button type="button" className={styles.closeBtn} onClick={() => setShowCreate(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <p className={styles.createHint}>
+              Los turnos manuales no pasan por el chatbot. Podés asignar el estado desde el inicio.
+            </p>
+            <form onSubmit={handleCreate} className={styles.createForm}>
+              <div className={styles.formGrid}>
+                <label className={styles.formField}>
+                  <span>Camino / servicio</span>
+                  <select
+                    required
+                    value={createForm.serviceId}
+                    onChange={(e) => setCreateForm({ ...createForm, serviceId: e.target.value })}
+                  >
+                    <option value="">Seleccionar...</option>
+                    {services.map((s) => (
+                      <option key={s.id} value={s.id}>{s.name}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.formField}>
+                  <span>Fecha</span>
+                  <input
+                    type="date"
+                    required
+                    value={createForm.appointmentDate}
+                    onChange={(e) => setCreateForm({ ...createForm, appointmentDate: e.target.value })}
+                  />
+                </label>
+                <label className={styles.formField}>
+                  <span>Horario</span>
+                  <select
+                    value={createForm.appointmentTime}
+                    onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
+                  >
+                    {slotTimes.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.formField}>
+                  <span>Otro horario</span>
+                  <input
+                    type="time"
+                    value={createForm.appointmentTime}
+                    onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
+                  />
+                </label>
+                <label className={styles.formField}>
+                  <span>Nombre del cliente</span>
+                  <input
+                    required
+                    value={createForm.customerName}
+                    onChange={(e) => setCreateForm({ ...createForm, customerName: e.target.value })}
+                    placeholder="Nombre y apellido"
+                  />
+                </label>
+                <label className={styles.formField}>
+                  <span>Teléfono</span>
+                  <input
+                    required
+                    value={createForm.customerPhone}
+                    onChange={(e) => setCreateForm({ ...createForm, customerPhone: e.target.value })}
+                    placeholder="549351..."
+                  />
+                </label>
+                <label className={styles.formField}>
+                  <span>Estado inicial</span>
+                  <select
+                    value={createForm.status}
+                    onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
+                  >
+                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className={styles.formField}>
+                  <span>Monto pagado (opcional)</span>
+                  <input
+                    type="number"
+                    min={0}
+                    value={createForm.amountPaid}
+                    onChange={(e) => setCreateForm({ ...createForm, amountPaid: e.target.value })}
+                    placeholder="Auto según estado"
+                  />
+                </label>
+              </div>
+              <label className={styles.formFieldFull}>
+                <span>Notas</span>
+                <textarea
+                  rows={3}
+                  value={createForm.customerNotes}
+                  onChange={(e) => setCreateForm({ ...createForm, customerNotes: e.target.value })}
+                  placeholder="Preferencias, contexto, etc."
+                />
+              </label>
+              {createError && <p className={styles.formError}>{createError}</p>}
+              <div className={styles.createActions}>
+                <button type="button" className={styles.secondaryBtn} onClick={() => setShowCreate(false)}>
+                  Cancelar
+                </button>
+                <button type="submit" className={styles.primaryBtn} disabled={saving}>
+                  {saving ? 'Guardando...' : 'Crear turno'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </>
       )}
 
       {selected && (
@@ -294,10 +642,26 @@ export default function TurnosPage() {
               </button>
             </div>
 
-            <div style={{ marginBottom: 16 }}>{statusBadge(selected.status)}</div>
+            <div className={styles.detailBadges}>
+              {statusBadge(selected.status)}
+              {sourceBadge(selected)}
+            </div>
+
+            <label className={styles.statusSelectWrap}>
+              <span className={styles.statusSelectLabel}>Cambiar estado</span>
+              <select
+                className={styles.statusSelect}
+                value={selected.status}
+                onChange={(e) => handleStatusChange(selected.id, e.target.value)}
+              >
+                {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                  <option key={k} value={k}>{v}</option>
+                ))}
+              </select>
+            </label>
 
             <div className={styles.detailSection}>
-              <h3><User size={12} style={{ display: 'inline', marginRight: 4 }} /> Cliente</h3>
+              <h3><User size={12} /> Cliente</h3>
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Nombre</span>
                 <span className={styles.detailValue}>{selected.customerName || selected.lead?.name || '—'}</span>
@@ -309,14 +673,14 @@ export default function TurnosPage() {
             </div>
 
             <div className={styles.detailSection}>
-              <h3><Sparkles size={12} style={{ display: 'inline', marginRight: 4 }} /> Sesión</h3>
+              <h3><Sparkles size={12} /> Sesión</h3>
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Camino</span>
                 <span className={styles.detailValue}>{selected.service?.name}</span>
               </div>
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Fecha</span>
-                <span className={styles.detailValue}>{selected.appointmentDate?.slice(0, 10)}</span>
+                <span className={styles.detailValue}>{dateKey(selected.appointmentDate)}</span>
               </div>
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Horario</span>
@@ -331,7 +695,7 @@ export default function TurnosPage() {
             </div>
 
             <div className={styles.detailSection}>
-              <h3><CreditCard size={12} style={{ display: 'inline', marginRight: 4 }} /> Pago</h3>
+              <h3><CreditCard size={12} /> Pago</h3>
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Precio final</span>
                 <span className={styles.detailValue}>{formatPrice(Number(selected.finalPrice || 0))}</span>
@@ -355,18 +719,17 @@ export default function TurnosPage() {
               {selected.mpPaymentId && (
                 <div className={styles.detailRow}>
                   <span className={styles.detailLabel}>ID transacción MP</span>
-                  <span className={styles.detailValue} style={{ fontFamily: 'monospace', fontSize: 13, wordBreak: 'break-all' }}>
-                    {selected.mpPaymentId}
-                  </span>
+                  <span className={styles.detailValueMono}>{selected.mpPaymentId}</span>
                 </div>
               )}
+            </div>
 
             <div className={styles.detailActions}>
               {selected.status === 'confirmado' && (
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}
-                  onClick={() => updateStatus(selected.id, 'completado')}
+                  onClick={() => handleStatusChange(selected.id, 'completado')}
                 >
                   <CheckCircle size={14} /> Completar
                 </button>
@@ -375,7 +738,7 @@ export default function TurnosPage() {
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.actionBtnDanger}`}
-                  onClick={() => updateStatus(selected.id, 'cancelado')}
+                  onClick={() => handleStatusChange(selected.id, 'cancelado')}
                 >
                   <XCircle size={14} /> Cancelar
                 </button>
