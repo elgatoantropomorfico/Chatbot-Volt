@@ -104,6 +104,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     agent: 'Agente',
   }[user.role];
 
+  const isFullBleed = pathname === '/dashboard/inbox';
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.ambient} aria-hidden>
@@ -263,8 +265,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`${styles.main} dashboard-main`}>
-        <div className={styles.contentArea}>
+      <main className={`${styles.main} dashboard-main ${isFullBleed ? styles.mainFullBleed : ''}`}>
+        <div className={`${styles.contentArea} ${isFullBleed ? styles.contentAreaFullBleed : ''}`}>
           {children}
         </div>
       </main>

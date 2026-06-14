@@ -1,10 +1,12 @@
 .container {
   display: flex;
-  height: calc(100vh - 64px);
-  margin: -32px -40px;
-  width: calc(100% + 80px);
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  width: 100%;
+  margin: 0;
   overflow: hidden;
-  background: transparent;
+  background: var(--color-bg);
 }
 
 /* ─── Conversation List ─── */
@@ -609,9 +611,9 @@
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
   .container {
-    margin: -20px -16px;
-    height: calc(100vh - 62px);
-    position: relative;
+    height: 100%;
+    width: 100%;
+    margin: 0;
   }
 
   /* Default mobile: show list, hide chat */

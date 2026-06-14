@@ -68,6 +68,49 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       }
       avgResponseTime = responseCount > 0 ? avgResponseTime / responseCount : 0;
 
+      // 7-day trends
+      const trendDays: { date: string; label: string; conversations: number; messages: number; leads: number }[] = [];
+      for (let i = 6; i >= 0; i--) {
+        const dayStart = new Date(today);
+        dayStart.setDate(dayStart.getDate() - i);
+        const dayEnd = new Date(dayStart);
+        dayEnd.setDate(dayEnd.getDate() + 1);
+
+        const [convCount, msgCount, leadCount] = await Promise.all([
+          prisma.conversation.count({
+            where: { ...baseWhere, createdAt: { gte: dayStart, lt: dayEnd } },
+          }),
+          prisma.message.count({
+            where: {
+              conversation: user.role === 'super_admin' ? {} : { tenantId },
+              createdAt: { gte: dayStart, lt: dayEnd },
+            },
+          }),
+          prisma.lead.count({
+            where: { ...baseWhere, createdAt: { gte: dayStart, lt: dayEnd } },
+          }),
+        ]);
+
+        trendDays.push({
+          date: dayStart.toISOString().slice(0, 10),
+          label: dayStart.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' }),
+          conversations: convCount,
+          messages: msgCount,
+          leads: leadCount,
+        });
+      }
+
+      // Lead stage distribution
+      const leadStageGroups = await prisma.lead.groupBy({
+        by: ['stage'],
+        where: baseWhere,
+        _count: { _all: true },
+      });
+      const leadStages = leadStageGroups.map((g) => ({
+        stage: g.stage,
+        count: g._count._all,
+      }));
+
       const stats: any = {
         conversations: {
           total: totalConversations,
@@ -84,6 +127,12 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           todayCount: todayMessages,
           avgResponseTime: Math.round(avgResponseTime),
         },
+        trends: trendDays,
+        leadStages,
+        modules: {
+          sales: false,
+          booking: false,
+        },
       };
 
       // Sales stats (only if WooCommerce integration exists and Sale model is available)
@@ -93,6 +142,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         });
 
         if (wooIntegration && (prisma as any).sale) {
+          stats.modules.sales = true;
           const [totalSales, todaySales, pendingSales] = await Promise.all([
             (prisma as any).sale.count({ where: baseWhere }),
             (prisma as any).sale.aggregate({
@@ -111,6 +161,50 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         }
       } catch (error) {
         console.log('Sales stats not available (Sale model may not exist)');
+      }
+
+      // Booking stats
+      try {
+        if (tenantId) {
+          const bookingSettings = await prisma.bookingSettings.findFirst({
+            where: { tenantId },
+          });
+          if (bookingSettings?.bookingEnabled) {
+            stats.modules.booking = true;
+            const todayStart = new Date(today);
+            const todayEnd = new Date(today);
+            todayEnd.setDate(todayEnd.getDate() + 1);
+
+            const [todayAppointments, confirmed, pendingPayment, weekPaid] = await Promise.all([
+              prisma.appointment.count({
+                where: { tenantId, appointmentDate: { gte: todayStart, lt: todayEnd } },
+              }),
+              prisma.appointment.count({
+                where: { tenantId, status: 'confirmado' },
+              }),
+              prisma.appointment.count({
+                where: { tenantId, status: 'pendiente_pago' },
+              }),
+              prisma.appointment.aggregate({
+                where: {
+                  tenantId,
+                  status: 'confirmado',
+                  confirmedAt: { gte: weekAgo },
+                },
+                _sum: { amountPaid: true },
+              }),
+            ]);
+
+            stats.booking = {
+              todayAppointments,
+              confirmed,
+              pendingPayment,
+              weekRevenue: Number(weekPaid._sum.amountPaid || 0),
+            };
+          }
+        }
+      } catch (error) {
+        console.log('Booking stats not available');
       }
 
       // Tenant stats (only for super admin)

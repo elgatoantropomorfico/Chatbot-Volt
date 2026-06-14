@@ -17,6 +17,7 @@ import {
   TrendingUp,
   AlertTriangle,
 } from 'lucide-react';
+import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import styles from './page.module.css';
 
 export default function SalesPage() {
@@ -389,10 +390,8 @@ export default function SalesPage() {
 
       {/* Detail Overlay */}
       {selectedSale && (
-        <>
-          <div className={styles.detailBackdrop} onClick={() => setSelectedSale(null)} />
-          <div className={styles.detailPanel}>
-            <div className={styles.detailHeader}>
+        <VoltDrawer open onClose={() => setSelectedSale(null)}>
+          <div className={styles.detailHeader}>
               <h2>Detalle de Venta</h2>
               <button className={styles.closeBtn} onClick={() => setSelectedSale(null)}>
                 <X size={18} />
@@ -473,8 +472,7 @@ export default function SalesPage() {
                 </button>
               </div>
             )}
-          </div>
-        </>
+        </VoltDrawer>
       )}
     </div>
   );

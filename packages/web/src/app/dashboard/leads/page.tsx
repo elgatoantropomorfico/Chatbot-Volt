@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { api } from '@/lib/api';
 import { Users, X, RefreshCw, Trash2, Camera, FileText, Plus, Edit2, Check, ClipboardList } from 'lucide-react';
+import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import styles from './page.module.css';
 
 const STAGES = ['', 'nuevo', 'contactado', 'interesado', 'venta', 'perdido'];
@@ -281,10 +282,8 @@ export default function LeadsPage() {
 
       {/* Detail panel overlay */}
       {selectedLead && (
-        <>
-          <div className={styles.detailBackdrop} onClick={() => setSelectedLead(null)} />
-          <div className={styles.detailPanel}>
-            <div className={styles.detailHeader}>
+        <VoltDrawer open onClose={() => setSelectedLead(null)}>
+          <div className={styles.detailHeader}>
               <div>
                 <h2>{selectedLead.name || selectedLead.phone}</h2>
                 <p>{selectedLead.phone}</p>
@@ -722,8 +721,7 @@ export default function LeadsPage() {
               Eliminar lead
             </button>
           </div>
-        </div>
-        </>
+        </VoltDrawer>
       )}
     </div>
   );

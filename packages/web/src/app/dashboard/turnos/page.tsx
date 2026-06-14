@@ -27,6 +27,7 @@ import {
   Search,
   Filter,
 } from 'lucide-react';
+import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import styles from './page.module.css';
 
 const STATUS_LABELS: Record<string, string> = {
@@ -667,10 +668,8 @@ export default function TurnosPage() {
       )}
 
       {showCreate && (
-        <>
-          <div className={styles.detailBackdrop} onClick={() => setShowCreate(false)} />
-          <div className={styles.createModal}>
-            <div className={styles.detailHeader}>
+        <VoltDrawer open onClose={() => setShowCreate(false)} width={440}>
+          <div className={styles.detailHeader}>
               <h2>Nuevo turno manual</h2>
               <button type="button" className={styles.closeBtn} onClick={() => setShowCreate(false)}>
                 <X size={18} />
@@ -781,15 +780,12 @@ export default function TurnosPage() {
                 </button>
               </div>
             </form>
-          </div>
-        </>
+        </VoltDrawer>
       )}
 
       {selected && (
-        <>
-          <div className={styles.detailBackdrop} onClick={() => setSelected(null)} />
-          <div className={styles.detailPanel}>
-            <div className={styles.detailHeader}>
+        <VoltDrawer open onClose={() => setSelected(null)} width={440}>
+          <div className={styles.detailHeader}>
               <h2>Detalle del turno</h2>
               <button type="button" className={styles.closeBtn} onClick={() => setSelected(null)}>
                 <X size={18} />
@@ -908,8 +904,7 @@ export default function TurnosPage() {
                 <Trash2 size={14} /> Eliminar turno
               </button>
             </div>
-          </div>
-        </>
+        </VoltDrawer>
       )}
     </div>
   );

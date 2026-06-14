@@ -35,51 +35,51 @@
 .statsGrid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 24px;
+  gap: 10px;
+  margin-bottom: 18px;
 }
 
 .statCard {
   background: var(--color-surface);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 22px;
+  border-radius: var(--radius-md);
+  padding: 12px 14px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  transition: all var(--transition-base);
+  gap: 4px;
+  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  box-shadow: var(--shadow-card);
+  box-shadow: var(--shadow-xs);
 }
 
 .statCard:hover {
   border-color: var(--color-border-light);
-  box-shadow: var(--shadow-card-hover);
-  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
 }
 
 .statLabel {
-  font-size: 12px;
+  font-size: 10px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
   color: var(--color-text-muted);
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
 }
 
 .statValue {
-  font-size: 28px;
+  font-size: 20px;
   font-weight: 700;
   color: var(--color-text);
-  line-height: 1;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
 }
 
 .statSubtext {
-  font-size: 12px;
-  color: var(--color-text-muted);
+  font-size: 10.5px;
+  color: var(--color-text-faint);
 }
 
 .toolbar {
