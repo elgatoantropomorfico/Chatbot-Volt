@@ -863,15 +863,9 @@ export default function BotSettingsPage() {
     );
   }
 
-  /* ─── Desktop Layout ─── */
+  /* ─── Desktop Layout (mismo patrón que turnera) ─── */
   return (
-    <div className="volt-page">
-      <div className="volt-page-header">
-        <div>
-          <h1 className="volt-page-title">Bot / IA</h1>
-          <p className="volt-page-sub">Contexto del negocio, personalidad y configuración técnica del asistente.</p>
-        </div>
-      </div>
+    <div className="volt-config-wrapper">
       <div className="volt-bot-shell">
         <div className="volt-bot-sidebar">
           {isSuperAdmin && tenants.length > 0 && (
@@ -903,7 +897,7 @@ export default function BotSettingsPage() {
 
         <div className="volt-bot-main">
           <div className="volt-bot-toolbar">
-            <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{activeTabData?.label}</h2>
+            <h2>{activeTabData?.label}</h2>
             <button type="button" onClick={handleSave} disabled={saving || !settings} className="volt-btn-primary">
               <Save size={15} /> {saving ? 'Guardando...' : 'Guardar'}
             </button>

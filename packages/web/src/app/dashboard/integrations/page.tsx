@@ -599,7 +599,7 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div className="volt-page volt-page-wide">
+    <div className="volt-config-wrapper-list">
       <div className="volt-page-header">
         <div>
           <h1 className="volt-page-title">Integraciones</h1>
