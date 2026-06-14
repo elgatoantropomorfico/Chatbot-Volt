@@ -91,12 +91,12 @@
   --leading-tight: 1.2;
 
   /* ── Layout ── */
-  --sidebar-width: 268px;
-  --content-max: 1480px;
-  --dash-pad-top: 32px;
-  --dash-pad-x: 40px;
-  --dash-pad-bottom: 40px;
-  --sidebar-gap: 24px;
+  --sidebar-width: 284px;
+  --content-max: 1560px;
+  --dash-pad-top: 28px;
+  --dash-pad-x: 28px;
+  --dash-pad-bottom: 28px;
+  --sidebar-gap: 12px;
 
   /* ── Motion — silk easing ── */
   --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);

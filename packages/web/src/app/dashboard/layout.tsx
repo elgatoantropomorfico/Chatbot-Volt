@@ -106,6 +106,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     agent: 'Agente',
   }[user.role];
 
+  const isInbox = pathname === '/dashboard/inbox';
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.ambient} aria-hidden>
@@ -269,8 +271,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`${styles.main} dashboard-main`}>
-        <div className={styles.contentArea}>
+      <main className={`${styles.main} dashboard-main${isInbox ? ` ${styles.mainInbox}` : ''}`}>
+        <div className={`${styles.contentArea}${isInbox ? ` ${styles.contentAreaInbox}` : ''}`}>
           {children}
         </div>
       </main>

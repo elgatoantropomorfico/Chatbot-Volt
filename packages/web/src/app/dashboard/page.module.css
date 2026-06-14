@@ -9,7 +9,7 @@
   --dash-panel: rgba(10, 10, 20, 0.72);
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 12px;
   min-height: 0;
 }
 
@@ -237,15 +237,15 @@
 }
 
 .floatCardSub {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--color-text-faint);
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 
 .chartEmpty {
   color: var(--color-text-muted);
-  font-size: 13px;
-  padding: 20px 0;
+  font-size: 12px;
+  padding: 12px 0;
 }
 
 .funnelList {
@@ -304,19 +304,24 @@
   flex-shrink: 0;
 }
 
-/* ── Hero stage ── */
+/* ── Hero stage — compact grid puzzle ── */
 .heroStage {
   position: relative;
-  border-radius: 28px;
-  min-height: 280px;
+  border-radius: 18px;
+  min-height: 188px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.07);
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 248px;
+  grid-template-rows: auto auto;
+  gap: 10px 14px;
+  padding: 16px 18px 14px;
   background:
-    radial-gradient(ellipse 80% 70% at 70% 30%, rgba(124, 58, 237, 0.35), transparent 60%),
-    radial-gradient(ellipse 50% 50% at 20% 80%, rgba(34, 211, 238, 0.08), transparent 50%),
+    radial-gradient(ellipse 70% 60% at 72% 28%, rgba(124, 58, 237, 0.28), transparent 58%),
+    radial-gradient(ellipse 40% 40% at 18% 78%, rgba(34, 211, 238, 0.06), transparent 50%),
     linear-gradient(145deg, #0a0a14 0%, #12101f 40%, #0d0b18 100%);
   box-shadow:
-    0 24px 64px rgba(0, 0, 0, 0.45),
+    0 16px 40px rgba(0, 0, 0, 0.38),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
@@ -337,32 +342,33 @@
 
 .heroVisual :global(.dash-hero-orb) {
   position: absolute;
-  right: -5%;
+  right: -2%;
   top: 50%;
   transform: translateY(-50%);
-  width: 55%;
-  max-width: 480px;
+  width: 42%;
+  max-width: 340px;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
+  opacity: 0.75;
 }
 
 .heroVisual :global(.dash-orb-glow) {
   position: absolute;
-  width: 280px;
-  height: 280px;
+  width: 200px;
+  height: 200px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.35) 0%, transparent 70%);
-  filter: blur(40px);
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.3) 0%, transparent 70%);
+  filter: blur(32px);
   animation: orbPulse 6s ease-in-out infinite;
 }
 
 .heroVisual :global(.dash-orb-svg) {
   width: 100%;
   height: auto;
-  max-height: 260px;
-  filter: drop-shadow(0 20px 60px rgba(124, 58, 237, 0.4));
+  max-height: 180px;
+  filter: drop-shadow(0 12px 40px rgba(124, 58, 237, 0.35));
   animation: orbFloat 8s ease-in-out infinite;
 }
 
@@ -379,28 +385,31 @@
 .heroContent {
   position: relative;
   z-index: 2;
-  padding: 28px 32px 100px;
-  max-width: 55%;
+  padding: 0;
+  max-width: none;
+  grid-column: 1;
+  grid-row: 1;
+  align-self: end;
 }
 
 .heroEyebrow {
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 700;
-  letter-spacing: 0.12em;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--dash-cyan);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
 }
 
 .heroTitle {
-  font-size: clamp(24px, 3.5vw, 38px);
+  font-size: clamp(20px, 2.4vw, 28px);
   font-weight: 800;
   letter-spacing: -0.04em;
-  line-height: 1.15;
-  margin: 0 0 10px;
+  line-height: 1.12;
+  margin: 0 0 6px;
   color: var(--color-text);
   word-break: break-word;
 }
@@ -415,33 +424,36 @@
 }
 
 .heroSub {
-  font-size: 14px;
-  color: rgba(255, 255, 255, 0.45);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.42);
   margin: 0;
-  line-height: 1.5;
+  line-height: 1.45;
 }
 
 /* Floating stat cards on hero */
 .floatingStats {
-  position: absolute;
-  left: 28px;
-  bottom: 24px;
+  position: relative;
+  left: auto;
+  bottom: auto;
   z-index: 3;
+  grid-column: 1;
+  grid-row: 2;
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
+  margin-top: 2px;
 }
 
 .floatCard {
-  width: 168px;
-  padding: 14px 16px;
-  border-radius: 18px;
+  width: 138px;
+  padding: 10px 11px;
+  border-radius: 14px;
   background: rgba(8, 8, 18, 0.75);
-  backdrop-filter: blur(20px) saturate(1.4);
-  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  backdrop-filter: blur(16px) saturate(1.3);
+  -webkit-backdrop-filter: blur(16px) saturate(1.3);
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow:
-    0 12px 32px rgba(0, 0, 0, 0.4),
+    0 8px 24px rgba(0, 0, 0, 0.35),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
   transition: transform var(--transition-base), box-shadow var(--transition-base);
 }
@@ -455,15 +467,15 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 
 .floatCardLabel {
-  font-size: 11px;
+  font-size: 9.5px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.5);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
 }
 
 .floatCardDelta {
@@ -481,22 +493,22 @@
 }
 
 .floatCardValue {
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--color-text);
   line-height: 1;
-  margin-bottom: 10px;
+  margin-bottom: 6px;
 }
 
 .floatCardValue small {
-  font-size: 14px;
+  font-size: 12px;
   font-weight: 600;
   color: rgba(255, 255, 255, 0.35);
 }
 
 .progressTrack {
-  height: 5px;
+  height: 4px;
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.06);
   overflow: hidden;
@@ -512,37 +524,43 @@
 
 /* Alerts / achievements card on hero */
 .heroAlerts {
-  position: absolute;
-  right: 24px;
-  top: 24px;
+  position: relative;
+  right: auto;
+  top: auto;
   z-index: 3;
-  width: min(300px, calc(100% - 48px));
-  padding: 18px 20px;
-  border-radius: 20px;
+  grid-column: 2;
+  grid-row: 1 / 3;
+  width: 100%;
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 12px 14px;
+  border-radius: 14px;
   background: rgba(8, 8, 18, 0.82);
-  backdrop-filter: blur(24px) saturate(1.3);
-  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  backdrop-filter: blur(20px) saturate(1.25);
+  -webkit-backdrop-filter: blur(20px) saturate(1.25);
   border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.38);
 }
 
 .heroAlertsHead {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
+  gap: 8px;
+  margin-bottom: 8px;
 }
 
 .heroAlertsTitle {
-  font-size: 15px;
+  font-size: 13px;
   font-weight: 700;
   color: var(--color-text);
-  margin: 0 0 4px;
+  margin: 0 0 2px;
 }
 
 .heroAlertsSub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-text-muted);
   margin: 0;
 }
@@ -564,8 +582,8 @@
 .alertItem {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: 8px;
+  padding: 7px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   cursor: pointer;
   transition: opacity var(--transition-fast);
@@ -581,9 +599,9 @@
 }
 
 .alertIcon {
-  width: 36px;
-  height: 36px;
-  border-radius: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -599,14 +617,14 @@
 
 .alertText strong {
   display: block;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .alertText span {
-  font-size: 10.5px;
+  font-size: 9.5px;
   color: var(--color-text-muted);
   display: block;
   white-space: nowrap;
@@ -624,17 +642,17 @@
 /* ── Main grid (chart + modules) ── */
 .mainGrid {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1.12fr 1fr;
+  gap: 12px;
 }
 
 .glassPanel {
-  border-radius: 22px;
+  border-radius: 16px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background: var(--dash-panel);
   backdrop-filter: blur(24px) saturate(1.25);
   -webkit-backdrop-filter: blur(24px) saturate(1.25);
-  padding: 20px 22px;
+  padding: 14px 16px;
   box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
@@ -654,12 +672,12 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 18px;
-  gap: 12px;
+  margin-bottom: 10px;
+  gap: 10px;
 }
 
 .panelTitle {
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 700;
   color: var(--color-text);
   margin: 0;
@@ -667,9 +685,9 @@
 }
 
 .panelSub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-text-muted);
-  margin: 3px 0 0;
+  margin: 2px 0 0;
 }
 
 .periodToggle {
@@ -699,7 +717,7 @@
 }
 
 .chartArea {
-  height: 210px;
+  height: 132px;
   display: flex;
   align-items: flex-end;
 }
@@ -712,43 +730,43 @@
 .chartFooter {
   display: flex;
   justify-content: space-between;
-  margin-top: 12px;
-  padding-top: 12px;
+  margin-top: 8px;
+  padding-top: 8px;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
-.chartStat {
-  text-align: center;
-}
-
 .chartStatValue {
-  font-size: 18px;
+  font-size: 15px;
   font-weight: 800;
   color: var(--color-text);
   letter-spacing: -0.02em;
 }
 
 .chartStatLabel {
-  font-size: 10px;
+  font-size: 9px;
   color: var(--color-text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.06em;
-  margin-top: 2px;
+  letter-spacing: 0.05em;
+  margin-top: 1px;
+}
+
+.chartStat {
+  text-align: center;
 }
 
 /* Module pipeline list */
 .pipelineList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .pipelineRow {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 12px;
-  border-radius: 16px;
+  gap: 10px;
+  padding: 8px 6px;
+  border-radius: 12px;
   transition: background var(--transition-fast);
   cursor: pointer;
 }
@@ -758,9 +776,9 @@
 }
 
 .pipelineIcon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -776,33 +794,33 @@
 }
 
 .pipelineName {
-  font-size: 13.5px;
+  font-size: 12px;
   font-weight: 600;
   color: var(--color-text);
-  margin-bottom: 2px;
+  margin-bottom: 1px;
 }
 
 .pipelineMeta {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-text-muted);
 }
 
 .pipelineProgress {
-  width: 100px;
+  width: 84px;
   flex-shrink: 0;
   text-align: right;
 }
 
 .pipelinePct {
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 800;
   color: var(--color-text);
-  margin-bottom: 6px;
+  margin-bottom: 4px;
   font-variant-numeric: tabular-nums;
 }
 
 .pipelineBar {
-  height: 4px;
+  height: 3px;
   border-radius: var(--radius-full);
   background: rgba(255, 255, 255, 0.06);
   overflow: hidden;
@@ -819,17 +837,17 @@
 /* ── Secondary widgets row ── */
 .secondaryGrid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
 }
 
 .miniWidget {
-  border-radius: 20px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: var(--dash-panel);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  padding: 16px 18px;
+  padding: 12px 14px;
   transition: border-color var(--transition-fast);
 }
 
@@ -841,7 +859,7 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .miniWidgetTitle {
@@ -856,7 +874,7 @@
 }
 
 .miniWidgetValue {
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 800;
   letter-spacing: -0.03em;
   color: var(--color-text);
@@ -864,9 +882,9 @@
 }
 
 .miniWidgetSub {
-  font-size: 11px;
+  font-size: 10px;
   color: var(--color-text-faint);
-  margin-top: 4px;
+  margin-top: 3px;
 }
 
 .miniWidget :global(.dash-mini-spark) {
@@ -920,8 +938,8 @@
 
 /* Loading */
 .loadingHero {
-  height: 280px;
-  border-radius: 28px;
+  height: 188px;
+  border-radius: 18px;
   background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -929,13 +947,13 @@
 
 .loadingGrid {
   display: grid;
-  grid-template-columns: 1.15fr 1fr;
-  gap: 16px;
+  grid-template-columns: 1.12fr 1fr;
+  gap: 12px;
 }
 
 .loadingPanel {
-  height: 320px;
-  border-radius: 22px;
+  height: 220px;
+  border-radius: 16px;
   background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -948,24 +966,26 @@
 
 /* ── Responsive ── */
 @media (max-width: 1100px) {
-  .heroContent {
-    max-width: 100%;
-    padding-bottom: 140px;
+  .heroStage {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    min-height: 0;
   }
 
-  .heroAlerts {
-    position: relative;
-    right: auto;
-    top: auto;
-    width: calc(100% - 48px);
-    margin: -60px 24px 24px;
+  .heroContent {
+    grid-column: 1;
+    grid-row: 1;
   }
 
   .floatingStats {
-    position: relative;
-    left: auto;
-    bottom: auto;
-    padding: 0 24px 24px;
+    grid-column: 1;
+    grid-row: 2;
+  }
+
+  .heroAlerts {
+    grid-column: 1;
+    grid-row: 3;
+    width: 100%;
   }
 
   .mainGrid,
@@ -973,6 +993,12 @@
     grid-template-columns: 1fr;
   }
 
+  .secondaryGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 720px) {
   .secondaryGrid {
     grid-template-columns: 1fr;
   }

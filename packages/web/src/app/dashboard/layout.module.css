@@ -317,6 +317,28 @@
   flex-direction: column;
 }
 
+.contentAreaInbox {
+  max-width: none;
+}
+
+.mainInbox {
+  overflow: hidden;
+}
+
+@media (max-width: 768px) {
+  .mainInbox {
+    padding: 56px 0 0;
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .contentAreaInbox {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
 .pageHeader {
   margin-bottom: 32px;
 }
