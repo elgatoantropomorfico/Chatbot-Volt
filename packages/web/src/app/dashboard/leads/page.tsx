@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
-import { Users, X, RefreshCw, Trash2, Camera, FileText, Plus, Edit2, Check, ClipboardList } from 'lucide-react';
+import { Users, X, RefreshCw, Trash2, Camera, FileText, Plus, Edit2, Check, ClipboardList, Search } from 'lucide-react';
 import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import styles from './page.module.css';
 
@@ -31,7 +31,6 @@ export default function LeadsPage() {
   const [leads, setLeads] = useState<any[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
   const [stage, setStage] = useState('');
   const [search, setSearch] = useState('');
   const [selectedLead, setSelectedLead] = useState<any>(null);
@@ -49,9 +48,36 @@ export default function LeadsPage() {
   const [leadFieldConfigs, setLeadFieldConfigs] = useState<any[]>([]);
   const [photoPreview, setPhotoPreview] = useState<string | null>(null);
 
+  const PAGE_SIZE = 15;
+
   useEffect(() => {
     loadLeads();
-  }, [page, stage]);
+  }, [stage]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, stage]);
+
+  const filteredLeads = useMemo(() => {
+    if (!search.trim()) return leads;
+    const q = search.trim().toLowerCase();
+    return leads.filter((lead) => {
+      const name = (lead.name || '').toLowerCase();
+      const phone = (lead.phone || '').toLowerCase();
+      return name.includes(q) || phone.includes(q);
+    });
+  }, [leads, search]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLeads.length / PAGE_SIZE));
+
+  const visibleLeads = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredLeads.slice(start, start + PAGE_SIZE);
+  }, [filteredLeads, page]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
 
   useEffect(() => {
     (async () => {
@@ -87,13 +113,11 @@ export default function LeadsPage() {
   async function loadLeads() {
     setLoading(true);
     try {
-      const params: Record<string, string> = { page: String(page), limit: '15' };
+      const params: Record<string, string> = { page: '1', limit: '500' };
       if (stage) params.stage = stage;
-      if (search) params.search = search;
       const data = await api.getLeads(params);
       setLeads(data.leads);
       setTotal(data.total);
-      setTotalPages(data.totalPages);
     } catch (err) {
       console.error('Error loading leads:', err);
     } finally {
@@ -139,11 +163,6 @@ export default function LeadsPage() {
     } catch (err) {
       console.error('Error adding note:', err);
     }
-  }
-
-  function handleSearch() {
-    setPage(1);
-    loadLeads();
   }
 
   async function syncToZoho() {
@@ -204,17 +223,19 @@ export default function LeadsPage() {
     <div className={styles.container}>
       <div className={styles.listPanel}>
         <div className={styles.header}>
-          <h1>Leads</h1>
-          <span style={{ color: 'var(--color-text-muted)', fontSize: '14px' }}>{total} leads</span>
+          <h1 className="volt-page-compact-title">Leads</h1>
+          <span className="volt-page-compact-meta">
+            {search.trim() ? `${filteredLeads.length} de ${total}` : total} leads
+          </span>
         </div>
 
-        <div className={styles.searchBar}>
+        <div className="volt-search-field">
+          <Search size={15} strokeWidth={2} />
           <input
-            className={styles.searchInput}
+            type="search"
             placeholder="Buscar por nombre o teléfono..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
           />
         </div>
 
@@ -222,8 +243,9 @@ export default function LeadsPage() {
           {STAGES.map((s) => (
             <button
               key={s}
-              className={`${styles.stageBtn} ${stage === s ? styles.stageBtnActive : ''}`}
-              onClick={() => { setStage(s); setPage(1); }}
+              type="button"
+              className={`volt-filter-chip${stage === s ? ' volt-filter-chip--active' : ''}`}
+              onClick={() => setStage(s)}
             >
               {STAGE_LABELS[s]}
             </button>
@@ -232,14 +254,14 @@ export default function LeadsPage() {
 
         {loading ? (
           <div className={styles.emptyState}>Cargando...</div>
-        ) : leads.length === 0 ? (
+        ) : filteredLeads.length === 0 ? (
           <div className={styles.emptyState}>
             <Users size={32} />
             <p>No se encontraron leads</p>
           </div>
         ) : (
           <>
-            <div className={styles.tableWrapper}>
+            <div className={`${styles.tableWrapper} volt-list-shell`}>
               <table className={styles.table}>
                 <thead>
                   <tr>
@@ -251,7 +273,7 @@ export default function LeadsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map((lead) => (
+                  {visibleLeads.map((lead) => (
                     <tr key={lead.id} onClick={() => selectLead(lead.id)}>
                       <td>{lead.name || '—'}</td>
                       <td>{lead.phone}</td>

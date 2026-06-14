@@ -13,23 +13,20 @@
 }
 
 .title {
-  font-size: 26px;
+  font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.02em;
-  background: linear-gradient(135deg, var(--color-text), var(--color-text-secondary));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   margin: 0;
 }
 
 .subtitle {
-  font-size: 14px;
+  font-size: 12px;
   color: var(--color-text-muted);
-  margin: 6px 0 24px;
+  margin: 4px 0 16px;
 }
 
 .statsGrid {
@@ -887,117 +884,78 @@
 
 /* ── List view filters & grouped list ── */
 .listFilters {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: 16px 18px;
-  margin-bottom: 16px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 12px;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
 }
 
 .listFiltersRow {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
-  gap: 12px;
-}
-
-.listFiltersIcon {
-  color: #a78bfa;
-  flex-shrink: 0;
-  margin-bottom: 10px;
+  gap: 10px;
 }
 
 .dateFilterField {
   display: flex;
   flex-direction: column;
-  gap: 5px;
-  min-width: 150px;
+  gap: 4px;
+  min-width: 140px;
 }
 
 .dateFilterField span {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: var(--color-text-muted);
+  color: var(--color-text-faint);
 }
 
 .dateFilterField input {
-  padding: 9px 11px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-secondary);
-  color: var(--color-text);
-  font-size: 13px;
-}
-
-.searchField {
-  flex: 1;
-  min-width: 220px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 9px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-secondary);
-  color: var(--color-text-muted);
-}
-
-.searchField input {
-  flex: 1;
-  border: none;
-  background: transparent;
+  padding: 10px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.035);
   color: var(--color-text);
   font-size: 13px;
   outline: none;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.dateFilterField input:focus {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.055);
 }
 
 .presetRow {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
-}
-
-.presetBtn {
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: transparent;
-  color: var(--color-text-secondary);
-  font-size: 12px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all var(--transition-fast);
-}
-
-.presetBtn:hover {
-  border-color: #a78bfa;
-  color: #a78bfa;
-  background: rgba(139, 92, 246, 0.06);
+  gap: 6px;
 }
 
 .listResultCount {
   margin-left: auto;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
-  color: var(--color-text-muted);
+  color: var(--color-text-faint);
 }
 
 .listView {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 .listGroup {
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
   overflow: hidden;
 }
 
@@ -1005,24 +963,24 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 12px;
-  padding: 14px 18px;
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.08), rgba(139, 92, 246, 0.03));
-  border-bottom: 1px solid var(--color-border);
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(255, 255, 255, 0.02);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 
 .listGroupTitle {
   margin: 0;
-  font-size: 15px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   text-transform: capitalize;
   color: var(--color-text);
 }
 
 .listGroupSub {
-  margin: 4px 0 0;
-  font-size: 12px;
-  color: var(--color-text-muted);
+  margin: 2px 0 0;
+  font-size: 11px;
+  color: var(--color-text-faint);
 }
 
 .listGroupBody {
@@ -1033,7 +991,7 @@
 .listRow {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
 }
 
 .listRow:last-child {
@@ -1044,8 +1002,8 @@
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
+  gap: 12px;
+  padding: 11px 14px;
   border: none;
   background: transparent;
   cursor: pointer;
@@ -1054,14 +1012,14 @@
 }
 
 .listRowMain:hover {
-  background: rgba(139, 92, 246, 0.04);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .listRowTime {
-  font-size: 15px;
-  font-weight: 800;
-  color: #a78bfa;
-  min-width: 48px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  min-width: 44px;
 }
 
 .listRowInfo {
@@ -1077,18 +1035,18 @@
 }
 
 .listRowName {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 600;
   color: var(--color-text);
 }
 
 .listRowMeta {
   display: flex;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
-  margin-top: 3px;
-  font-size: 12px;
-  color: var(--color-text-muted);
+  margin-top: 2px;
+  font-size: 11px;
+  color: var(--color-text-faint);
 }
 
 .listRowEnd {
@@ -1193,7 +1151,7 @@
     align-items: stretch;
   }
 
-  .searchField {
+  .listFiltersRow :global(.volt-search-field) {
     min-width: 0;
   }
 

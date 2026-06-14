@@ -67,6 +67,92 @@
   line-height: 1.5;
 }
 
+/* ── Apple-style search & filter chips (leads, turnos, etc.) ── */
+.volt-search-field {
+  flex: 1;
+  min-width: 200px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--color-text-muted);
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.volt-search-field:focus-within {
+  border-color: rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.volt-search-field svg {
+  flex-shrink: 0;
+  opacity: 0.42;
+}
+
+.volt-search-field input {
+  flex: 1;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--color-text);
+  font-size: 14px;
+  line-height: 1.45;
+  padding: 0;
+  outline: none;
+}
+
+.volt-search-field input::placeholder {
+  color: var(--color-text-faint);
+}
+
+.volt-filter-chip {
+  padding: 6px 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+}
+
+.volt-filter-chip:hover {
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--color-text-secondary);
+}
+
+.volt-filter-chip--active {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.12);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.volt-list-shell {
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
+.volt-page-compact-title {
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: var(--color-text);
+  margin: 0;
+}
+
+.volt-page-compact-meta {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
 .volt-panel {
   background: rgba(10, 10, 20, 0.72);
   border: 1px solid rgba(255, 255, 255, 0.07);

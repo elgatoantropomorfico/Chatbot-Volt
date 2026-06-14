@@ -25,7 +25,6 @@ import {
   LayoutGrid,
   Trash2,
   Search,
-  Filter,
 } from 'lucide-react';
 import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import styles from './page.module.css';
@@ -469,7 +468,6 @@ export default function TurnosPage() {
       {view === 'list' && (
         <div className={styles.listFilters}>
           <div className={styles.listFiltersRow}>
-            <Filter size={15} className={styles.listFiltersIcon} />
             <label className={styles.dateFilterField}>
               <span>Desde</span>
               <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
@@ -478,8 +476,8 @@ export default function TurnosPage() {
               <span>Hasta</span>
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </label>
-            <div className={styles.searchField}>
-              <Search size={15} />
+            <div className="volt-search-field">
+              <Search size={15} strokeWidth={2} />
               <input
                 type="search"
                 placeholder="Buscar cliente, teléfono o camino..."
@@ -489,17 +487,17 @@ export default function TurnosPage() {
             </div>
           </div>
           <div className={styles.presetRow}>
-            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('upcoming')}>
+            <button type="button" className={`volt-filter-chip${!dateFrom && !dateTo ? ' volt-filter-chip--active' : ''}`} onClick={() => applyDatePreset('clear')}>
+              Todos
+            </button>
+            <button type="button" className="volt-filter-chip" onClick={() => applyDatePreset('upcoming')}>
               Próximos
             </button>
-            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('week')}>
+            <button type="button" className="volt-filter-chip" onClick={() => applyDatePreset('week')}>
               Esta semana
             </button>
-            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('month')}>
+            <button type="button" className="volt-filter-chip" onClick={() => applyDatePreset('month')}>
               Este mes
-            </button>
-            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('clear')}>
-              Limpiar fechas
             </button>
             <span className={styles.listResultCount}>
               {filteredList.length} turno{filteredList.length !== 1 ? 's' : ''}
