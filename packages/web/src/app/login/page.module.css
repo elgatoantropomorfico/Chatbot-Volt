@@ -11,37 +11,52 @@
 .container::before {
   content: '';
   position: absolute;
-  top: 50%;
+  top: 42%;
   left: 50%;
   transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, rgba(139, 92, 246, 0.08) 0%, rgba(232, 121, 249, 0.04) 40%, transparent 70%);
+  width: 640px;
+  height: 640px;
+  background: radial-gradient(circle, rgba(155, 123, 247, 0.1) 0%, rgba(212, 141, 232, 0.04) 42%, transparent 72%);
   pointer-events: none;
 }
 
 .container::after {
   content: '';
   position: absolute;
-  top: 20%;
-  right: 15%;
-  width: 300px;
-  height: 300px;
-  background: radial-gradient(circle, rgba(232, 121, 249, 0.06) 0%, transparent 70%);
+  top: 18%;
+  right: 12%;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(212, 141, 232, 0.06) 0%, transparent 70%);
   pointer-events: none;
 }
 
 .card {
   width: 100%;
   max-width: 420px;
-  padding: 44px;
+  padding: 44px 42px;
   background: var(--color-surface);
-  border: 1px solid rgba(139, 92, 246, 0.12);
+  border: 1px solid var(--color-border);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-lg), var(--shadow-glow);
   position: relative;
   z-index: 1;
-  backdrop-filter: blur(12px);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+}
+
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.08), transparent 45%);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
 }
 
 .logo {
@@ -51,18 +66,18 @@
 
 .logo h1 {
   font-size: 32px;
-  font-weight: 800;
-  background: linear-gradient(135deg, #a78bfa, #e879f9);
+  font-weight: var(--weight-bold);
+  background: linear-gradient(135deg, #c4b5fd 0%, #e9d5ff 50%, #d48de8 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  letter-spacing: -0.03em;
+  letter-spacing: var(--tracking-tight);
 }
 
 .logo p {
   color: var(--color-text-muted);
-  font-size: 14px;
-  margin-top: 8px;
+  font-size: var(--text-base);
+  margin-top: 10px;
 }
 
 .form {
@@ -74,54 +89,53 @@
 .field {
   display: flex;
   flex-direction: column;
-  gap: 7px;
+  gap: 8px;
 }
 
 .field label {
-  font-size: 12.5px;
-  font-weight: 600;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
   color: var(--color-text-secondary);
-  letter-spacing: 0.01em;
+  letter-spacing: 0.02em;
 }
 
 .field input {
-  padding: 12px 16px;
+  padding: 13px 16px;
   background: var(--color-bg-secondary);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text);
-  font-size: 14px;
+  font-size: var(--text-base);
   outline: none;
   transition: all var(--transition-fast);
 }
 
 .field input:focus {
-  border-color: rgba(139, 92, 246, 0.5);
-  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1), 0 0 16px rgba(139, 92, 246, 0.08);
+  border-color: var(--color-border-glow);
+  box-shadow: var(--shadow-focus);
 }
 
 .button {
-  padding: 13px;
-  background: linear-gradient(135deg, #7c3aed, #8b5cf6, #a855f7);
+  padding: 14px;
+  background: linear-gradient(135deg, #6d28d9 0%, #8b5cf6 50%, #a78bfa 100%);
   color: white;
   border: none;
   border-radius: var(--radius-md);
-  font-size: 14px;
-  font-weight: 700;
+  font-size: var(--text-base);
+  font-weight: var(--weight-bold);
   transition: all var(--transition-fast);
-  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+  box-shadow: 0 6px 24px rgba(124, 58, 237, 0.32), var(--shadow-inset-top);
   letter-spacing: 0.01em;
-  margin-top: 4px;
+  margin-top: 6px;
 }
 
-.button:hover {
-  background: linear-gradient(135deg, #6d28d9, #7c3aed, #8b5cf6);
-  box-shadow: 0 6px 24px rgba(139, 92, 246, 0.45);
+.button:hover:not(:disabled) {
   transform: translateY(-1px);
+  box-shadow: 0 10px 32px rgba(124, 58, 237, 0.4), var(--shadow-inset-top);
 }
 
 .button:disabled {
-  opacity: 0.5;
+  opacity: 0.45;
   cursor: not-allowed;
   box-shadow: none;
   transform: none;
@@ -130,14 +144,13 @@
 .error {
   padding: 12px 16px;
   background: var(--color-danger-light);
-  border: 1px solid rgba(251, 113, 133, 0.25);
+  border: 1px solid rgba(248, 113, 138, 0.22);
   border-radius: var(--radius-sm);
   color: var(--color-danger);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
 }
 
-/* Responsive */
 @media (max-width: 480px) {
   .card {
     margin: 16px;

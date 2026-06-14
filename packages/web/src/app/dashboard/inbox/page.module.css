@@ -1,9 +1,10 @@
 .container {
   display: flex;
-  height: calc(100vh - 48px);
-  margin: -28px -36px;
+  height: calc(100vh - 64px);
+  margin: -32px -40px;
+  width: calc(100% + 80px);
   overflow: hidden;
-  background: var(--color-bg);
+  background: transparent;
 }
 
 /* ─── Conversation List ─── */
@@ -13,7 +14,9 @@
   border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  background: linear-gradient(180deg, var(--color-bg-secondary) 0%, var(--color-bg) 100%);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
 }
 
 .listHeader {

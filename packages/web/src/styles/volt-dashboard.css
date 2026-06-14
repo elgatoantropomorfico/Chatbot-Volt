@@ -1,0 +1,123 @@
+/**
+ * Volt Dashboard — shared UI primitives
+ * Applied globally inside .dashboard-main
+ */
+
+/* ── Page typography ── */
+.dashboard-main h1 {
+  font-size: var(--text-2xl);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+  line-height: var(--leading-tight);
+}
+
+.dashboard-main h2 {
+  font-size: var(--text-lg);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-tight);
+  color: var(--color-text);
+}
+
+.dashboard-main h3 {
+  font-size: var(--text-sm);
+  font-weight: var(--weight-semibold);
+  letter-spacing: var(--tracking-wide);
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* ── Glass surfaces ── */
+.volt-glass,
+.dashboard-main .volt-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  position: relative;
+}
+
+.volt-glass::before,
+.dashboard-main .volt-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    145deg,
+    rgba(255, 255, 255, 0.07) 0%,
+    rgba(255, 255, 255, 0.01) 40%,
+    transparent 60%
+  );
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* ── Form controls (inline-style pages inherit this) ── */
+.dashboard-main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
+.dashboard-main select,
+.dashboard-main textarea {
+  background: var(--color-bg-secondary);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast),
+    background var(--transition-fast);
+}
+
+.dashboard-main input:not([type='checkbox']):not([type='radio']):hover,
+.dashboard-main select:hover,
+.dashboard-main textarea:hover {
+  border-color: var(--color-border-light);
+  background: var(--color-bg-tertiary);
+}
+
+.dashboard-main input:not([type='checkbox']):not([type='radio']):focus,
+.dashboard-main select:focus,
+.dashboard-main textarea:focus {
+  outline: none;
+  border-color: var(--color-border-glow);
+  box-shadow: var(--shadow-focus);
+}
+
+.dashboard-main input::placeholder,
+.dashboard-main textarea::placeholder {
+  color: var(--color-text-faint);
+}
+
+/* ── Tables inside dashboard ── */
+.dashboard-main table {
+  border-collapse: collapse;
+}
+
+.dashboard-main table th {
+  font-size: var(--text-xs);
+  font-weight: var(--weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-wider);
+  color: var(--color-text-muted);
+}
+
+/* ── Subtle page enter ── */
+.dashboard-main > * {
+  animation: voltFadeUp 0.45s var(--ease-out-expo) both;
+}
+
+@keyframes voltFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

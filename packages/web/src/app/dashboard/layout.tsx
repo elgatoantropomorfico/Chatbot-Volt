@@ -106,6 +106,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className={styles.wrapper}>
+      <div className={styles.ambient} aria-hidden>
+        <div className={styles.ambientOrb1} />
+        <div className={styles.ambientOrb2} />
+        <div className={styles.ambientOrb3} />
+      </div>
+
       {/* Mobile Header */}
       <div className={styles.mobileHeader}>
         <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
@@ -121,8 +127,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
       <aside className={`${styles.sidebar} ${mobileMenuOpen ? styles.sidebarOpen : ''}`}>
         <div className={styles.sidebarHeader}>
-          <h2>Volt</h2>
-          <span>{isSuperAdmin ? 'Super Admin Panel' : user.tenant?.name || 'Panel'}</span>
+          <div className={styles.brandMark}>
+            <div className={styles.brandIcon}>V</div>
+            <div className={styles.brandText}>
+              <h2>Volt</h2>
+              <span>{isSuperAdmin ? 'Super Admin' : user.tenant?.name || 'Panel'}</span>
+            </div>
+          </div>
         </div>
 
         <nav className={styles.nav}>
@@ -252,8 +263,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={styles.main}>
-        {children}
+      <main className={`${styles.main} dashboard-main`}>
+        <div className={styles.contentArea}>
+          {children}
+        </div>
       </main>
     </div>
   );

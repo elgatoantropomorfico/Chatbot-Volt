@@ -1,58 +1,102 @@
-:root {
-  --color-bg: #06060c;
-  --color-bg-secondary: #0c0c18;
-  --color-bg-tertiary: #141428;
-  --color-surface: #12122a;
-  --color-surface-hover: #1a1a3a;
-  --color-surface-glass: rgba(18, 18, 42, 0.65);
-  --color-border: rgba(139, 92, 246, 0.12);
-  --color-border-light: rgba(139, 92, 246, 0.2);
-  --color-border-glow: rgba(168, 85, 247, 0.35);
-  --color-text: #f0eef8;
-  --color-text-secondary: #b0a8d0;
-  --color-text-muted: #6e6494;
-  --color-primary: #8b5cf6;
-  --color-primary-hover: #a78bfa;
-  --color-primary-light: rgba(139, 92, 246, 0.12);
-  --color-primary-glow: rgba(139, 92, 246, 0.4);
-  --color-accent: #e879f9;
-  --color-accent-light: rgba(232, 121, 249, 0.12);
-  --color-accent-glow: rgba(232, 121, 249, 0.3);
-  --color-success: #34d399;
-  --color-success-light: rgba(52, 211, 153, 0.12);
-  --color-warning: #fbbf24;
-  --color-warning-light: rgba(251, 191, 36, 0.12);
-  --color-danger: #fb7185;
-  --color-danger-light: rgba(251, 113, 133, 0.12);
-  --color-info: #67e8f9;
-  --color-info-light: rgba(103, 232, 249, 0.12);
+@import '../styles/volt-dashboard.css';
 
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 20px;
+:root {
+  /* ── Canvas — deep executive dark ── */
+  --color-bg: #030308;
+  --color-bg-secondary: #07070f;
+  --color-bg-tertiary: #0c0c16;
+  --color-bg-elevated: #10101c;
+
+  /* ── Surfaces — glass layers ── */
+  --color-surface: rgba(12, 12, 22, 0.78);
+  --color-surface-solid: #0c0c18;
+  --color-surface-hover: rgba(18, 18, 32, 0.9);
+  --color-surface-glass: rgba(255, 255, 255, 0.025);
+
+  /* ── Borders — hairline precision ── */
+  --color-border: rgba(255, 255, 255, 0.055);
+  --color-border-light: rgba(255, 255, 255, 0.09);
+  --color-border-glow: rgba(167, 139, 250, 0.22);
+  --color-border-accent: rgba(139, 92, 246, 0.18);
+
+  /* ── Typography — higher contrast, softer secondary ── */
+  --color-text: #f5f3fa;
+  --color-text-secondary: #a8a3be;
+  --color-text-muted: #6b6580;
+  --color-text-faint: #48435a;
+
+  /* ── Brand — restrained violet luminance ── */
+  --color-primary: #9b7bf7;
+  --color-primary-hover: #b49dff;
+  --color-primary-dim: #7c5fd4;
+  --color-primary-light: rgba(155, 123, 247, 0.1);
+  --color-primary-glow: rgba(155, 123, 247, 0.28);
+  --color-accent: #d48de8;
+  --color-accent-light: rgba(212, 141, 232, 0.1);
+  --color-accent-glow: rgba(212, 141, 232, 0.2);
+
+  /* ── Semantic ── */
+  --color-success: #3dd68c;
+  --color-success-light: rgba(61, 214, 140, 0.1);
+  --color-warning: #f5c542;
+  --color-warning-light: rgba(245, 197, 66, 0.1);
+  --color-danger: #f8718a;
+  --color-danger-light: rgba(248, 113, 138, 0.1);
+  --color-info: #5eead4;
+  --color-info-light: rgba(94, 234, 212, 0.1);
+
+  /* ── Radius — softer executive curves ── */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 0 8px rgba(139, 92, 246, 0.04);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.5), 0 0 20px rgba(139, 92, 246, 0.06);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6), 0 0 40px rgba(139, 92, 246, 0.08);
-  --shadow-glow: 0 0 20px rgba(139, 92, 246, 0.15), 0 0 60px rgba(232, 121, 249, 0.08);
-  --shadow-glow-lg: 0 0 30px rgba(139, 92, 246, 0.2), 0 0 80px rgba(232, 121, 249, 0.12);
-  --shadow-card: 0 2px 8px rgba(0, 0, 0, 0.3), 0 0 1px rgba(139, 92, 246, 0.15);
-  --shadow-card-hover: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 20px rgba(139, 92, 246, 0.12);
+  /* ── Shadows — layered depth, no harsh blacks ── */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.32), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.38), 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-lg: 0 16px 48px rgba(0, 0, 0, 0.45), 0 0 1px rgba(255, 255, 255, 0.05);
+  --shadow-glow: 0 0 24px rgba(155, 123, 247, 0.12), 0 0 64px rgba(212, 141, 232, 0.06);
+  --shadow-glow-lg: 0 0 40px rgba(155, 123, 247, 0.16), 0 0 100px rgba(212, 141, 232, 0.08);
+  --shadow-card: 0 4px 20px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --shadow-card-hover: 0 12px 36px rgba(0, 0, 0, 0.36), 0 0 24px rgba(155, 123, 247, 0.08);
+  --shadow-focus: 0 0 0 3px rgba(155, 123, 247, 0.14), 0 0 20px rgba(155, 123, 247, 0.08);
+  --shadow-inset-top: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
-  --glass-bg: rgba(12, 12, 24, 0.6);
-  --glass-border: rgba(139, 92, 246, 0.1);
-  --glass-blur: blur(20px);
+  /* ── Glass ── */
+  --glass-bg: rgba(8, 8, 16, 0.72);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-blur: blur(24px) saturate(1.35);
 
+  /* ── Type scale ── */
   --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+  --text-xs: 0.6875rem;
+  --text-sm: 0.8125rem;
+  --text-base: 0.875rem;
+  --text-lg: 1.0625rem;
+  --text-xl: 1.25rem;
+  --text-2xl: 1.625rem;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+  --tracking-tight: -0.025em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.07em;
+  --leading-tight: 1.2;
 
-  --sidebar-width: 260px;
+  /* ── Layout ── */
+  --sidebar-width: 268px;
+  --content-max: 1480px;
 
-  --transition-fast: 0.15s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-base: 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  --transition-slow: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  /* ── Motion — silk easing ── */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-fast: 0.18s var(--ease-in-out);
+  --transition-base: 0.28s var(--ease-out-expo);
+  --transition-slow: 0.5s var(--ease-out-expo);
 }
 
 * {
@@ -61,14 +105,17 @@
   box-sizing: border-box;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   font-family: var(--font-sans);
+  font-size: 15px;
   background: var(--color-bg);
   color: var(--color-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  letter-spacing: -0.01em;
+  text-rendering: optimizeLegibility;
+  letter-spacing: -0.011em;
 }
 
 a {
@@ -86,15 +133,28 @@ button {
   font-family: inherit;
 }
 
-input, textarea, select {
+input,
+textarea,
+select {
   font-family: inherit;
   font-size: inherit;
 }
 
+/* Ambient canvas texture */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
 /* Premium scrollbar */
 ::-webkit-scrollbar {
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -102,31 +162,38 @@ input, textarea, select {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(139, 92, 246, 0.2);
+  background: rgba(255, 255, 255, 0.08);
   border-radius: var(--radius-full);
-  transition: background var(--transition-fast);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(139, 92, 246, 0.4);
+  background: rgba(155, 123, 247, 0.35);
+  border: 2px solid transparent;
+  background-clip: padding-box;
 }
 
-/* Selection */
 ::selection {
-  background: rgba(139, 92, 246, 0.3);
+  background: rgba(155, 123, 247, 0.28);
   color: #fff;
 }
 
-/* Global focus ring */
 :focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: 2px;
-  border-radius: var(--radius-sm);
 }
 
-/* Textarea resize handle for dark theme */
 textarea::-webkit-resizer {
-  background: linear-gradient(135deg, transparent 60%, var(--color-border) 60%, var(--color-border) 75%, transparent 75%, transparent 85%, var(--color-border) 85%);
+  background: linear-gradient(
+    135deg,
+    transparent 60%,
+    var(--color-border) 60%,
+    var(--color-border) 75%,
+    transparent 75%,
+    transparent 85%,
+    var(--color-border) 85%
+  );
   border-radius: 0 0 var(--radius-md) 0;
 }
 

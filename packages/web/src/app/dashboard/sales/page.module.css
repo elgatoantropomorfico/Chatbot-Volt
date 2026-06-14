@@ -33,16 +33,20 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: 22px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  transition: all var(--transition-fast);
+  transition: all var(--transition-base);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  box-shadow: var(--shadow-card);
 }
 
 .statCard:hover {
-  border-color: var(--color-primary);
-  box-shadow: 0 0 20px rgba(139, 92, 246, 0.1);
+  border-color: var(--color-border-light);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-1px);
 }
 
 .statLabel {
@@ -341,10 +345,11 @@
 .detailBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
-  backdrop-filter: blur(6px);
+  background: rgba(3, 3, 8, 0.68);
+  backdrop-filter: blur(12px) saturate(1.2);
+  -webkit-backdrop-filter: blur(12px) saturate(1.2);
   z-index: 998;
-  animation: fadeIn 0.2s ease;
+  animation: fadeIn 0.25s var(--ease-out-expo);
 }
 
 .detailPanel {
@@ -354,12 +359,15 @@
   bottom: 0;
   width: 420px;
   max-width: 90vw;
-  background: var(--color-bg);
-  border-left: 1px solid var(--color-border);
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--glass-border);
   z-index: 999;
   overflow-y: auto;
-  animation: slideInRight 0.25s ease;
-  padding: 24px;
+  animation: slideInRight 0.32s var(--ease-out-expo);
+  padding: 28px;
+  box-shadow: var(--shadow-lg);
 }
 
 .detailHeader {
