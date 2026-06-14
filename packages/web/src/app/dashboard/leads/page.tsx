@@ -229,10 +229,11 @@ export default function LeadsPage() {
           </span>
         </div>
 
-        <div className="volt-search-field">
-          <Search size={15} strokeWidth={2} />
+        <div className="volt-input-wrap">
+          <Search size={15} strokeWidth={1.75} />
           <input
             type="search"
+            className="volt-input"
             placeholder="Buscar por nombre o teléfono..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -244,7 +245,7 @@ export default function LeadsPage() {
             <button
               key={s}
               type="button"
-              className={`volt-filter-chip${stage === s ? ' volt-filter-chip--active' : ''}`}
+              className={`${styles.stageBtn} ${stage === s ? styles.stageBtnActive : ''}`}
               onClick={() => setStage(s)}
             >
               {STAGE_LABELS[s]}

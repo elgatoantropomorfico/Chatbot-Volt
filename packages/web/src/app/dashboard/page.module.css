@@ -9,7 +9,7 @@
   --dash-panel: rgba(10, 10, 20, 0.72);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 20px;
   min-height: 0;
 }
 
@@ -27,24 +27,29 @@
   max-width: 420px;
 }
 
+.searchPill > * {
+  width: 100%;
+  max-width: 100%;
+}
+
 .statusPill {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--radius-full);
-  background: linear-gradient(135deg, rgba(34, 211, 238, 0.1), rgba(167, 139, 250, 0.08));
-  border: 1px solid rgba(34, 211, 238, 0.18);
-  font-size: 11.5px;
-  font-weight: 600;
-  color: var(--dash-cyan);
+  padding: 7px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
   white-space: nowrap;
 }
 
 .statusPillUrgent {
-  background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(251, 113, 133, 0.08));
-  border-color: rgba(251, 191, 36, 0.3);
-  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.06);
+  border-color: rgba(251, 191, 36, 0.15);
+  color: #d4a574;
 }
 
 .topBarRight {
@@ -162,10 +167,10 @@
 
 .iconBtn {
   position: relative;
-  width: 38px;
-  height: 38px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   color: var(--color-text-muted);
   display: flex;
@@ -177,20 +182,20 @@
 
 .iconBtn:hover,
 .iconBtnActive {
-  border-color: var(--color-border-glow);
-  color: var(--color-primary-hover);
-  background: var(--color-primary-light);
+  border-color: rgba(255, 255, 255, 0.14);
+  color: var(--color-text);
+  background: rgba(255, 255, 255, 0.06);
 }
 
 .notifDot {
   position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 8px;
-  height: 8px;
+  top: 9px;
+  right: 9px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #fb7185;
-  box-shadow: 0 0 8px #fb7185;
+  box-shadow: none;
 }
 
 .userChip {
@@ -198,8 +203,8 @@
   align-items: center;
   gap: 8px;
   padding: 4px 12px 4px 4px;
-  border-radius: var(--radius-full);
-  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   max-width: 200px;
 }
@@ -232,7 +237,7 @@
   height: 6px;
   border-radius: 50%;
   background: #34d399;
-  box-shadow: 0 0 8px #34d399;
+  box-shadow: none;
   animation: pulse 2s ease-in-out infinite;
 }
 
@@ -304,25 +309,33 @@
   flex-shrink: 0;
 }
 
-/* ── Hero stage — compact grid puzzle ── */
+/* ── Hero stage ── */
 .heroStage {
   position: relative;
-  border-radius: 18px;
-  min-height: 188px;
+  border-radius: 20px;
+  min-height: 204px;
   overflow: hidden;
   border: 1px solid rgba(255, 255, 255, 0.07);
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 248px;
-  grid-template-rows: auto auto;
-  gap: 10px 14px;
-  padding: 16px 18px 14px;
+  grid-template-columns: minmax(0, 1fr) minmax(248px, 288px);
+  grid-template-rows: auto 1fr;
+  gap: 16px 24px;
+  padding: 24px 28px 22px;
   background:
-    radial-gradient(ellipse 70% 60% at 72% 28%, rgba(124, 58, 237, 0.28), transparent 58%),
-    radial-gradient(ellipse 40% 40% at 18% 78%, rgba(34, 211, 238, 0.06), transparent 50%),
-    linear-gradient(145deg, #0a0a14 0%, #12101f 40%, #0d0b18 100%);
+    radial-gradient(ellipse 55% 50% at 82% 30%, rgba(124, 58, 237, 0.16), transparent 62%),
+    radial-gradient(ellipse 35% 35% at 12% 85%, rgba(34, 211, 238, 0.04), transparent 55%),
+    linear-gradient(165deg, #0a0a14 0%, #0f0f1a 48%, #0c0b16 100%);
   box-shadow:
-    0 16px 40px rgba(0, 0, 0, 0.38),
+    0 8px 32px rgba(0, 0, 0, 0.28),
     inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.heroStage::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 28%);
+  pointer-events: none;
 }
 
 .heroStage::before {
@@ -342,34 +355,34 @@
 
 .heroVisual :global(.dash-hero-orb) {
   position: absolute;
-  right: -2%;
+  right: 4%;
   top: 50%;
   transform: translateY(-50%);
-  width: 42%;
-  max-width: 340px;
+  width: 36%;
+  max-width: 280px;
   height: 100%;
   display: flex;
   align-items: center;
   justify-content: center;
-  opacity: 0.75;
+  opacity: 0.5;
 }
 
 .heroVisual :global(.dash-orb-glow) {
   position: absolute;
-  width: 200px;
-  height: 200px;
+  width: 160px;
+  height: 160px;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(167, 139, 250, 0.3) 0%, transparent 70%);
-  filter: blur(32px);
-  animation: orbPulse 6s ease-in-out infinite;
+  background: radial-gradient(circle, rgba(167, 139, 250, 0.22) 0%, transparent 70%);
+  filter: blur(40px);
+  animation: orbPulse 8s ease-in-out infinite;
 }
 
 .heroVisual :global(.dash-orb-svg) {
   width: 100%;
   height: auto;
-  max-height: 180px;
-  filter: drop-shadow(0 12px 40px rgba(124, 58, 237, 0.35));
-  animation: orbFloat 8s ease-in-out infinite;
+  max-height: 150px;
+  filter: drop-shadow(0 8px 28px rgba(124, 58, 237, 0.25));
+  animation: orbFloat 10s ease-in-out infinite;
 }
 
 @keyframes orbPulse {
@@ -389,27 +402,27 @@
   max-width: none;
   grid-column: 1;
   grid-row: 1;
-  align-self: end;
+  align-self: start;
 }
 
 .heroEyebrow {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.1em;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--dash-cyan);
-  margin-bottom: 6px;
+  color: var(--color-text-faint);
+  margin-bottom: 8px;
   display: flex;
   align-items: center;
   gap: 6px;
 }
 
 .heroTitle {
-  font-size: clamp(20px, 2.4vw, 28px);
-  font-weight: 800;
-  letter-spacing: -0.04em;
-  line-height: 1.12;
-  margin: 0 0 6px;
+  font-size: clamp(22px, 2.8vw, 32px);
+  font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.15;
+  margin: 0 0 8px;
   color: var(--color-text);
   word-break: break-word;
 }
@@ -424,81 +437,90 @@
 }
 
 .heroSub {
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.42);
+  font-size: 13px;
+  color: var(--color-text-muted);
   margin: 0;
-  line-height: 1.45;
+  line-height: 1.5;
 }
 
-/* Floating stat cards on hero */
+/* KPI strip on hero */
 .floatingStats {
   position: relative;
-  left: auto;
-  bottom: auto;
   z-index: 3;
   grid-column: 1;
   grid-row: 2;
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  margin-top: 2px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  align-self: end;
 }
 
 .floatCard {
-  width: 138px;
-  padding: 10px 11px;
+  min-width: 0;
+  padding: 16px 18px;
   border-radius: 14px;
-  background: rgba(8, 8, 18, 0.75);
-  backdrop-filter: blur(16px) saturate(1.3);
-  -webkit-backdrop-filter: blur(16px) saturate(1.3);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow:
-    0 8px 24px rgba(0, 0, 0, 0.35),
-    inset 0 1px 0 rgba(255, 255, 255, 0.06);
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  background: rgba(8, 8, 18, 0.65);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+  transition: border-color var(--transition-fast);
 }
 
 .floatCard:hover {
-  transform: translateY(-3px);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5), 0 0 24px var(--card-glow, rgba(155, 123, 247, 0.15));
+  border-color: rgba(255, 255, 255, 0.11);
+  transform: none;
+  box-shadow: none;
 }
 
 .floatCardHead {
   display: flex;
+  flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 4px;
+  gap: 8px;
+  margin-bottom: 10px;
 }
 
 .floatCardLabel {
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--color-text-faint);
   text-transform: uppercase;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.06em;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .floatCardDelta {
+  flex-shrink: 0;
   font-size: 10px;
-  font-weight: 700;
-  padding: 2px 6px;
-  border-radius: var(--radius-full);
-  background: rgba(34, 211, 238, 0.12);
-  color: var(--dash-cyan);
+  font-weight: 500;
+  color: #6ee7b7;
+  padding: 0;
+  border-radius: 0;
+  background: none;
+  white-space: nowrap;
 }
 
 .floatCardDeltaNeg {
-  background: rgba(248, 113, 138, 0.12);
-  color: #fb7185;
+  color: #c4a0a8;
+  background: none;
+}
+
+.floatCardDeltaNeutral {
+  color: var(--color-text-faint);
 }
 
 .floatCardValue {
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--color-text);
   line-height: 1;
-  margin-bottom: 6px;
+  margin-bottom: 10px;
 }
 
 .floatCardValue small {
@@ -518,15 +540,13 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--bar-from, #22d3ee), var(--bar-to, #a78bfa));
-  box-shadow: 0 0 12px var(--bar-from, #22d3ee);
+  box-shadow: none;
   transition: width 0.8s var(--ease-out-expo);
 }
 
 /* Alerts / achievements card on hero */
 .heroAlerts {
   position: relative;
-  right: auto;
-  top: auto;
   z-index: 3;
   grid-column: 2;
   grid-row: 1 / 3;
@@ -535,32 +555,31 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  padding: 12px 14px;
+  padding: 18px 18px;
   border-radius: 14px;
-  background: rgba(8, 8, 18, 0.82);
-  backdrop-filter: blur(20px) saturate(1.25);
-  -webkit-backdrop-filter: blur(20px) saturate(1.25);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.38);
+  background: rgba(8, 8, 18, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .heroAlertsHead {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 8px;
+  gap: 10px;
+  margin-bottom: 12px;
 }
 
 .heroAlertsTitle {
-  font-size: 13px;
-  font-weight: 700;
+  font-size: 14px;
+  font-weight: 600;
   color: var(--color-text);
-  margin: 0 0 2px;
+  margin: 0 0 3px;
 }
 
 .heroAlertsSub {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-muted);
   margin: 0;
 }
@@ -569,13 +588,13 @@
   display: flex;
   align-items: center;
   gap: 4px;
-  padding: 4px 10px;
-  border-radius: var(--radius-full);
-  background: rgba(251, 191, 36, 0.12);
-  border: 1px solid rgba(251, 191, 36, 0.25);
-  font-size: 10px;
-  font-weight: 700;
-  color: #fbbf24;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(251, 191, 36, 0.08);
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: #d4a574;
   white-space: nowrap;
 }
 
@@ -642,20 +661,24 @@
 /* ── Main grid (chart + modules) ── */
 .mainGrid {
   display: grid;
-  grid-template-columns: 1.12fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 18px;
+  align-items: stretch;
 }
 
 .glassPanel {
-  border-radius: 16px;
+  border-radius: 18px;
   border: 1px solid rgba(255, 255, 255, 0.07);
   background: var(--dash-panel);
-  backdrop-filter: blur(24px) saturate(1.25);
-  -webkit-backdrop-filter: blur(24px) saturate(1.25);
-  padding: 14px 16px;
-  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(20px) saturate(1.15);
+  -webkit-backdrop-filter: blur(20px) saturate(1.15);
+  padding: 20px 22px;
+  box-shadow: none;
   position: relative;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 292px;
 }
 
 .glassPanel::before {
@@ -672,52 +695,54 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
-  gap: 10px;
+  margin-bottom: 14px;
+  gap: 12px;
 }
 
 .panelTitle {
-  font-size: 14px;
-  font-weight: 700;
+  font-size: 15px;
+  font-weight: 600;
   color: var(--color-text);
   margin: 0;
   letter-spacing: -0.02em;
 }
 
 .panelSub {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-muted);
-  margin: 2px 0 0;
+  margin: 3px 0 0;
 }
 
 .periodToggle {
   display: flex;
   padding: 3px;
-  border-radius: var(--radius-full);
-  background: rgba(0, 0, 0, 0.35);
-  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .periodBtn {
-  padding: 5px 12px;
+  padding: 5px 11px;
   border: none;
-  border-radius: var(--radius-full);
+  border-radius: 6px;
   background: transparent;
   font-size: 11px;
-  font-weight: 600;
+  font-weight: 500;
   color: var(--color-text-muted);
   cursor: pointer;
   transition: all var(--transition-fast);
 }
 
 .periodBtnActive {
-  background: linear-gradient(135deg, rgba(167, 139, 250, 0.25), rgba(232, 121, 249, 0.15));
-  color: var(--color-primary-hover);
-  box-shadow: 0 2px 8px rgba(124, 58, 237, 0.2);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--color-text);
+  font-weight: 600;
+  box-shadow: none;
 }
 
 .chartArea {
-  height: 132px;
+  flex: 1;
+  min-height: 176px;
   display: flex;
   align-items: flex-end;
 }
@@ -736,8 +761,8 @@
 }
 
 .chartStatValue {
-  font-size: 15px;
-  font-weight: 800;
+  font-size: 16px;
+  font-weight: 700;
   color: var(--color-text);
   letter-spacing: -0.02em;
 }
@@ -759,6 +784,8 @@
   display: flex;
   flex-direction: column;
   gap: 2px;
+  flex: 1;
+  justify-content: center;
 }
 
 .pipelineRow {
@@ -830,25 +857,30 @@
   height: 100%;
   border-radius: inherit;
   background: linear-gradient(90deg, var(--pipe-color, #a78bfa), transparent);
-  box-shadow: 0 0 8px var(--pipe-color, #a78bfa);
+  box-shadow: none;
   transition: width 0.7s var(--ease-out-expo);
 }
 
 /* ── Secondary widgets row ── */
 .secondaryGrid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 14px;
 }
 
 .miniWidget {
+  grid-column: span 2;
   border-radius: 14px;
   border: 1px solid rgba(255, 255, 255, 0.06);
   background: var(--dash-panel);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 12px 14px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  padding: 18px 20px;
   transition: border-color var(--transition-fast);
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 116px;
 }
 
 .miniWidget:hover {
@@ -859,32 +891,48 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 8px;
+  gap: 8px;
+  margin-bottom: 10px;
+  min-width: 0;
 }
 
 .miniWidgetTitle {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 10px;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: var(--color-text-muted);
+  letter-spacing: 0.07em;
+  color: var(--color-text-faint);
   display: flex;
   align-items: center;
   gap: 6px;
+  min-width: 0;
 }
 
 .miniWidgetValue {
-  font-size: 22px;
-  font-weight: 800;
+  font-size: 28px;
+  font-weight: 700;
   letter-spacing: -0.03em;
   color: var(--color-text);
   line-height: 1;
 }
 
 .miniWidgetSub {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--color-text-faint);
-  margin-top: 3px;
+  margin-top: 6px;
+  line-height: 1.45;
+}
+
+.miniWidgetDelta {
+  font-size: 10px;
+  font-weight: 500;
+  color: #6ee7b7;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.miniWidgetDeltaNeg {
+  color: #c4a0a8;
 }
 
 .miniWidget :global(.dash-mini-spark) {
@@ -938,8 +986,8 @@
 
 /* Loading */
 .loadingHero {
-  height: 188px;
-  border-radius: 18px;
+  height: 204px;
+  border-radius: 20px;
   background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -947,13 +995,13 @@
 
 .loadingGrid {
   display: grid;
-  grid-template-columns: 1.12fr 1fr;
-  gap: 12px;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 16px;
 }
 
 .loadingPanel {
-  height: 220px;
-  border-radius: 16px;
+  height: 260px;
+  border-radius: 18px;
   background: linear-gradient(90deg, var(--color-bg-secondary) 25%, var(--color-bg-tertiary) 50%, var(--color-bg-secondary) 75%);
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-in-out infinite;
@@ -980,6 +1028,7 @@
   .floatingStats {
     grid-column: 1;
     grid-row: 2;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .heroAlerts {
@@ -994,7 +1043,17 @@
   }
 
   .secondaryGrid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .miniWidget {
+    grid-column: span 1;
+  }
+}
+
+@media (max-width: 860px) {
+  .floatingStats {
+    grid-template-columns: 1fr;
   }
 }
 

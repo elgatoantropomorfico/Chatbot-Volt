@@ -476,10 +476,11 @@ export default function TurnosPage() {
               <span>Hasta</span>
               <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
             </label>
-            <div className="volt-search-field">
-              <Search size={15} strokeWidth={2} />
+            <div className="volt-input-wrap">
+              <Search size={15} strokeWidth={1.75} />
               <input
                 type="search"
+                className="volt-input"
                 placeholder="Buscar cliente, teléfono o camino..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
@@ -487,17 +488,17 @@ export default function TurnosPage() {
             </div>
           </div>
           <div className={styles.presetRow}>
-            <button type="button" className={`volt-filter-chip${!dateFrom && !dateTo ? ' volt-filter-chip--active' : ''}`} onClick={() => applyDatePreset('clear')}>
-              Todos
-            </button>
-            <button type="button" className="volt-filter-chip" onClick={() => applyDatePreset('upcoming')}>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('upcoming')}>
               Próximos
             </button>
-            <button type="button" className="volt-filter-chip" onClick={() => applyDatePreset('week')}>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('week')}>
               Esta semana
             </button>
-            <button type="button" className="volt-filter-chip" onClick={() => applyDatePreset('month')}>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('month')}>
               Este mes
+            </button>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('clear')}>
+              Limpiar
             </button>
             <span className={styles.listResultCount}>
               {filteredList.length} turno{filteredList.length !== 1 ? 's' : ''}

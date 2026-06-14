@@ -311,7 +311,9 @@ function TenantDashboard() {
   return (
     <div className={styles.shell}>
       <div className={styles.topBar}>
-        <DashboardSearch modules={stats?.modules} />
+        <div className={styles.searchPill}>
+          <DashboardSearch modules={stats?.modules} />
+        </div>
         <div className={styles.topBarRight}>
           {statusPill && (
             <span className={`${styles.statusPill} ${statusPill.urgent ? styles.statusPillUrgent : ''}`}>
@@ -453,10 +455,12 @@ function TenantDashboard() {
             <div className={styles.floatCard} style={{ '--card-glow': thirdFloatCard.glow, '--bar-from': thirdFloatCard.from, '--bar-to': thirdFloatCard.to } as React.CSSProperties}>
               <div className={styles.floatCardHead}>
                 <span className={styles.floatCardLabel}>{thirdFloatCard.label}</span>
-                <span className={styles.floatCardDelta}>{thirdFloatCard.delta}</span>
+                <span className={`${styles.floatCardDelta} ${styles.floatCardDeltaNeutral}`}>{thirdFloatCard.delta}</span>
               </div>
-              <div className={styles.floatCardValue}>{thirdFloatCard.value}</div>
-              <div className={styles.floatCardSub}>{thirdFloatCard.sub}</div>
+              <div className={styles.floatCardValue}>
+                {thirdFloatCard.value}
+                {thirdFloatCard.sub ? <small> · {thirdFloatCard.sub}</small> : null}
+              </div>
               <div className={styles.progressTrack}>
                 <div className={styles.progressFill} style={{ width: `${thirdFloatCard.progress}%` }} />
               </div>
@@ -643,14 +647,12 @@ function TenantDashboard() {
           <div className={styles.miniWidget}>
             <div className={styles.miniWidgetHead}>
               <span className={styles.miniWidgetTitle}><Bot size={12} /> Bot hoy</span>
-              <MiniSparkline values={convTrend} color="#a78bfa" />
-            </div>
-            <div className={styles.miniWidgetValue}>{stats?.messages.todayCount ?? 0}</div>
-            <div className={styles.miniWidgetSub}>
-              <span className={`${styles.floatCardDelta} ${msgDelta < 0 ? styles.floatCardDeltaNeg : ''}`} style={{ display: 'inline-flex' }}>
-                {msgDelta >= 0 ? '+' : ''}{msgDelta}% vs período anterior
+              <span className={`${styles.miniWidgetDelta} ${msgDelta < 0 ? styles.miniWidgetDeltaNeg : ''}`}>
+                {msgDelta >= 0 ? '+' : ''}{msgDelta}%
               </span>
             </div>
+            <div className={styles.miniWidgetValue}>{stats?.messages.todayCount ?? 0}</div>
+            <div className={styles.miniWidgetSub}>mensajes procesados hoy</div>
           </div>
         )}
       </div>

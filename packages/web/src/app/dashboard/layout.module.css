@@ -319,9 +319,18 @@
 
 .contentAreaInbox {
   max-width: none;
+  flex: 1 1 0;
+  min-height: 0;
+  height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 .mainInbox {
+  height: 100dvh;
+  max-height: 100dvh;
+  min-height: 0;
   overflow: hidden;
 }
 
