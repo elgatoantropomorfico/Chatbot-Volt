@@ -436,9 +436,13 @@ export async function bookingRoutes(app: FastifyInstance) {
     const q = request.query as any;
     const where: any = { tenantId };
     if (q.status) where.status = q.status;
-    if (q.from) where.appointmentDate = { gte: new Date(q.from) };
+    if (q.from) {
+      const fromStr = String(q.from).slice(0, 10);
+      where.appointmentDate = { ...(where.appointmentDate || {}), gte: new Date(`${fromStr}T00:00:00.000Z`) };
+    }
     if (q.to) {
-      where.appointmentDate = { ...(where.appointmentDate || {}), lte: new Date(q.to) };
+      const toStr = String(q.to).slice(0, 10);
+      where.appointmentDate = { ...(where.appointmentDate || {}), lte: new Date(`${toStr}T23:59:59.999Z`) };
     }
     if (q.leadId) where.leadId = q.leadId;
 
@@ -567,6 +571,20 @@ export async function bookingRoutes(app: FastifyInstance) {
       include: { service: true, lead: { select: { id: true, name: true, phone: true } } },
     });
     return reply.send({ appointment });
+  });
+
+  app.delete('/appointments/:id', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const existing = await prisma.appointment.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ error: 'Not found' });
+    if (request.user.role !== 'superadmin' && request.user.tenantId !== existing.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    await prisma.appointment.delete({ where: { id } });
+    return reply.send({ message: 'Turno eliminado' });
   });
 }
 

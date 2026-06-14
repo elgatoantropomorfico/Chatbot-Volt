@@ -23,6 +23,9 @@ import {
   MessageCircle,
   PenLine,
   LayoutGrid,
+  Trash2,
+  Search,
+  Filter,
 } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -101,6 +104,30 @@ function isManualAppointment(a: any) {
   return !a.conversationId;
 }
 
+function getWeekRange() {
+  const now = new Date();
+  const mondayOffset = (now.getDay() + 6) % 7;
+  const mon = new Date(now);
+  mon.setDate(now.getDate() - mondayOffset);
+  const sun = new Date(mon);
+  sun.setDate(mon.getDate() + 6);
+  return {
+    from: mon.toISOString().slice(0, 10),
+    to: sun.toISOString().slice(0, 10),
+  };
+}
+
+function getMonthRange() {
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = now.getMonth();
+  const last = new Date(y, m + 1, 0).getDate();
+  return {
+    from: `${y}-${String(m + 1).padStart(2, '0')}-01`,
+    to: `${y}-${String(m + 1).padStart(2, '0')}-${String(last).padStart(2, '0')}`,
+  };
+}
+
 const EMPTY_FORM = {
   serviceId: '',
   appointmentDate: todayKey(),
@@ -119,6 +146,9 @@ export default function TurnosPage() {
   const [slots, setSlots] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [selected, setSelected] = useState<any>(null);
   const [selectedDate, setSelectedDate] = useState(todayKey());
   const [monthCursor, setMonthCursor] = useState(() => {
@@ -135,6 +165,8 @@ export default function TurnosPage() {
     try {
       const params: Record<string, string> = {};
       if (filter) params.status = filter;
+      if (dateFrom) params.from = dateFrom;
+      if (dateTo) params.to = dateTo;
       const [apptRes, svcRes, slotRes] = await Promise.all([
         api.getAppointments(params),
         api.getBookingServices(),
@@ -148,7 +180,7 @@ export default function TurnosPage() {
     } finally {
       setLoading(false);
     }
-  }, [filter]);
+  }, [filter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -174,6 +206,32 @@ export default function TurnosPage() {
     () => byDate.get(selectedDate) || [],
     [byDate, selectedDate],
   );
+
+  const filteredList = useMemo(() => {
+    if (!searchQuery.trim()) return appointments;
+    const q = searchQuery.trim().toLowerCase();
+    return appointments.filter((a) => {
+      const name = (a.customerName || a.lead?.name || '').toLowerCase();
+      const phone = (a.customerPhone || a.lead?.phone || '').toLowerCase();
+      const service = (a.service?.name || '').toLowerCase();
+      return name.includes(q) || phone.includes(q) || service.includes(q);
+    });
+  }, [appointments, searchQuery]);
+
+  const groupedList = useMemo(() => {
+    const map = new Map<string, any[]>();
+    for (const a of filteredList) {
+      const key = dateKey(a.appointmentDate);
+      if (!map.has(key)) map.set(key, []);
+      map.get(key)!.push(a);
+    }
+    return [...map.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, items]) => ({
+        date,
+        items: items.sort((x, y) => x.appointmentTime.localeCompare(y.appointmentTime)),
+      }));
+  }, [filteredList]);
 
   const stats = useMemo(() => {
     const today = todayKey();
@@ -223,6 +281,40 @@ export default function TurnosPage() {
 
   async function handleStatusChange(id: string, status: string) {
     await updateAppointment(id, { status });
+  }
+
+  async function handleDeleteAppointment(a: any) {
+    const label = `${a.customerName || a.lead?.name || 'Cliente'} — ${dateKey(a.appointmentDate)} ${a.appointmentTime}`;
+    if (!confirm(`¿Eliminar el turno de ${label}?\n\nEsta acción no se puede deshacer.`)) return;
+    try {
+      await api.deleteAppointment(a.id);
+      if (selected?.id === a.id) setSelected(null);
+      await load();
+    } catch (err: any) {
+      alert(err.message || 'No se pudo eliminar el turno');
+    }
+  }
+
+  function applyDatePreset(preset: 'week' | 'month' | 'upcoming' | 'clear') {
+    if (preset === 'clear') {
+      setDateFrom('');
+      setDateTo('');
+      return;
+    }
+    if (preset === 'upcoming') {
+      setDateFrom(todayKey());
+      setDateTo('');
+      return;
+    }
+    if (preset === 'week') {
+      const r = getWeekRange();
+      setDateFrom(r.from);
+      setDateTo(r.to);
+      return;
+    }
+    const r = getMonthRange();
+    setDateFrom(r.from);
+    setDateTo(r.to);
   }
 
   function openCreate(date?: string) {
@@ -366,6 +458,48 @@ export default function TurnosPage() {
         </button>
       </div>
 
+      {view === 'list' && (
+        <div className={styles.listFilters}>
+          <div className={styles.listFiltersRow}>
+            <Filter size={15} className={styles.listFiltersIcon} />
+            <label className={styles.dateFilterField}>
+              <span>Desde</span>
+              <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+            </label>
+            <label className={styles.dateFilterField}>
+              <span>Hasta</span>
+              <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+            </label>
+            <div className={styles.searchField}>
+              <Search size={15} />
+              <input
+                type="search"
+                placeholder="Buscar cliente, teléfono o camino..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+          </div>
+          <div className={styles.presetRow}>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('upcoming')}>
+              Próximos
+            </button>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('week')}>
+              Esta semana
+            </button>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('month')}>
+              Este mes
+            </button>
+            <button type="button" className={styles.presetBtn} onClick={() => applyDatePreset('clear')}>
+              Limpiar fechas
+            </button>
+            <span className={styles.listResultCount}>
+              {filteredList.length} turno{filteredList.length !== 1 ? 's' : ''}
+            </span>
+          </div>
+        </div>
+      )}
+
       {loading ? (
         <div className={styles.loading}>Cargando turnos...</div>
       ) : view === 'calendar' ? (
@@ -469,46 +603,66 @@ export default function TurnosPage() {
             )}
           </div>
         </div>
-      ) : appointments.length === 0 ? (
+      ) : filteredList.length === 0 ? (
         <div className={styles.empty}>
           <Calendar size={48} style={{ opacity: 0.3 }} />
-          <h3>Sin turnos todavía</h3>
-          <p>Cuando un cliente reserve por WhatsApp o cargues uno manual, aparecerá acá.</p>
-          <button type="button" className={styles.primaryBtn} onClick={() => openCreate()}>
-            <Plus size={18} /> Crear primer turno
+          <h3>Sin turnos con estos filtros</h3>
+          <p>Probá ampliar el rango de fechas o limpiar los filtros.</p>
+          <button type="button" className={styles.secondaryBtn} onClick={() => applyDatePreset('clear')}>
+            Limpiar filtros
           </button>
         </div>
       ) : (
-        <div className={styles.tableWrap}>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Hora</th>
-                <th>Cliente</th>
-                <th>Camino</th>
-                <th>Origen</th>
-                <th>Estado</th>
-                <th>Pagado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {appointments.map((a) => (
-                <tr key={a.id} onClick={() => setSelected(a)}>
-                  <td>{dateKey(a.appointmentDate)}</td>
-                  <td className={styles.tableTime}>{a.appointmentTime}</td>
-                  <td>
-                    <div>{a.customerName || a.lead?.name || '—'}</div>
-                    <div className={styles.tableMuted}>{a.customerPhone || a.lead?.phone}</div>
-                  </td>
-                  <td>{a.service?.name}</td>
-                  <td>{sourceBadge(a)}</td>
-                  <td>{statusBadge(a.status)}</td>
-                  <td style={{ fontWeight: 600 }}>{formatPrice(Number(a.amountPaid || 0))}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className={styles.listView}>
+          {groupedList.map(({ date, items }) => (
+            <section key={date} className={styles.listGroup}>
+              <header className={styles.listGroupHeader}>
+                <div>
+                  <h3 className={styles.listGroupTitle}>{formatDateLabel(date)}</h3>
+                  <p className={styles.listGroupSub}>
+                    {items.length} turno{items.length !== 1 ? 's' : ''}
+                    {date === todayKey() ? ' · Hoy' : ''}
+                  </p>
+                </div>
+                <button type="button" className={styles.secondaryBtn} onClick={() => openCreate(date)}>
+                  <Plus size={14} /> Agregar
+                </button>
+              </header>
+              <div className={styles.listGroupBody}>
+                {items.map((a) => (
+                  <div key={a.id} className={styles.listRow}>
+                    <button type="button" className={styles.listRowMain} onClick={() => setSelected(a)}>
+                      <div className={styles.listRowTime}>{a.appointmentTime}</div>
+                      <div className={styles.listRowInfo}>
+                        <div className={styles.listRowTop}>
+                          <span className={styles.listRowName}>
+                            {a.customerName || a.lead?.name || 'Sin nombre'}
+                          </span>
+                          {sourceBadge(a)}
+                        </div>
+                        <div className={styles.listRowMeta}>
+                          <span>{a.service?.name}</span>
+                          <span>{a.customerPhone || a.lead?.phone}</span>
+                        </div>
+                      </div>
+                      <div className={styles.listRowEnd}>
+                        {statusBadge(a.status)}
+                        <span className={styles.listRowPrice}>{formatPrice(Number(a.amountPaid || 0))}</span>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      className={styles.listRowDelete}
+                      title="Eliminar turno"
+                      onClick={() => handleDeleteAppointment(a)}
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </section>
+          ))}
         </div>
       )}
 
@@ -743,6 +897,16 @@ export default function TurnosPage() {
                   <XCircle size={14} /> Cancelar
                 </button>
               )}
+            </div>
+
+            <div className={styles.detailDangerZone}>
+              <button
+                type="button"
+                className={styles.deleteBtn}
+                onClick={() => handleDeleteAppointment(selected)}
+              >
+                <Trash2 size={14} /> Eliminar turno
+              </button>
             </div>
           </div>
         </>

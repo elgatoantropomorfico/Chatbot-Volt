@@ -165,10 +165,21 @@ export async function leadRoutes(app: FastifyInstance) {
       console.warn(`⚠️ R2 cleanup failed for lead ${id} (continuing with DB delete):`, err);
     }
 
-    await prisma.lead.delete({ where: { id } });
-    console.log(`🗑️ Deleted lead ${id} and all related records`);
+    const [apptCount, convCount, reqCount] = await Promise.all([
+      prisma.appointment.count({ where: { leadId: id } }),
+      prisma.conversation.count({ where: { leadId: id } }),
+      prisma.leadRequest.count({ where: { leadId: id } }),
+    ]);
 
-    return reply.send({ message: 'Lead deleted successfully' });
+    await prisma.lead.delete({ where: { id } });
+    console.log(
+      `🗑️ Deleted lead ${id} — cascaded: ${convCount} conversations, ${reqCount} requests, ${apptCount} appointments`,
+    );
+
+    return reply.send({
+      message: 'Lead deleted successfully',
+      deleted: { appointments: apptCount, conversations: convCount, requests: reqCount },
+    });
   });
 
   // Get lead photos

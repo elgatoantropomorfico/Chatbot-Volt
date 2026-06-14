@@ -691,7 +691,23 @@ export default function LeadsPage() {
                 cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               }}
               onClick={async () => {
-                if (!confirm(`¿Eliminar lead "${selectedLead.name || selectedLead.phone}"?\n\nSe eliminarán todas las conversaciones, mensajes y notas.`)) return;
+                let apptCount = leadAppointments.length;
+                try {
+                  const { appointments } = await api.getAppointments({ leadId: selectedLead.id });
+                  apptCount = appointments?.length ?? apptCount;
+                } catch { /* use cached count */ }
+
+                const parts = [
+                  `¿Eliminar lead "${selectedLead.name || selectedLead.phone}"?`,
+                  '',
+                  'Se eliminarán permanentemente:',
+                  '• Conversaciones y mensajes',
+                  '• Notas, fotos y solicitudes',
+                ];
+                if (apptCount > 0) parts.push(`• ${apptCount} turno(s) asociado(s)`);
+                parts.push('', 'Esta acción no se puede deshacer.');
+
+                if (!confirm(parts.join('\n'))) return;
                 try {
                   await api.deleteLead(selectedLead.id);
                   setSelectedLead(null);
