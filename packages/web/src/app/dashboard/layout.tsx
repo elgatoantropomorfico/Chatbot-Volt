@@ -137,6 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <div className={styles.brandMark}>
             <VoltBrand
               size={36}
+              glow
               iaSuffix={false}
               subtitle={isSuperAdmin ? 'Super Admin' : getTenantDisplayName(user.tenant) || 'Panel'}
             />

@@ -54,7 +54,7 @@ function Hero() {
 
       <div className="mkt-hero-inner">
         <div className="mkt-badge">
-          <VoltLogo size={20} />
+          <VoltLogo size={20} glow />
           Inteligencia artificial para tu operación
         </div>
 

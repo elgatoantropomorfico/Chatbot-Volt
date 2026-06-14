@@ -1,4 +1,5 @@
 .wrapper {
+  --sidebar-float-gap: 14px;
   display: flex;
   min-height: 100vh;
   background: var(--color-bg);
@@ -49,24 +50,55 @@
 
 .sidebar {
   width: var(--sidebar-width);
-  background: var(--glass-bg);
+  background: rgba(10, 10, 20, 0.78);
   backdrop-filter: var(--glass-blur);
   -webkit-backdrop-filter: var(--glass-blur);
-  border-right: 1px solid var(--glass-border);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   display: flex;
   flex-direction: column;
   position: fixed;
+  top: var(--sidebar-float-gap);
+  left: var(--sidebar-float-gap);
+  bottom: var(--sidebar-float-gap);
+  z-index: 20;
+  border-radius: 22px;
+  overflow: hidden;
+  box-shadow:
+    var(--shadow-lg),
+    0 0 0 1px rgba(255, 255, 255, 0.04) inset,
+    0 12px 48px rgba(0, 0, 0, 0.38),
+    0 0 32px rgba(124, 58, 237, 0.06);
+}
+
+.sidebar::before {
+  content: '';
+  position: absolute;
   top: 0;
   left: 0;
-  bottom: 0;
-  z-index: 20;
-  box-shadow: var(--shadow-md), inset -1px 0 0 rgba(255, 255, 255, 0.03);
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.sidebar::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #8b5cf6, #e879f9, transparent);
+  pointer-events: none;
+  z-index: 1;
 }
 
 .sidebarHeader {
-  padding: 26px 22px 22px;
+  padding: 22px 20px 18px;
   border-bottom: 1px solid var(--color-border);
   position: relative;
+  flex-shrink: 0;
 }
 
 .sidebarHeader::after {
@@ -216,9 +248,11 @@
 }
 
 .sidebarFooter {
-  padding: 14px;
+  padding: 12px;
   border-top: 1px solid var(--color-border);
   position: relative;
+  flex-shrink: 0;
+  margin-top: auto;
 }
 
 .sidebarFooter::before {
@@ -304,9 +338,9 @@
 
 .main {
   flex: 1;
-  margin-left: var(--sidebar-width);
+  margin-left: calc(var(--sidebar-width) + var(--sidebar-float-gap) * 2);
   min-height: 100vh;
-  max-width: calc(100vw - var(--sidebar-width));
+  max-width: calc(100vw - var(--sidebar-width) - var(--sidebar-float-gap) * 2);
   overflow-x: hidden;
   position: relative;
   z-index: 1;
@@ -450,15 +484,18 @@
   }
 
   .sidebar {
-    transform: translateX(-100%);
+    top: 10px;
+    left: 10px;
+    bottom: 10px;
+    border-radius: 20px;
+    transform: translateX(calc(-100% - 20px));
     transition: transform var(--transition-base);
     z-index: 30;
-    box-shadow: none;
+    box-shadow: var(--shadow-lg), 0 12px 48px rgba(0, 0, 0, 0.45);
   }
 
   .sidebarOpen {
     transform: translateX(0);
-    box-shadow: var(--shadow-lg);
   }
 
   .main {

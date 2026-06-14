@@ -12,7 +12,7 @@ interface VoltLogoProps {
 
 export function VoltLogo({
   size = 36,
-  glow = true,
+  glow = false,
   className,
   style,
   title = 'Volt',
@@ -47,7 +47,7 @@ interface VoltBrandProps {
 
 export function VoltBrand({
   size = 34,
-  glow = true,
+  glow = false,
   subtitle,
   iaSuffix = true,
   suffix,
