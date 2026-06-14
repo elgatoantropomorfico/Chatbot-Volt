@@ -19,6 +19,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import { VoltDrawer } from '@/components/ui/VoltDrawer';
+import { VoltModal } from '@/components/ui/VoltModal';
 
 interface WooConfig {
   baseUrl: string;
@@ -616,15 +617,14 @@ export default function IntegrationsPage() {
         )}
       </div>
 
-      <VoltDrawer open={showCreate} onClose={() => setShowCreate(false)} width={560}>
+      <VoltModal
+        open={showCreate}
+        onClose={() => setShowCreate(false)}
+        title="Nueva integración"
+        subtitle="Elegí el tipo y configurá la conexión con tu servicio."
+        width={620}
+      >
         <div className="volt-config-page">
-          <div className="volt-page-header" style={{ marginBottom: 16 }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>Nueva integración</h2>
-            <button type="button" onClick={() => setShowCreate(false)} className="volt-btn-ghost" style={{ padding: '6px 10px' }}>
-              <X size={18} />
-            </button>
-          </div>
-
           <form onSubmit={handleCreate}>
             {isSuperAdmin && (
               <div style={{ ...sectionStyle, marginBottom: '16px' }}>
@@ -683,17 +683,17 @@ export default function IntegrationsPage() {
               ) : createForm.type === 'mercadopago' ? renderMpConfigForm()
               : renderConfigForm(true)}
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-              <button type="submit" disabled={saving} className="volt-btn-primary">
-                <Save size={16} /> {saving ? 'Creando...' : 'Crear integración'}
-              </button>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '8px', justifyContent: 'flex-end' }}>
               <button type="button" onClick={() => setShowCreate(false)} className="volt-btn-ghost">
                 Cancelar
+              </button>
+              <button type="submit" disabled={saving} className="volt-btn-primary">
+                <Save size={16} /> {saving ? 'Creando...' : 'Crear integración'}
               </button>
             </div>
           </form>
         </div>
-      </VoltDrawer>
+      </VoltModal>
 
       <VoltDrawer open={!!editingId} onClose={() => setEditingId(null)} width={560}>
         <div className="volt-config-page">
