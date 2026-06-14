@@ -119,4 +119,24 @@ export class BookingAvailabilityService {
 
     return results;
   }
+
+  /** Slots from today through end of current calendar week (Sunday) */
+  static async getSlotsThisWeek(
+    tenantId: string,
+    opts: { serviceId?: string } = {},
+  ): Promise<AvailableSlot[]> {
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
+    const timezone = settings?.timezone || 'America/Argentina/Cordoba';
+    const now = new Date();
+    const weekdayNum = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(
+      now.toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone }),
+    );
+    const daysUntilSunday = weekdayNum === 0 ? 0 : 7 - weekdayNum;
+    const end = new Date(now);
+    end.setDate(end.getDate() + daysUntilSunday);
+    const endStr = end.toLocaleDateString('en-CA', { timeZone: timezone });
+
+    const all = await this.getAvailableSlots(tenantId, { limit: 80, serviceId: opts.serviceId });
+    return all.filter((s) => s.date <= endStr).slice(0, 12);
+  }
 }

@@ -56,6 +56,7 @@ export interface BookingFlowContext {
   customerNotes?: string;
   paymentType?: 'sena' | 'total';
   slotPage?: number;
+  slotBrowse?: 'more_menu' | 'pick_day';
   tempSlots?: Array<{ date: string; time: string; label: string }>;
 }
 
@@ -73,6 +74,11 @@ function pickOption(text: string, max: number): number | null {
     if (text.includes(w)) return v <= max ? v : null;
   }
   return null;
+}
+
+function isMoreOptionsInput(input: string, totalOptions: number): boolean {
+  if (pickOption(input, totalOptions) === totalOptions) return true;
+  return /más opciones|mas opciones|ver más|ver mas|más horarios|mas horarios/.test(input);
 }
 
 function msg(settings: any, key: string, fallback: string): string {
@@ -160,32 +166,30 @@ export class BookingFlowService {
     }
 
     if (flow.state === 'idle' || flow.state === 'handoff') {
-      if (BookingAiService.looksLikeQuestion(input)) {
-        const faq = await BookingAiService.answerFaq(tenantId, text, settings);
-        if (faq) {
-          flow = { state: 'booking_start' };
-          await this.saveFlow(conversationId, flow);
-          const menu = await this.mainMenuReply(tenantId, settings);
-          return { handled: true, text: `${faq}\n\n${menu.text}`, interactive: menu.interactive };
-        }
-      }
       flow = { state: 'booking_start' };
       await this.saveFlow(conversationId, flow);
-      return this.mainMenuReply(tenantId, settings);
+      const menu = this.mainMenuReply(tenantId, settings);
+      if (!BookingAiService.looksLikeGreeting(input) && input.length >= 3) {
+        const answer = await BookingAiService.answerOffFlow(tenantId, text, settings, flow.state);
+        if (answer) {
+          return { handled: true, text: `${answer}\n\n${menu.text}`, interactive: menu.interactive };
+        }
+      }
+      return menu;
     }
 
     switch (flow.state) {
       case 'booking_start':
-        return this.handleMainMenu(tenantId, conversationId, settings, flow, input);
+        return this.handleMainMenu(tenantId, conversationId, settings, flow, input, text);
       case 'choosing_service_mode':
-        return this.handleServiceMode(tenantId, conversationId, settings, flow, input);
+        return this.handleServiceMode(tenantId, conversationId, settings, flow, input, text);
       case 'recommender_q1':
-        return this.handleRecommenderQ1(conversationId, settings, flow, input);
+        return this.handleRecommenderQ1(tenantId, conversationId, settings, flow, input, text);
       case 'recommender_q2':
-        return this.handleRecommenderQ2(tenantId, conversationId, settings, flow, input);
+        return this.handleRecommenderQ2(tenantId, conversationId, settings, flow, input, text);
       case 'service_selected':
       case 'slot_selection':
-        return this.handleSlotSelection(tenantId, conversationId, settings, flow, input);
+        return this.handleSlotSelection(tenantId, conversationId, settings, flow, input, text);
       case 'customer_name':
         return this.handleCustomerName(conversationId, settings, flow, input, params.profileName);
       case 'customer_first_time':
@@ -193,12 +197,42 @@ export class BookingFlowService {
       case 'customer_notes':
         return this.handleNotes(tenantId, conversationId, leadId, phone, settings, flow, input);
       case 'payment_choice':
-        return this.handlePaymentChoice(tenantId, conversationId, leadId, phone, settings, flow, input);
+        return this.handlePaymentChoice(tenantId, conversationId, leadId, phone, settings, flow, input, text);
       default:
         flow = { state: 'booking_start' };
         await this.saveFlow(conversationId, flow);
         return this.mainMenuReply(tenantId, settings);
     }
+  }
+
+  private static async offFlowThen(
+    tenantId: string,
+    userText: string,
+    settings: any,
+    flow: BookingFlowContext,
+    resume: () => Promise<FlowHandleResult>,
+  ): Promise<FlowHandleResult> {
+    const answer = await BookingAiService.answerOffFlow(tenantId, userText, settings, flow.state);
+    const next = await resume();
+    if (answer) {
+      return { handled: true, text: `${answer}\n\n${next.text}`, interactive: next.interactive };
+    }
+    return next;
+  }
+
+  private static async getDisplaySlots(tenantId: string, flow: BookingFlowContext) {
+    if (flow.tempSlots?.length) {
+      return { slots: flow.tempSlots, hasMoreOption: false };
+    }
+    const all = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 20 });
+    return {
+      slots: all.slice(0, 3).map((s) => ({ date: s.date, time: s.time, label: s.label })),
+      hasMoreOption: all.length > 3,
+    };
+  }
+
+  private static moreSlotsMenuReply(): FlowHandleResult {
+    return flowReply('¿Cómo querés ver los horarios?', ['Esta semana', 'Elegir un día', 'Próximos horarios']);
   }
 
   private static mainMenuReply(tenantId: string, settings: any): FlowHandleResult {
@@ -214,7 +248,7 @@ export class BookingFlowService {
   }
 
   private static async handleMainMenu(
-    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string,
+    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
     const opt = pickOption(input, 3);
     if (opt === 1) {
@@ -241,10 +275,10 @@ export class BookingFlowService {
         : 'Consultanos por WhatsApp para ver próximos horarios.';
       return {
         handled: true,
-        text: `Valor de sesión (80 min): ${price}\n\nPróximos horarios:\n${slotLines}\n\nRespondé *1*, *2* o *3* del menú principal para reservar.`,
+        text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
       };
     }
-    return this.mainMenuReply(tenantId, settings);
+    return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.mainMenuReply(tenantId, settings));
   }
 
   private static async serviceListReply(tenantId: string): Promise<FlowHandleResult> {
@@ -265,7 +299,7 @@ export class BookingFlowService {
   }
 
   private static async handleServiceMode(
-    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string,
+    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
     const services = await prisma.bookingService.findMany({
       where: { tenantId, isActive: true },
@@ -273,7 +307,10 @@ export class BookingFlowService {
     });
     const opt = pickOption(input, services.length);
     if (!opt) {
-      return { handled: true, text: `${await this.renderServiceList(tenantId)}\n\n(Elegí un número válido)` };
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
+        handled: true,
+        text: `${await this.renderServiceList(tenantId)}\n\n(Elegí el número del camino)`,
+      }));
     }
     const service = services[opt - 1];
     flow = {
@@ -283,15 +320,17 @@ export class BookingFlowService {
       slotPage: 0,
     };
     await this.saveFlow(conversationId, flow);
-    return this.slotReply(tenantId, service.name, 0);
+    return this.slotReply(tenantId, service.name);
   }
 
   private static async handleRecommenderQ1(
-    conversationId: string, settings: any, flow: BookingFlowContext, input: string,
+    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
     const opt = pickOption(input, 5);
     if (!opt) {
-      return { handled: true, text: 'Elegí una opción del 1 al 5 por favor.' };
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply('¿Qué sentís que necesitás hoy?', [
+        'Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez',
+      ]));
     }
     flow = { ...flow, state: 'recommender_q2', recommenderQ1: String(opt) };
     await this.saveFlow(conversationId, flow);
@@ -328,10 +367,14 @@ export class BookingFlowService {
   }
 
   private static async handleRecommenderQ2(
-    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string,
+    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
     const opt = pickOption(input, 5);
-    if (!opt) return { handled: true, text: 'Elegí una opción del 1 al 5 por favor.' };
+    if (!opt) {
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply('¿Cómo te gustaría vivir la sesión?', [
+        'Suave y relajante', 'Profunda y envolvente', 'Con calor', 'Con aromas/herbales', 'Más corporal',
+      ]));
+    }
 
     const q1 = parseInt(flow.recommenderQ1 || '1', 10);
     const services = await prisma.bookingService.findMany({
@@ -354,24 +397,33 @@ export class BookingFlowService {
     return flowReply(recText, ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona']);
   }
 
-  private static async slotReply(tenantId: string, serviceName: string, page: number): Promise<FlowHandleResult> {
-    const limit = 3;
-    const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 20 });
-    const slice = slots.slice(page * limit, page * limit + limit);
+  private static async slotReply(tenantId: string, serviceName: string): Promise<FlowHandleResult> {
+    const all = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 20 });
+    const slice = all.slice(0, 3);
     const labels = slice.map((s) => s.label);
-    if (slots.length > (page + 1) * limit) labels.push('Ver más horarios');
+    if (all.length > 3) labels.push('Ver más opciones');
+    if (labels.length === 0) {
+      return { handled: true, text: `No hay horarios disponibles por ahora para ${serviceName}. Escribí *humano* si querés ayuda.` };
+    }
     return flowReply(`Próximos horarios para ${serviceName}:`, labels);
   }
 
+  private static slotsListReply(title: string, slots: Array<{ label: string }>): FlowHandleResult {
+    if (!slots.length) {
+      return { handled: true, text: 'No encontré horarios para esa búsqueda. Probá otro día o escribí *humano*.' };
+    }
+    return flowReply(title, slots.map((s) => s.label));
+  }
+
   private static async handleSlotSelection(
-    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string,
+    tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
     if (flow.state === 'service_selected') {
       const opt = pickOption(input, 3);
       if (opt === 1 && flow.serviceId) {
-        flow = { ...flow, state: 'slot_selection', slotPage: 0 };
+        flow = { ...flow, state: 'slot_selection', slotPage: 0, slotBrowse: undefined, tempSlots: undefined };
         await this.saveFlow(conversationId, flow);
-        return this.slotReply(tenantId, flow.serviceName || '', 0);
+        return this.slotReply(tenantId, flow.serviceName || '');
       }
       if (opt === 2) {
         flow = { state: 'choosing_service_mode' };
@@ -379,54 +431,90 @@ export class BookingFlowService {
         return this.serviceListReply(tenantId);
       }
       if (opt === 3) return { handled: true, handoff: true, text: msg(settings, 'human_handoff', 'Te comunico con una persona.') };
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply(
+        flow.serviceName ? `¿Reservamos ${flow.serviceName}?` : '¿Seguimos con la reserva?',
+        ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'],
+      ));
     }
 
-    const page = flow.slotPage || 0;
-    let pageSlots: Array<{ date: string; time: string; label: string }>;
-
-    if (flow.tempSlots?.length) {
-      pageSlots = flow.tempSlots;
-    } else {
-      const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 20 });
-      pageSlots = slots.slice(page * 3, page * 3 + 3).map((s) => ({ date: s.date, time: s.time, label: s.label }));
+    if (flow.slotBrowse === 'more_menu') {
+      const opt = pickOption(input, 3);
+      if (opt === 1) {
+        const week = await BookingAvailabilityService.getSlotsThisWeek(tenantId, { serviceId: flow.serviceId });
+        flow = {
+          ...flow,
+          slotBrowse: undefined,
+          tempSlots: week.map((s) => ({ date: s.date, time: s.time, label: s.label })),
+          slotPage: 0,
+        };
+        await this.saveFlow(conversationId, flow);
+        return this.slotsListReply('Horarios disponibles esta semana:', week);
+      }
+      if (opt === 2) {
+        flow = { ...flow, slotBrowse: 'pick_day' };
+        await this.saveFlow(conversationId, flow);
+        return {
+          handled: true,
+          text: '¿Qué día te queda bien? Podés decir *jueves*, *mañana* o una fecha como *20/06*.',
+        };
+      }
+      if (opt === 3) {
+        flow = { ...flow, slotBrowse: undefined, tempSlots: undefined, slotPage: 0 };
+        await this.saveFlow(conversationId, flow);
+        return this.slotReply(tenantId, flow.serviceName || '');
+      }
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.moreSlotsMenuReply());
     }
-    const allSlots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 20 });
-    const hasMore = !flow.tempSlots?.length && allSlots.length > (page + 1) * 3;
 
-    if (input.includes('4') || input.includes('más') || input.includes('mas') || input.includes('ver más')) {
-      flow = { ...flow, slotPage: page + 1 };
+    if (flow.slotBrowse === 'pick_day') {
+      const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
+      if (filtered.length > 0) {
+        flow = {
+          ...flow,
+          slotBrowse: undefined,
+          tempSlots: filtered.map((s) => ({ date: s.date, time: s.time, label: s.label })),
+        };
+        await this.saveFlow(conversationId, flow);
+        return this.slotsListReply('Estos horarios tengo para ese día:', filtered);
+      }
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
+        handled: true,
+        text: 'No encontré turnos para ese día. ¿Probamos otro? Decime *jueves*, *mañana* o una fecha como *20/06*.',
+      }));
+    }
+
+    const { slots: pageSlots, hasMoreOption } = await this.getDisplaySlots(tenantId, flow);
+    const totalOptions = pageSlots.length + (hasMoreOption ? 1 : 0);
+
+    if (hasMoreOption && isMoreOptionsInput(input, totalOptions)) {
+      flow = { ...flow, slotBrowse: 'more_menu' };
       await this.saveFlow(conversationId, flow);
-      return this.slotReply(tenantId, flow.serviceName || '', page + 1);
+      return this.moreSlotsMenuReply();
     }
 
-    let opt = pickOption(input, pageSlots.length + (hasMore ? 1 : 0));
-    if (hasMore && opt === pageSlots.length + 1) {
-      flow = { ...flow, slotPage: page + 1 };
-      await this.saveFlow(conversationId, flow);
-      return this.slotReply(tenantId, flow.serviceName || '', page + 1);
-    }
-
-    if (!opt && BookingAiService.looksLikeDateQuery(input)) {
-      const filtered = await BookingAiService.slotsForDateQuery(tenantId, input, flow.serviceId);
+    if (BookingAiService.looksLikeDateQuery(input) && !flow.tempSlots?.length) {
+      const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
       if (filtered.length > 0) {
         flow = { ...flow, tempSlots: filtered.map((s) => ({ date: s.date, time: s.time, label: s.label })) };
         await this.saveFlow(conversationId, flow);
-        return flowReply('Estos horarios tengo para esa fecha:', filtered.map((s) => s.label));
+        return this.slotsListReply('Estos horarios tengo para esa fecha:', filtered);
       }
     }
 
-    if (!opt && BookingAiService.looksLikeQuestion(input)) {
-      const faq = await BookingAiService.answerFaq(tenantId, input, settings);
-      if (faq) {
-        const slotsMsg = await this.slotReply(tenantId, flow.serviceName || '', page);
-        return { handled: true, text: `${faq}\n\n${slotsMsg.text}`, interactive: slotsMsg.interactive };
-      }
+    let opt = pickOption(input, totalOptions);
+    if (hasMoreOption && opt === totalOptions) {
+      flow = { ...flow, slotBrowse: 'more_menu' };
+      await this.saveFlow(conversationId, flow);
+      return this.moreSlotsMenuReply();
     }
 
-    opt = opt && opt <= pageSlots.length ? opt : null;
-    if (!opt) {
-      const retry = await this.slotReply(tenantId, flow.serviceName || '', page);
-      return { handled: true, text: `${retry.text}\n\n(Elegí un horario válido)`, interactive: retry.interactive };
+    if (!opt || opt > pageSlots.length) {
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => {
+        if (flow.tempSlots?.length) {
+          return this.slotsListReply('Elegí un horario:', flow.tempSlots);
+        }
+        return this.slotReply(tenantId, flow.serviceName || '');
+      });
     }
 
     const slot = pageSlots[opt - 1];
@@ -437,6 +525,7 @@ export class BookingFlowService {
       slotTime: slot.time,
       slotLabel: slot.label,
       tempSlots: undefined,
+      slotBrowse: undefined,
     };
     await this.saveFlow(conversationId, flow);
 
@@ -521,15 +610,19 @@ Importante: ${policyShort}
     settings: any,
     flow: BookingFlowContext,
     input: string,
+    rawText: string,
   ): Promise<FlowHandleResult> {
     const opt = pickOption(input, 3);
     if (opt === 3) {
-      flow = { ...flow, state: 'slot_selection', slotPage: 0 };
+      flow = { ...flow, state: 'slot_selection', slotPage: 0, slotBrowse: undefined, tempSlots: undefined };
       await this.saveFlow(conversationId, flow);
-      return this.slotReply(tenantId, flow.serviceName || '', 0);
+      return this.slotReply(tenantId, flow.serviceName || '');
     }
     if (opt !== 1 && opt !== 2) {
-      return { handled: true, text: 'Elegí 1 (seña), 2 (total) o 3 (cambiar horario).' };
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply(
+        'Elegí cómo querés pagar:',
+        [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'],
+      ));
     }
 
     const paymentType = opt === 1 ? 'sena' : 'total';
