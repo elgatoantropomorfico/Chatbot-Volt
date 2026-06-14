@@ -9,7 +9,7 @@ interface User {
   name?: string | null;
   role: 'superadmin' | 'tenant_admin' | 'agent';
   tenantId: string | null;
-  tenant?: { id: string; name: string; status: string } | null;
+  tenant?: { id: string; name: string; displayName?: string | null; status: string } | null;
 }
 
 interface AuthContextType {
@@ -49,8 +49,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [loadUser]);
 
   const login = async (email: string, password: string) => {
-    const data = await api.login(email, password);
-    setUser(data.user);
+    await api.login(email, password);
+    const { user: fullUser } = await api.getMe();
+    setUser(fullUser);
   };
 
   const logout = async () => {

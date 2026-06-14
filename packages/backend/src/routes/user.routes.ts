@@ -51,7 +51,7 @@ export async function userRoutes(app: FastifyInstance) {
       where: { id: request.user.userId },
       select: {
         ...userSelect,
-        tenant: { select: { id: true, name: true, status: true } },
+        tenant: { select: { id: true, name: true, displayName: true, status: true } },
       },
     });
     return reply.send({ user });
@@ -77,7 +77,7 @@ export async function userRoutes(app: FastifyInstance) {
       data,
       select: {
         ...userSelect,
-        tenant: { select: { id: true, name: true, status: true } },
+        tenant: { select: { id: true, name: true, displayName: true, status: true } },
       },
     });
     return reply.send({ user });

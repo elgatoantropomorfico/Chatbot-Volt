@@ -13,6 +13,7 @@ import { DashboardSearch } from '@/components/dashboard/DashboardSearch';
 import {
   GlowingBarChart, HeroOrb, MiniSparkline, useDelta, pct, type TrendDay,
 } from '@/components/dashboard/DashboardVisuals';
+import { getTenantDisplayName } from '@/lib/tenant';
 import styles from './page.module.css';
 
 interface TenantModules {
@@ -245,7 +246,7 @@ function TenantDashboard() {
     });
   }, [stats]);
 
-  const tenantName = user?.tenant?.name || 'Tu negocio';
+  const tenantName = getTenantDisplayName(user?.tenant) || 'Tu negocio';
   const displayName = user?.name || user?.email?.split('@')[0] || 'Usuario';
   const roleLabel = ROLE_LABELS[user?.role || 'agent'] || user?.role;
 

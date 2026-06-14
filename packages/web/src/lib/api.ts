@@ -121,6 +121,12 @@ class ApiClient {
   async getTenant(id: string) { return this.fetch<{ tenant: any }>(`/tenants/${id}`); }
   async createTenant(data: any) { return this.fetch<{ tenant: any }>('/tenants', { method: 'POST', body: data }); }
   async updateTenant(id: string, data: any) { return this.fetch<{ tenant: any }>(`/tenants/${id}`, { method: 'PATCH', body: data }); }
+  async updateTenantDisplayName(displayName: string) {
+    return this.fetch<{ tenant: { id: string; name: string; displayName: string | null; status: string } }>(
+      '/tenants/me/display-name',
+      { method: 'PATCH', body: { displayName } },
+    );
+  }
   async deleteTenant(id: string) { return this.fetch(`/tenants/${id}`, { method: 'DELETE' }); }
 
   // Channels

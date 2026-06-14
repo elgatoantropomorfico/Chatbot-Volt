@@ -136,9 +136,10 @@ model RefreshToken {
 }
 
 model Tenant {
-  id        String       @id @default(cuid())
-  name      String
-  status    TenantStatus @default(active)
+  id          String       @id @default(cuid())
+  name        String
+  displayName String?      @map("display_name")
+  status      TenantStatus @default(active)
   timezone  String       @default("America/Argentina/Buenos_Aires")
   createdAt DateTime     @default(now()) @map("created_at")
   updatedAt DateTime     @updatedAt @map("updated_at")

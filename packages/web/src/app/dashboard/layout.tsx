@@ -23,6 +23,7 @@ import {
   Cloud,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { getTenantDisplayName } from '@/lib/tenant';
 import styles from './layout.module.css';
 
 // Super admin: only tenant management
@@ -133,7 +134,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className={styles.brandIcon}>V</div>
             <div className={styles.brandText}>
               <h2>Volt</h2>
-              <span>{isSuperAdmin ? 'Super Admin' : user.tenant?.name || 'Panel'}</span>
+              <span>{isSuperAdmin ? 'Super Admin' : getTenantDisplayName(user.tenant) || 'Panel'}</span>
             </div>
           </div>
         </div>

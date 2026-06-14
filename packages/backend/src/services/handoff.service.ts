@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { WhatsAppService } from './whatsapp.service';
+import { tenantDisplayName } from '../utils/tenant';
 
 interface HandoffTriggers {
   keywords?: string[];
@@ -84,7 +85,7 @@ export class HandoffService {
       leadPhone: conversation.lead.phone,
       handoffReason: reason,
       conversationSummary: conversation.summary || undefined,
-      tenantName: conversation.tenant.name,
+      tenantName: tenantDisplayName(conversation.tenant),
     });
     const waMeLink = this.buildWaMeLink(botSettings.handoffPhoneE164, waMeText);
 
@@ -95,7 +96,7 @@ export class HandoffService {
       leadPhone: conversation.lead.phone,
       handoffReason: reason,
       conversationSummary: conversation.summary || undefined,
-      tenantName: conversation.tenant.name,
+      tenantName: tenantDisplayName(conversation.tenant),
       waMeLink,
     });
 

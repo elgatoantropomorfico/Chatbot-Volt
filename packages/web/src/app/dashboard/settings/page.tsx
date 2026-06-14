@@ -3,14 +3,19 @@
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
-import { Settings, Pencil, Check, X } from 'lucide-react';
+import { getTenantDisplayName } from '@/lib/tenant';
+import { Pencil } from 'lucide-react';
 
 export default function SettingsPage() {
-  const { user, isSuperAdmin, refreshUser } = useAuth();
+  const { user, isSuperAdmin, isTenantAdmin, refreshUser } = useAuth();
   const [editingProfile, setEditingProfile] = useState(false);
+  const [editingBusiness, setEditingBusiness] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', password: '', confirmPassword: '' });
+  const [businessName, setBusinessName] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const tenantLabel = getTenantDisplayName(user?.tenant);
 
   function startEditProfile() {
     setEditingProfile(true);
@@ -21,6 +26,18 @@ export default function SettingsPage() {
   function cancelEditProfile() {
     setEditingProfile(false);
     setProfileForm({ name: '', password: '', confirmPassword: '' });
+    setMessage(null);
+  }
+
+  function startEditBusiness() {
+    setEditingBusiness(true);
+    setBusinessName(user?.tenant?.displayName?.trim() || user?.tenant?.name || '');
+    setMessage(null);
+  }
+
+  function cancelEditBusiness() {
+    setEditingBusiness(false);
+    setBusinessName('');
     setMessage(null);
   }
 
@@ -55,6 +72,26 @@ export default function SettingsPage() {
     }
   }
 
+  async function saveBusinessName() {
+    if (!businessName.trim()) {
+      setMessage({ type: 'error', text: 'El nombre del negocio no puede estar vacío' });
+      return;
+    }
+
+    setSaving(true);
+    setMessage(null);
+    try {
+      await api.updateTenantDisplayName(businessName.trim());
+      await refreshUser();
+      setEditingBusiness(false);
+      setMessage({ type: 'success', text: 'Nombre del negocio actualizado' });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Error al actualizar el negocio' });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const cardStyle: React.CSSProperties = {
     background: 'var(--color-surface)',
     border: '1px solid var(--color-border)',
@@ -73,6 +110,7 @@ export default function SettingsPage() {
     fontSize: '13px',
     padding: '8px 0',
     borderBottom: '1px solid rgba(139, 92, 246, 0.04)',
+    gap: '12px',
   };
 
   const inputStyle: React.CSSProperties = {
@@ -84,6 +122,7 @@ export default function SettingsPage() {
     fontSize: '13px',
     outline: 'none',
     width: '240px',
+    maxWidth: '100%',
   };
 
   const btnStyle: React.CSSProperties = {
@@ -111,10 +150,56 @@ export default function SettingsPage() {
         </div>
       )}
 
+      {!isSuperAdmin && user?.tenant && (
+        <div style={cardStyle}>
+          <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, #e879f9, #8b5cf6, transparent)' }} />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+            <div>
+              <h3 style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em', marginBottom: '4px' }}>Nombre del negocio</h3>
+              <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: 0 }}>
+                Es el nombre que ves en el dashboard, sidebar y saludos. Solo afecta a tu tenant.
+              </p>
+            </div>
+            {isTenantAdmin && !editingBusiness && (
+              <button onClick={startEditBusiness} style={{ ...btnStyle, background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Pencil size={13} /> Editar
+              </button>
+            )}
+          </div>
+          <div style={rowStyle}>
+            <span style={{ color: 'var(--color-text-muted)' }}>Nombre visible</span>
+            {editingBusiness ? (
+              <input
+                type="text"
+                value={businessName}
+                onChange={(e) => setBusinessName(e.target.value)}
+                placeholder="Ej: Le Rocher"
+                style={inputStyle}
+              />
+            ) : (
+              <span style={{ fontWeight: 600 }}>{tenantLabel || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin configurar</span>}</span>
+            )}
+          </div>
+          {editingBusiness && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
+              <button onClick={cancelEditBusiness} style={{ ...btnStyle, background: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}>
+                Cancelar
+              </button>
+              <button onClick={saveBusinessName} disabled={saving} style={{ ...btnStyle, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: '#fff', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)' }}>
+                {saving ? 'Guardando...' : 'Guardar negocio'}
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
       <div style={cardStyle}>
         <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, #8b5cf6, #e879f9, transparent)' }} />
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em' }}>Perfil</h3>
+          <div>
+            <h3 style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em', marginBottom: '4px' }}>Tu cuenta</h3>
+            <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: 0 }}>Tu nombre personal como usuario del panel (no es el nombre del negocio).</p>
+          </div>
           {!editingProfile && (
             <button onClick={startEditProfile} style={{ ...btnStyle, background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Pencil size={13} /> Editar
@@ -123,7 +208,7 @@ export default function SettingsPage() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column' as const }}>
           <div style={rowStyle}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Nombre</span>
+            <span style={{ color: 'var(--color-text-muted)' }}>Tu nombre</span>
             {editingProfile ? (
               <input type="text" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} placeholder="Tu nombre" style={inputStyle} />
             ) : (
@@ -146,13 +231,9 @@ export default function SettingsPage() {
               </div>
             </>
           )}
-          <div style={rowStyle}>
+          <div style={{ ...rowStyle, borderBottom: 'none' }}>
             <span style={{ color: 'var(--color-text-muted)' }}>Rol</span>
             <span style={{ textTransform: 'capitalize' as const, fontWeight: 500 }}>{user?.role?.replace('_', ' ')}</span>
-          </div>
-          <div style={{ ...rowStyle, borderBottom: 'none' }}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Tenant</span>
-            <span style={{ fontWeight: 500 }}>{user?.tenant?.name || (isSuperAdmin ? 'Global (SuperAdmin)' : '—')}</span>
           </div>
         </div>
         {editingProfile && (
@@ -161,7 +242,7 @@ export default function SettingsPage() {
               Cancelar
             </button>
             <button onClick={saveProfile} disabled={saving} style={{ ...btnStyle, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: '#fff', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)' }}>
-              {saving ? 'Guardando...' : 'Guardar cambios'}
+              {saving ? 'Guardando...' : 'Guardar cuenta'}
             </button>
           </div>
         )}

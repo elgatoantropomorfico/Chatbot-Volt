@@ -11,8 +11,13 @@ const createTenantSchema = z.object({
 
 const updateTenantSchema = z.object({
   name: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional().nullable(),
   status: z.enum(['active', 'inactive', 'suspended']).optional(),
   timezone: z.string().optional(),
+});
+
+const updateTenantDisplayNameSchema = z.object({
+  displayName: z.string().min(1).max(120),
 });
 
 export async function tenantRoutes(app: FastifyInstance) {
@@ -75,7 +80,28 @@ export async function tenantRoutes(app: FastifyInstance) {
     return reply.status(201).send({ tenant });
   });
 
-  // Update tenant (superadmin only)
+  // Update tenant display name (tenant_admin — solo su tenant, no toca name interno)
+  app.patch('/me/display-name', {
+    preHandler: [requireRole('tenant_admin')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const body = updateTenantDisplayNameSchema.safeParse(request.body);
+    if (!body.success) {
+      return reply.status(400).send({ error: 'Validation failed', details: body.error.flatten() });
+    }
+
+    const tenantId = request.user.tenantId;
+    if (!tenantId) return reply.status(400).send({ error: 'Tenant context required' });
+
+    const tenant = await prisma.tenant.update({
+      where: { id: tenantId },
+      data: { displayName: body.data.displayName.trim() },
+      select: { id: true, name: true, displayName: true, status: true },
+    });
+
+    return reply.send({ tenant });
+  });
+
+  // Update tenant (superadmin only — name interno, status, timezone)
   app.patch('/:id', {
     preHandler: [requireRole('superadmin')],
   }, async (request: FastifyRequest<{ Params: { id: string } }>, reply: FastifyReply) => {
@@ -86,7 +112,12 @@ export async function tenantRoutes(app: FastifyInstance) {
 
     const tenant = await prisma.tenant.update({
       where: { id: request.params.id },
-      data: body.data,
+      data: {
+        ...(body.data.name !== undefined ? { name: body.data.name } : {}),
+        ...(body.data.status !== undefined ? { status: body.data.status } : {}),
+        ...(body.data.timezone !== undefined ? { timezone: body.data.timezone } : {}),
+        // superadmin no modifica displayName desde este endpoint
+      },
     });
 
     return reply.send({ tenant });
