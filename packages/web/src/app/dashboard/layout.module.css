@@ -340,6 +340,23 @@
   flex-direction: column;
 }
 
+/* Config pages: centered column that fills viewport height */
+.mainConfigFill {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 24px 32px 24px;
+}
+
+.contentAreaConfigFill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  width: 100%;
+}
+
 .pageHeader {
   margin-bottom: 32px;
 }
@@ -455,6 +472,11 @@
     margin-left: 0;
     max-width: 100vw;
     padding: 80px 16px 24px;
+  }
+
+  .mainConfigFill {
+    padding: 72px 16px 16px;
+    min-height: 100dvh;
   }
 
   .mainFullBleed {

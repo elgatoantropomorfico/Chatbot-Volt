@@ -937,21 +937,28 @@ export default function TurneraConfigPage() {
   }
 
   return (
-    <div className={styles.wrapper}>
-      <div className={styles.mobileHeader}>
-        <h1>Configuración de turnera</h1>
+    <div className="volt-page">
+      <div className="volt-page-header">
+        <div>
+          <h1 className="volt-page-title">Configuración de turnera</h1>
+          <p className="volt-page-sub">Caminos, horarios, pagos y mensajes de tu sistema de reservas.</p>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {msg && <span className={styles.saveMsg}>{msg}</span>}
+          {saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>}
+        </div>
       </div>
 
-      <div className={styles.shell}>
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarTitle}>Turnera</div>
+      <div className="volt-bot-shell">
+        <aside className="volt-bot-sidebar">
+          <div className="volt-bot-nav-group">Turnera</div>
           {TABS.map((t) => {
             const Icon = t.icon;
             return (
               <button
                 key={t.id}
                 type="button"
-                className={`${styles.tabBtn} ${tab === t.id ? styles.tabBtnActive : ''}`}
+                className={`volt-bot-nav-item${tab === t.id ? ' volt-bot-nav-item-active' : ''}`}
                 onClick={() => setTab(t.id)}
               >
                 <Icon size={15} />
@@ -961,18 +968,14 @@ export default function TurneraConfigPage() {
           })}
         </aside>
 
-        <div className={styles.content}>
-          <div className={styles.contentHeader}>
-            <h1>
-              <CalendarClock size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8, color: '#a78bfa' }} />
+        <div className="volt-bot-main">
+          <div className="volt-bot-toolbar">
+            <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0, letterSpacing: '-0.01em', display: 'flex', alignItems: 'center', gap: 8 }}>
+              <CalendarClock size={18} style={{ color: '#b49dff' }} />
               {activeTab.label}
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {msg && <span className={styles.saveMsg}>{msg}</span>}
-              {saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>}
-            </div>
+            </h2>
           </div>
-          <div className={styles.contentBody}>
+          <div className="volt-bot-content volt-config-page">
             {renderContent()}
           </div>
         </div>
