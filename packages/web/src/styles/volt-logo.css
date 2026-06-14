@@ -1,4 +1,4 @@
-/* Volt logo — soft breathing glow */
+/* Volt logo — premium soft glow (sidebar + hero only) */
 .volt-logo {
   position: relative;
   display: inline-flex;
@@ -6,71 +6,196 @@
   justify-content: center;
   flex-shrink: 0;
   line-height: 0;
+  isolation: isolate;
 }
 
-.volt-logo svg,
 .volt-logo img {
   display: block;
   position: relative;
-  z-index: 1;
+  z-index: 2;
   border-radius: 50%;
 }
 
-.volt-logo--glow::before {
-  content: '';
+/* ── Layered gaussian aura (slow, wavy, very low intensity) ── */
+.volt-logo--glow .volt-logo-aura {
   position: absolute;
-  inset: -28%;
   border-radius: 50%;
-  background: radial-gradient(circle, rgba(119, 93, 248, 0.5) 0%, rgba(119, 93, 248, 0.15) 45%, transparent 72%);
-  animation: voltLogoPulse 3.2s ease-in-out infinite;
   pointer-events: none;
   z-index: 0;
+  will-change: transform, opacity, filter;
 }
 
-.volt-logo--glow::after {
-  content: '';
+.volt-logo--glow .volt-logo-aura--deep {
+  inset: -65%;
+  background: radial-gradient(
+    circle,
+    rgba(119, 93, 248, 0.09) 0%,
+    rgba(119, 93, 248, 0.03) 32%,
+    transparent 62%
+  );
+  filter: blur(36px);
+  animation: voltAuraDeep 14s cubic-bezier(0.42, 0, 0.58, 1) infinite;
+}
+
+.volt-logo--glow .volt-logo-aura--mid {
+  inset: -45%;
+  background: radial-gradient(
+    circle,
+    rgba(139, 120, 255, 0.06) 0%,
+    rgba(119, 93, 248, 0.025) 38%,
+    transparent 68%
+  );
+  filter: blur(22px);
+  animation: voltAuraMid 10.5s cubic-bezier(0.45, 0.05, 0.55, 0.95) infinite;
+  animation-delay: -4.2s;
+}
+
+/* ── Rotating lens edge shimmer (subtle white, occasional) ── */
+.volt-logo--glow .volt-logo-lens {
   position: absolute;
   inset: -12%;
   border-radius: 50%;
-  box-shadow: 0 0 20px rgba(119, 93, 248, 0.35);
-  animation: voltLogoGlow 3.2s ease-in-out infinite;
   pointer-events: none;
-  z-index: 0;
+  z-index: 3;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    transparent 248deg,
+    rgba(255, 255, 255, 0.09) 264deg,
+    rgba(255, 255, 255, 0.025) 282deg,
+    transparent 298deg,
+    transparent 360deg
+  );
+  filter: blur(6px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  animation:
+    voltLensOrbit 24s linear infinite,
+    voltLensGlint 16s ease-in-out infinite;
 }
 
-.volt-logo--glow svg,
 .volt-logo--glow img {
-  animation: voltLogoIconGlow 3.2s ease-in-out infinite;
+  animation: voltIconHalo 12s cubic-bezier(0.42, 0, 0.58, 1) infinite;
 }
 
-@keyframes voltLogoPulse {
-  0%, 100% {
-    opacity: 0.5;
-    transform: scale(0.92);
+@keyframes voltAuraDeep {
+  0% {
+    opacity: 0.18;
+    transform: scale(0.88);
+    filter: blur(32px);
   }
-  50% {
-    opacity: 1;
-    transform: scale(1.08);
+  22% {
+    opacity: 0.32;
+    transform: scale(1.04);
+    filter: blur(42px);
+  }
+  47% {
+    opacity: 0.22;
+    transform: scale(0.94);
+    filter: blur(36px);
+  }
+  71% {
+    opacity: 0.3;
+    transform: scale(1.02);
+    filter: blur(40px);
+  }
+  100% {
+    opacity: 0.18;
+    transform: scale(0.88);
+    filter: blur(32px);
   }
 }
 
-@keyframes voltLogoGlow {
-  0%, 100% {
-    opacity: 0.35;
-    box-shadow: 0 0 14px rgba(119, 93, 248, 0.25);
+@keyframes voltAuraMid {
+  0% {
+    opacity: 0.12;
+    transform: scale(0.92) translate(0, 0);
+    filter: blur(18px);
   }
-  50% {
-    opacity: 0.85;
-    box-shadow: 0 0 28px rgba(119, 93, 248, 0.55), 0 0 48px rgba(119, 93, 248, 0.2);
+  31% {
+    opacity: 0.28;
+    transform: scale(1.06) translate(1.5px, -1px);
+    filter: blur(26px);
+  }
+  55% {
+    opacity: 0.16;
+    transform: scale(0.96) translate(-1px, 1.5px);
+    filter: blur(20px);
+  }
+  79% {
+    opacity: 0.24;
+    transform: scale(1.03) translate(0.5px, 0.5px);
+    filter: blur(24px);
+  }
+  100% {
+    opacity: 0.12;
+    transform: scale(0.92) translate(0, 0);
+    filter: blur(18px);
   }
 }
 
-@keyframes voltLogoIconGlow {
-  0%, 100% {
-    filter: drop-shadow(0 0 4px rgba(119, 93, 248, 0.3));
+@keyframes voltLensOrbit {
+  to {
+    transform: rotate(360deg);
   }
-  50% {
-    filter: drop-shadow(0 0 10px rgba(119, 93, 248, 0.65)) drop-shadow(0 0 20px rgba(119, 93, 248, 0.25));
+}
+
+@keyframes voltLensGlint {
+  0%, 100% {
+    opacity: 0;
+  }
+  5% {
+    opacity: 0.12;
+  }
+  10% {
+    opacity: 0;
+  }
+  36% {
+    opacity: 0;
+  }
+  42% {
+    opacity: 0.09;
+  }
+  48% {
+    opacity: 0;
+  }
+  70% {
+    opacity: 0;
+  }
+  77% {
+    opacity: 0.11;
+  }
+  84% {
+    opacity: 0;
+  }
+}
+
+@keyframes voltIconHalo {
+  0%, 100% {
+    filter: drop-shadow(0 0 3px rgba(119, 93, 248, 0.05));
+  }
+  38% {
+    filter: drop-shadow(0 0 8px rgba(119, 93, 248, 0.09));
+  }
+  65% {
+    filter: drop-shadow(0 0 5px rgba(119, 93, 248, 0.06));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .volt-logo--glow .volt-logo-aura,
+  .volt-logo--glow .volt-logo-lens,
+  .volt-logo--glow img {
+    animation: none;
+  }
+
+  .volt-logo--glow .volt-logo-aura--deep {
+    opacity: 0.22;
+    filter: blur(30px);
+  }
+
+  .volt-logo--glow img {
+    filter: drop-shadow(0 0 4px rgba(119, 93, 248, 0.06));
   }
 }
 

@@ -24,6 +24,13 @@ export function VoltLogo({
       role="img"
       aria-label={title}
     >
+      {glow && (
+        <>
+          <span className="volt-logo-aura volt-logo-aura--deep" aria-hidden />
+          <span className="volt-logo-aura volt-logo-aura--mid" aria-hidden />
+          <span className="volt-logo-lens" aria-hidden />
+        </>
+      )}
       <img
         src={LOGO_SRC}
         width={size}
