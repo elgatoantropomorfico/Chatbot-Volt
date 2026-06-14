@@ -18,7 +18,7 @@ import { zohoFieldRoutes } from './routes/zoho-field.routes';
 import { pilotFieldRoutes } from './routes/pilot-field.routes';
 import { leadFieldRoutes } from './routes/lead-field.routes';
 import { leadRequestRoutes } from './routes/lead-request.routes';
-import { bookingRoutes } from './routes/booking.routes';
+import { bookingRoutes, bookingPublicRoutes } from './routes/booking.routes';
 import { mercadopagoWebhookRoutes } from './routes/mercadopago-webhook.routes';
 
 export async function buildApp() {
@@ -68,6 +68,7 @@ export async function buildApp() {
   app.register(authRoutes, { prefix: '/api/auth' });
   app.register(webhookRoutes, { prefix: '/api/webhook' });
   app.register(mercadopagoWebhookRoutes, { prefix: '/api/webhooks' });
+  app.register(bookingPublicRoutes, { prefix: '/api/booking' });
 
   // Protected routes
   app.register(async function protectedRoutes(instance) {

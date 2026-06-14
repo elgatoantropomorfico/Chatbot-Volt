@@ -442,8 +442,10 @@ export async function bookingRoutes(app: FastifyInstance) {
     });
     return reply.send({ appointment });
   });
+}
 
-  // Public receipt by token (no auth)
+/** Public booking endpoints (no JWT) — registered outside auth in app.ts */
+export async function bookingPublicRoutes(app: FastifyInstance) {
   app.get('/receipt/:token', async (request: FastifyRequest, reply: FastifyReply) => {
     const { token } = request.params as { token: string };
     const appointment = await prisma.appointment.findUnique({
@@ -451,6 +453,18 @@ export async function bookingRoutes(app: FastifyInstance) {
       include: { service: true, tenant: { select: { name: true, timezone: true } } },
     });
     if (!appointment) return reply.status(404).send({ error: 'Comprobante no encontrado' });
-    return reply.send({ appointment });
+    return reply.send({
+      appointment: {
+        id: appointment.id,
+        status: appointment.status,
+        customerName: appointment.customerName,
+        appointmentDate: appointment.appointmentDate,
+        appointmentTime: appointment.appointmentTime,
+        amountPaid: appointment.amountPaid,
+        balanceDue: appointment.balanceDue,
+        service: appointment.service,
+        tenant: appointment.tenant,
+      },
+    });
   });
 }

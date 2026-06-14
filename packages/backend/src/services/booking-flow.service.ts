@@ -8,6 +8,7 @@ import { BookingPricingService } from './booking-pricing.service';
 import { MercadoPagoService } from './mercadopago.service';
 import { BookingAiService } from './booking-ai.service';
 import { BookingExpiryService } from './booking-notification.service';
+import crypto from 'crypto';
 
 export interface FlowInteractive {
   type: 'button' | 'list';
@@ -731,6 +732,7 @@ Importante: ${policyShort}
     );
     const holdMinutes = settings.paymentLinkExpirationMinutes || 15;
     const holdExpiresAt = new Date(Date.now() + holdMinutes * 60 * 1000);
+    const receiptToken = crypto.randomBytes(16).toString('hex');
 
     const appointment = await prisma.appointment.create({
       data: {
@@ -754,6 +756,7 @@ Importante: ${policyShort}
         customerNotes: flow.customerNotes,
         isFirstTime: flow.isFirstTime,
         holdExpiresAt,
+        receiptToken,
       },
     });
 
@@ -766,6 +769,7 @@ Importante: ${policyShort}
         amount: payAmount,
         currency: settings.currency || 'ARS',
         expirationMinutes: holdMinutes,
+        receiptToken,
       });
       paymentLink = mp.initPoint;
       await prisma.appointment.update({

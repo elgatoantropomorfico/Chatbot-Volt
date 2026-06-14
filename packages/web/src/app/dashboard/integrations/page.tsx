@@ -219,10 +219,6 @@ export default function IntegrationsPage() {
   };
 
   function renderMpConfigForm() {
-    const webhookHint = typeof window !== 'undefined'
-      ? `${window.location.origin.replace('3000', '4000')}/api/webhooks/mercadopago/{tenantId}`
-      : '/api/webhooks/mercadopago/{tenantId}';
-
     return (
       <div style={{ ...sectionStyle, marginBottom: '16px' }}>
         <label style={labelStyle}>Access Token</label>
@@ -242,8 +238,9 @@ export default function IntegrationsPage() {
           style={inputStyle}
         />
         <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px', lineHeight: 1.5 }}>
-          Webhook en Mercado Pago Developers: <code style={{ fontSize: '11px' }}>{webhookHint}</code>
-          {' '}— reemplazá {'{tenantId}'} por el ID del tenant.
+          No hace falta configurar webhook en Mercado Pago Developers: cada link de pago incluye automáticamente
+          la <code style={{ fontSize: '11px' }}>notification_url</code> del backend para confirmar el turno.
+          Solo necesitás el Access Token productivo acá.
         </p>
       </div>
     );

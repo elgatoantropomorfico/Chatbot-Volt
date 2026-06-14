@@ -41,6 +41,9 @@ const envSchema = z.object({
   GROQ_WHISPER_MODEL: z.string().optional(),
   GROQ_WHISPER_LANGUAGE: z.string().optional(),
 
+  /** Public base URL of the API (for MP notification_url / back_urls). */
+  API_PUBLIC_URL: z.string().url().optional(),
+
   PORT: z.coerce.number().default(3001),
   HOST: z.string().default('0.0.0.0'),
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
