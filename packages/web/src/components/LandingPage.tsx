@@ -49,89 +49,26 @@ export default function LandingPage() {
 
 function Hero() {
   return (
-    <section
-      style={{
-        position: 'relative',
-        paddingTop: 160,
-        paddingBottom: 48,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        textAlign: 'center',
-        overflow: 'hidden',
-      }}
-    >
+    <section className="mkt-hero">
       <HeroOrbs />
 
-      <div style={{ position: 'relative', zIndex: 1, maxWidth: 860, padding: '0 24px' }}>
-        <div
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 8,
-            padding: '6px 16px',
-            borderRadius: 'var(--radius-full)',
-            background: 'var(--color-primary-light)',
-            border: '1px solid var(--color-border-light)',
-            fontSize: 13,
-            fontWeight: 600,
-            color: 'var(--color-primary-hover)',
-            marginBottom: 28,
-            animation: 'fade-in-up 0.6s ease-out',
-          }}
-        >
+      <div className="mkt-hero-inner">
+        <div className="mkt-badge">
           <Sparkles size={14} />
           Inteligencia artificial para tu operación
         </div>
 
-        <h1
-          style={{
-            fontSize: 'clamp(32px, 5.5vw, 64px)',
-            fontWeight: 900,
-            lineHeight: 1.08,
-            letterSpacing: '-0.04em',
-            marginBottom: 24,
-            animation: 'fade-in-up 0.6s ease-out 0.1s both',
-          }}
-        >
-          <span style={{ color: '#fff' }}>Automatizá tu atención, tus ventas y tus procesos con </span>
-          <span
-            style={{
-              background: 'linear-gradient(135deg, #8b5cf6, #e879f9, #67e8f9)',
-              backgroundSize: '200% 200%',
-              animation: 'gradient-shift 4s ease infinite',
-              WebkitBackgroundClip: 'text',
-              WebkitTextFillColor: 'transparent',
-            }}
-          >
-            inteligencia artificial
-          </span>
+        <h1 className="mkt-hero-title">
+          <span>Automatizá tu atención, tus ventas y tus procesos con </span>
+          <span>inteligencia artificial</span>
         </h1>
 
-        <p
-          style={{
-            fontSize: 'clamp(16px, 2vw, 20px)',
-            color: 'var(--color-text-secondary)',
-            lineHeight: 1.65,
-            maxWidth: 680,
-            margin: '0 auto 40px',
-            animation: 'fade-in-up 0.6s ease-out 0.2s both',
-          }}
-        >
+        <p className="mkt-hero-sub">
           Creamos asistentes inteligentes, integraciones oficiales y soluciones tecnológicas a medida
           para que tu empresa responda más rápido, capture más oportunidades y reduzca tareas operativas.
         </p>
 
-        <div
-          className="landing-hero-btns"
-          style={{
-            display: 'flex',
-            gap: 16,
-            justifyContent: 'center',
-            flexWrap: 'wrap',
-            animation: 'fade-in-up 0.6s ease-out 0.3s both',
-          }}
-        >
+        <div className="mkt-hero-btns landing-hero-btns">
           <PrimaryButton href={DEMO_MAILTO} external>
             Agendar una demo <ArrowRight size={18} />
           </PrimaryButton>
@@ -147,7 +84,7 @@ function Hero() {
           width: '100%',
           maxWidth: 720,
           padding: '0 24px',
-          animation: 'fade-in-up 0.8s ease-out 0.4s both',
+          animation: 'mkt-fade-up 0.8s ease-out 0.4s both',
         }}
       >
         <ChatMockup variant="commerce" />
@@ -158,7 +95,7 @@ function Hero() {
 
 function PlatformPreview() {
   return (
-    <section style={{ padding: '80px 24px', background: 'var(--color-bg-secondary)' }}>
+    <section className="mkt-section">
       <div style={{ maxWidth: 900, margin: '0 auto', textAlign: 'center' }}>
         <SectionHeader
           badge="Plataforma"
@@ -263,33 +200,20 @@ function MainSolutions() {
   ];
 
   return (
-    <section id="soluciones" style={{ padding: '100px 24px', background: 'var(--color-bg-secondary)' }}>
-      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+    <section id="soluciones" className="mkt-section">
+      <div className="mkt-section-inner">
         <SectionHeader
           badge="Soluciones"
           title="Soluciones principales"
           subtitle="Cada área de Volt está pensada para resolver un problema concreto de tu operación comercial y administrativa."
         />
-        <div
-          className="landing-grid-2"
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-            gap: 24,
-            marginTop: 60,
-          }}
-        >
+        <div className="mkt-grid-2 landing-grid-2" style={{ marginTop: 60 }}>
           {solutions.map((s, i) => (
             <div
               key={i}
-              className="landing-card"
+              className="mkt-glass-card landing-card"
               style={{
                 padding: 32,
-                borderRadius: 'var(--radius-lg)',
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-                transition: 'all 0.25s',
-                boxShadow: 'var(--shadow-card)',
                 display: 'flex',
                 flexDirection: 'column',
                 height: '100%',
@@ -344,7 +268,7 @@ function MainSolutions() {
 
 function IdealFor() {
   return (
-    <section style={{ padding: '100px 24px' }}>
+    <section className="mkt-section">
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <SectionHeader
           badge="Para quién"
@@ -423,7 +347,7 @@ function Benefits() {
 
 function HowWeWork() {
   return (
-    <section style={{ padding: '100px 24px' }}>
+    <section className="mkt-section">
       <div style={{ maxWidth: 1000, margin: '0 auto' }}>
         <SectionHeader
           badge="Proceso"

@@ -21,39 +21,9 @@ export function SectionHeader({
         margin: align === 'center' ? '0 auto' : undefined,
       }}
     >
-      <div
-        style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          gap: 6,
-          padding: '5px 14px',
-          borderRadius: 'var(--radius-full)',
-          background: 'var(--color-primary-light)',
-          border: '1px solid var(--color-border-light)',
-          fontSize: 12,
-          fontWeight: 600,
-          color: 'var(--color-primary-hover)',
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          marginBottom: 16,
-        }}
-      >
-        {badge}
-      </div>
-      <h2
-        style={{
-          fontSize: 'clamp(26px, 4vw, 42px)',
-          fontWeight: 800,
-          color: '#fff',
-          letterSpacing: '-0.03em',
-          marginBottom: 12,
-        }}
-      >
-        {title}
-      </h2>
-      <p style={{ fontSize: 16, lineHeight: 1.65, color: 'var(--color-text-secondary)' }}>
-        {subtitle}
-      </p>
+      <div className="mkt-section-badge">{badge}</div>
+      <h2 className="mkt-section-title">{title}</h2>
+      <p className="mkt-section-sub">{subtitle}</p>
     </div>
   );
 }
@@ -67,32 +37,16 @@ export function PrimaryButton({
   children: ReactNode;
   external?: boolean;
 }) {
-  const style: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: '14px 32px',
-    borderRadius: 'var(--radius-full)',
-    background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-    color: '#fff',
-    fontSize: 15,
-    fontWeight: 700,
-    textDecoration: 'none',
-    boxShadow: 'var(--shadow-glow-lg)',
-    transition: 'all 0.25s',
-  };
-
   if (external || href.startsWith('mailto:')) {
     return (
-      <a href={href} className="landing-cta-btn" style={style}>
+      <a href={href} className="mkt-btn-primary landing-cta-btn">
         {children}
       </a>
     );
   }
 
   return (
-    <Link href={href} className="landing-cta-btn" style={style}>
+    <Link href={href} className="mkt-btn-primary landing-cta-btn">
       {children}
     </Link>
   );
@@ -100,32 +54,17 @@ export function PrimaryButton({
 
 export function GhostButton({ href, children }: { href: string; children: ReactNode }) {
   const isHash = href.startsWith('#');
-  const style: React.CSSProperties = {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
-    padding: '14px 32px',
-    borderRadius: 'var(--radius-full)',
-    background: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    color: 'var(--color-text)',
-    fontSize: 15,
-    fontWeight: 600,
-    textDecoration: 'none',
-    transition: 'all 0.25s',
-  };
 
   if (isHash) {
     return (
-      <a href={href} className="landing-ghost-btn" style={style}>
+      <a href={href} className="mkt-btn-ghost landing-ghost-btn">
         {children}
       </a>
     );
   }
 
   return (
-    <Link href={href} className="landing-ghost-btn" style={style}>
+    <Link href={href} className="mkt-btn-ghost landing-ghost-btn">
       {children}
     </Link>
   );
@@ -222,50 +161,10 @@ export function FinalCTA({
   buttonHref: string;
 }) {
   return (
-    <section style={{ padding: '100px 24px', position: 'relative', overflow: 'hidden' }}>
-      <div
-        style={{
-          position: 'absolute',
-          inset: 0,
-          background: 'radial-gradient(circle at 50% 50%, rgba(139, 92, 246, 0.1) 0%, transparent 60%)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          maxWidth: 700,
-          margin: '0 auto',
-          textAlign: 'center',
-          position: 'relative',
-          zIndex: 1,
-          padding: 48,
-          borderRadius: 'var(--radius-xl)',
-          background: 'var(--color-surface)',
-          border: '1px solid var(--color-border-glow)',
-          boxShadow: 'var(--shadow-glow-lg)',
-        }}
-      >
-        <h2
-          style={{
-            fontSize: 'clamp(24px, 4vw, 36px)',
-            fontWeight: 800,
-            color: '#fff',
-            marginBottom: 12,
-            letterSpacing: '-0.03em',
-          }}
-        >
-          {title}
-        </h2>
-        <p
-          style={{
-            fontSize: 16,
-            color: 'var(--color-text-secondary)',
-            lineHeight: 1.65,
-            marginBottom: 28,
-          }}
-        >
-          {subtitle}
-        </p>
+    <section className="mkt-section" style={{ padding: '100px 24px' }}>
+      <div className="mkt-cta-panel">
+        <h2 className="mkt-section-title" style={{ marginBottom: 12 }}>{title}</h2>
+        <p className="mkt-section-sub" style={{ marginBottom: 28 }}>{subtitle}</p>
         <PrimaryButton href={buttonHref} external={buttonHref.startsWith('mailto:')}>
           {buttonLabel} <ArrowRight size={18} />
         </PrimaryButton>

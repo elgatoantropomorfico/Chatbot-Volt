@@ -1,0 +1,372 @@
+/**
+ * Volt Marketing — executive glass landing
+ */
+
+.mkt-root {
+  min-height: 100vh;
+  background: var(--color-bg);
+  position: relative;
+  overflow-x: hidden;
+}
+
+.mkt-ambient {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.mkt-ambient-orb1 {
+  position: absolute;
+  top: -180px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 900px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(124, 58, 237, 0.14) 0%, rgba(232, 121, 249, 0.05) 40%, transparent 70%);
+}
+
+.mkt-ambient-orb2 {
+  position: absolute;
+  top: 120px;
+  right: 8%;
+  width: 320px;
+  height: 320px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(232, 121, 249, 0.1) 0%, transparent 70%);
+  animation: mkt-float 7s ease-in-out infinite;
+}
+
+.mkt-ambient-orb3 {
+  position: absolute;
+  top: 240px;
+  left: 4%;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.08) 0%, transparent 70%);
+  animation: mkt-float 9s ease-in-out infinite 1s;
+}
+
+@keyframes mkt-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-14px); }
+}
+
+.mkt-nav {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 200;
+  background: rgba(6, 6, 12, 0.78);
+  backdrop-filter: blur(24px) saturate(1.3);
+  -webkit-backdrop-filter: blur(24px) saturate(1.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mkt-nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 64px;
+}
+
+.mkt-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+}
+
+.mkt-brand-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #8b5cf6, #e879f9);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 16px rgba(139, 92, 246, 0.35);
+}
+
+.mkt-brand-text {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+}
+
+.mkt-brand-volt { color: #fff; }
+.mkt-brand-ia { color: var(--color-text-muted); }
+
+.mkt-nav-link {
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.mkt-nav-link:hover { color: var(--color-text); }
+
+.mkt-nav-cta {
+  padding: 8px 20px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: 0 0 24px rgba(139, 92, 246, 0.28);
+  transition: all var(--transition-fast);
+  white-space: nowrap;
+}
+
+.mkt-nav-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 0 32px rgba(139, 92, 246, 0.42);
+}
+
+.mkt-hero {
+  position: relative;
+  padding: 160px 24px 56px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  z-index: 1;
+}
+
+.mkt-hero-inner {
+  max-width: 860px;
+  position: relative;
+  z-index: 1;
+}
+
+.mkt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  border-radius: var(--radius-full);
+  background: rgba(155, 123, 247, 0.1);
+  border: 1px solid rgba(155, 123, 247, 0.2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-primary-hover);
+  margin-bottom: 28px;
+  animation: mkt-fade-up 0.6s ease-out;
+}
+
+.mkt-hero-title {
+  font-size: clamp(36px, 6vw, 64px);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1.05;
+  margin: 0 0 20px;
+  animation: mkt-fade-up 0.6s ease-out 0.1s both;
+}
+
+.mkt-hero-title span {
+  background: linear-gradient(135deg, #f5f3fa 0%, #c4b5fd 40%, #e879f9 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.mkt-hero-sub {
+  font-size: clamp(16px, 2.2vw, 19px);
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+  max-width: 620px;
+  margin: 0 auto 36px;
+  animation: mkt-fade-up 0.6s ease-out 0.2s both;
+}
+
+.mkt-hero-btns {
+  display: flex;
+  gap: 14px;
+  justify-content: center;
+  flex-wrap: wrap;
+  animation: mkt-fade-up 0.6s ease-out 0.3s both;
+}
+
+.mkt-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  border-radius: var(--radius-full);
+  background: linear-gradient(135deg, #7c3aed, #a855f7);
+  color: #fff;
+  font-size: 15px;
+  font-weight: 700;
+  text-decoration: none;
+  box-shadow: 0 8px 32px rgba(124, 58, 237, 0.35);
+  transition: all 0.25s;
+  border: none;
+  cursor: pointer;
+}
+
+.mkt-btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 12px 40px rgba(124, 58, 237, 0.45), 0 0 60px rgba(232, 121, 249, 0.15);
+}
+
+.mkt-btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  border-radius: var(--radius-full);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  font-size: 15px;
+  font-weight: 600;
+  text-decoration: none;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s;
+}
+
+.mkt-btn-ghost:hover {
+  border-color: var(--color-border-light);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.mkt-section {
+  padding: 88px 24px;
+  position: relative;
+  z-index: 1;
+}
+
+.mkt-section-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.mkt-glass-card {
+  background: rgba(10, 10, 20, 0.72);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 22px;
+  backdrop-filter: blur(20px) saturate(1.2);
+  -webkit-backdrop-filter: blur(20px) saturate(1.2);
+  box-shadow: var(--shadow-card);
+  transition: all var(--transition-base);
+}
+
+.mkt-glass-card:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+  box-shadow: var(--shadow-card-hover);
+  transform: translateY(-2px);
+}
+
+.mkt-section-badge {
+  display: inline-flex;
+  padding: 5px 14px;
+  border-radius: var(--radius-full);
+  background: rgba(155, 123, 247, 0.1);
+  border: 1px solid rgba(155, 123, 247, 0.18);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--color-primary-hover);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  margin-bottom: 16px;
+}
+
+.mkt-section-title {
+  font-size: clamp(26px, 4vw, 42px);
+  font-weight: 800;
+  color: #fff;
+  letter-spacing: -0.03em;
+  margin: 0 0 12px;
+}
+
+.mkt-section-sub {
+  font-size: 16px;
+  line-height: 1.65;
+  color: var(--color-text-secondary);
+}
+
+.mkt-mockup-panel {
+  background: rgba(8, 8, 18, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.5), 0 0 40px rgba(155, 123, 247, 0.08);
+}
+
+.mkt-tech-pill {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: 8px 16px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.mkt-footer {
+  padding: 48px 24px;
+  border-top: 1px solid var(--color-border);
+  background: rgba(6, 6, 12, 0.9);
+  position: relative;
+  z-index: 1;
+}
+
+.mkt-cta-panel {
+  max-width: 700px;
+  margin: 0 auto;
+  text-align: center;
+  padding: 48px 32px;
+  border-radius: 28px;
+  background: rgba(10, 10, 20, 0.8);
+  border: 1px solid rgba(155, 123, 247, 0.2);
+  box-shadow: 0 0 60px rgba(155, 123, 247, 0.12);
+  backdrop-filter: blur(20px);
+}
+
+@keyframes mkt-fade-up {
+  from { opacity: 0; transform: translateY(24px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 900px) {
+  .mkt-nav-links { display: none !important; }
+  .mkt-nav-mobile-toggle { display: flex !important; }
+}
+
+@media (min-width: 901px) {
+  .mkt-nav-mobile-toggle { display: none !important; }
+  .mkt-mobile-menu { display: none !important; }
+}
+
+.mkt-grid-2 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+.mkt-grid-3 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.mkt-grid-4 {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 14px;
+}
+
+@media (max-width: 768px) {
+  .mkt-hero-btns { flex-direction: column; align-items: stretch; }
+  .mkt-grid-2, .mkt-grid-3, .mkt-grid-4 { grid-template-columns: 1fr !important; }
+}

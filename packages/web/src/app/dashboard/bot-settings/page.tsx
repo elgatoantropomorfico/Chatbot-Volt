@@ -214,14 +214,10 @@ export default function BotSettingsPage() {
         onClick={(e) => { e.preventDefault(); handleGenerate(section, field); }}
         disabled={isGenerating || !!generatingField}
         title="Generar con IA"
+        className="volt-btn-ai"
         style={{
-          display: 'inline-flex', alignItems: 'center', gap: '5px',
-          padding: '4px 10px', fontSize: '11px', fontWeight: 600,
-          background: isGenerating ? 'rgba(139, 92, 246, 0.15)' : 'rgba(139, 92, 246, 0.08)',
-          color: '#a78bfa', border: '1px solid rgba(139, 92, 246, 0.3)',
-          borderRadius: '6px', cursor: isGenerating || generatingField ? 'not-allowed' : 'pointer',
+          background: isGenerating ? 'rgba(139, 92, 246, 0.15)' : undefined,
           opacity: generatingField && !isGenerating ? 0.4 : 1,
-          transition: 'all 0.15s', whiteSpace: 'nowrap',
         }}
       >
         {isGenerating ? <Loader2 size={13} style={{ animation: 'spin 1s linear infinite' }} /> : <WandSparkles size={13} />}
@@ -231,8 +227,8 @@ export default function BotSettingsPage() {
   }
 
   function renderContent() {
-    if (loading) return <p style={{ padding: '40px', color: 'var(--color-text-muted)' }}>Cargando...</p>;
-    if (!settings) return <div style={{ textAlign: 'center', padding: '40px', color: 'var(--color-text-muted)' }}><Bot size={32} /><p>No hay configuración para este tenant</p></div>;
+    if (loading) return <p className="volt-empty">Cargando...</p>;
+    if (!settings) return <div className="volt-empty"><Bot size={32} /><p>No hay configuración para este tenant</p></div>;
 
     switch (activeTab) {
       case 'business':
@@ -786,81 +782,82 @@ export default function BotSettingsPage() {
   /* ─── Mobile Layout ─── */
   if (isMobile) {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 120px)' }}>
-        {/* Mobile Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <h1 style={{ fontSize: '22px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Bot / IA</h1>
-          <button onClick={handleSave} disabled={saving || !settings} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, opacity: saving ? 0.5 : 1, boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', cursor: saving ? 'not-allowed' : 'pointer' }}>
+      <div className="volt-page">
+        <div className="volt-page-header">
+          <div>
+            <h1 className="volt-page-title">Bot / IA</h1>
+            <p className="volt-page-sub">Configurá el contexto, personalidad y motor de tu asistente.</p>
+          </div>
+          <button type="button" onClick={handleSave} disabled={saving || !settings} className="volt-btn-primary">
             <Save size={14} /> {saving ? 'Guardando...' : 'Guardar'}
           </button>
         </div>
 
-        {/* Tenant selector */}
         {isSuperAdmin && tenants.length > 0 && (
-          <div style={{ marginBottom: '12px' }}>
-            <label style={{ ...labelStyle, fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Tenant</label>
-            <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '13px' }}>
-              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
+          <div className="volt-panel">
+            <div className="volt-panel-body volt-config-page">
+              <label className="volt-label">Tenant</label>
+              <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '13px' }}>
+                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
           </div>
         )}
 
-        {/* Mobile Tab Dropdown */}
-        <div style={{ position: 'relative', marginBottom: '16px' }}>
-          <button
-            onClick={() => setMobileNavOpen(!mobileNavOpen)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 16px',
-              background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-              borderRadius: mobileNavOpen ? 'var(--radius-md) var(--radius-md) 0 0' : 'var(--radius-md)',
-              color: '#a78bfa', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)',
-              transition: 'all 0.15s',
-            }}
-          >
-            {ActiveIcon && <ActiveIcon size={16} />}
-            <span style={{ flex: 1, textAlign: 'left' }}>{activeTabData?.label}</span>
-            <ChevronDown size={16} style={{ transition: 'transform 0.2s', transform: mobileNavOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
-          </button>
+        <div className="volt-panel volt-panel-accent-violet">
+          <div className="volt-panel-body" style={{ padding: '12px 16px' }}>
+            <div style={{ position: 'relative' }}>
+              <button
+                type="button"
+                onClick={() => setMobileNavOpen(!mobileNavOpen)}
+                style={{
+                  display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 16px',
+                  background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)',
+                  borderRadius: mobileNavOpen ? '14px 14px 0 0' : '14px',
+                  color: '#b49dff', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {ActiveIcon && <ActiveIcon size={16} />}
+                <span style={{ flex: 1, textAlign: 'left' }}>{activeTabData?.label}</span>
+                <ChevronDown size={16} style={{ transition: 'transform 0.2s', transform: mobileNavOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
+              </button>
 
-          {mobileNavOpen && (
-            <div style={{
-              position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-              background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderTop: 'none',
-              borderRadius: '0 0 var(--radius-md) var(--radius-md)',
-              boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
-              maxHeight: '60vh', overflowY: 'auto',
-            }}>
-              {groups.map((group) => (
-                <div key={group}>
-                  <div style={{ padding: '10px 16px 4px', fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{group}</div>
-                  {TABS.filter((t) => t.group === group).map((tab) => {
-                    const Icon = tab.icon;
-                    const isActive = activeTab === tab.id;
-                    const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
-                    return (
-                      <button key={tab.id} onClick={() => { setActiveTab(tab.id); setMobileNavOpen(false); }} style={{
-                        display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '10px 16px',
-                        background: isActive ? 'rgba(139, 92, 246, 0.1)' : 'transparent',
-                        color: isActive ? '#a78bfa' : 'var(--color-text-secondary)',
-                        border: 'none', fontSize: '13px', fontWeight: isActive ? 600 : 400,
-                        textAlign: 'left' as const, cursor: 'pointer', transition: 'all 0.1s',
-                      }}>
-                        <Icon size={15} />
-                        <span style={{ flex: 1 }}>{tab.label}</span>
-                        {hasContent && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 4px rgba(52, 211, 153, 0.4)' }} />}
-                      </button>
-                    );
-                  })}
+              {mobileNavOpen && (
+                <div style={{
+                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                  background: 'rgba(10,10,20,0.95)', border: '1px solid var(--color-border)', borderTop: 'none',
+                  borderRadius: '0 0 14px 14px',
+                  boxShadow: 'var(--shadow-lg)',
+                  maxHeight: '60vh', overflowY: 'auto',
+                }}>
+                  {groups.map((group) => (
+                    <div key={group}>
+                      <div className="volt-bot-nav-group">{group}</div>
+                      {TABS.filter((t) => t.group === group).map((tab) => {
+                        const Icon = tab.icon;
+                        const isActive = activeTab === tab.id;
+                        const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
+                        return (
+                          <button key={tab.id} type="button" onClick={() => { setActiveTab(tab.id); setMobileNavOpen(false); }} className={`volt-bot-nav-item${isActive ? ' volt-bot-nav-item-active' : ''}`}>
+                            <Icon size={15} />
+                            <span style={{ flex: 1 }}>{tab.label}</span>
+                            {hasContent && <span className="volt-dot-filled" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
-          )}
+          </div>
         </div>
 
-        {/* Mobile Content */}
-        <div style={{ flex: 1 }}>
-          {renderContent()}
+        <div className="volt-panel volt-panel-accent-violet">
+          <div className="volt-panel-body volt-config-page">
+            {renderContent()}
+          </div>
         </div>
       </div>
     );
@@ -868,50 +865,54 @@ export default function BotSettingsPage() {
 
   /* ─── Desktop Layout ─── */
   return (
-    <div style={{ maxWidth: '1100px', margin: '0 auto', height: 'calc(100vh - 80px)' }}>
-    <div style={{ display: 'flex', gap: '0', height: '100%', maxHeight: '100%', borderRadius: 'var(--radius-lg)', overflow: 'hidden', border: '1px solid var(--color-border)', boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)' }}>
-      {/* Sidebar */}
-      <div style={{ width: '220px', minWidth: '220px', background: 'linear-gradient(180deg, #0e0e20, #0a0a18)', borderRight: '1px solid var(--color-border)', overflowY: 'auto', padding: '12px 0' }}>
-        {isSuperAdmin && tenants.length > 0 && (
-          <div style={{ padding: '0 12px 12px', borderBottom: '1px solid var(--color-border)', marginBottom: '8px' }}>
-            <label style={{ ...labelStyle, fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px' }}>Tenant</label>
-            <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '12px', padding: '6px 10px' }}>
-              {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
-            </select>
-          </div>
-        )}
-        {groups.map((group) => (
-          <div key={group}>
-            <div style={{ padding: '12px 16px 6px', fontSize: '10px', textTransform: 'uppercase' as const, letterSpacing: '1px', color: 'var(--color-text-muted)', fontWeight: 600 }}>{group}</div>
-            {TABS.filter((t) => t.group === group).map((tab) => {
-              const Icon = tab.icon;
-              const isActive = activeTab === tab.id;
-              const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
-              return (
-                <button key={tab.id} onClick={() => setActiveTab(tab.id)} style={{ display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '8px 16px', background: isActive ? 'linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(232, 121, 249, 0.06))' : 'transparent', color: isActive ? '#a78bfa' : 'var(--color-text-secondary)', border: 'none', borderLeft: isActive ? '3px solid #8b5cf6' : '3px solid transparent', fontSize: '13px', fontWeight: isActive ? 600 : 400, textAlign: 'left' as const, transition: 'all 0.15s', cursor: 'pointer', position: 'relative' as const }}>
-                  <Icon size={15} />
-                  <span style={{ flex: 1 }}>{tab.label}</span>
-                  {hasContent && <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#34d399', boxShadow: '0 0 4px rgba(52, 211, 153, 0.4)' }} />}
-                </button>
-              );
-            })}
-          </div>
-        ))}
+    <div className="volt-page">
+      <div className="volt-page-header">
+        <div>
+          <h1 className="volt-page-title">Bot / IA</h1>
+          <p className="volt-page-sub">Contexto del negocio, personalidad y configuración técnica del asistente.</p>
+        </div>
       </div>
+      <div className="volt-bot-shell">
+        <div className="volt-bot-sidebar">
+          {isSuperAdmin && tenants.length > 0 && (
+            <div style={{ padding: '0 12px 12px', borderBottom: '1px solid var(--color-border)', marginBottom: '8px' }}>
+              <label className="volt-label">Tenant</label>
+              <select value={selectedTenantId} onChange={(e) => { setSelectedTenantId(e.target.value); loadSettings(e.target.value); }} style={{ ...inputStyle, fontSize: '12px', padding: '6px 10px' }}>
+                {tenants.map((t) => <option key={t.id} value={t.id}>{t.name}</option>)}
+              </select>
+            </div>
+          )}
+          {groups.map((group) => (
+            <div key={group}>
+              <div className="volt-bot-nav-group">{group}</div>
+              {TABS.filter((t) => t.group === group).map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
+                return (
+                  <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)} className={`volt-bot-nav-item${isActive ? ' volt-bot-nav-item-active' : ''}`}>
+                    <Icon size={15} />
+                    <span style={{ flex: 1 }}>{tab.label}</span>
+                    {hasContent && <span className="volt-dot-filled" />}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
 
-      {/* Content */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0, background: 'var(--color-bg)' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 24px', borderBottom: '1px solid var(--color-border)', background: 'rgba(139, 92, 246, 0.02)' }}>
-          <h1 style={{ fontSize: '18px', fontWeight: 700, letterSpacing: '-0.01em' }}>Configuración del Bot</h1>
-          <button onClick={handleSave} disabled={saving || !settings} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 18px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, opacity: saving ? 0.5 : 1, boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s', cursor: saving ? 'not-allowed' : 'pointer' }}>
-            <Save size={15} /> {saving ? 'Guardando...' : 'Guardar'}
-          </button>
-        </div>
-        <div style={{ flex: 1, overflowY: 'auto', padding: '28px' }}>
-          {renderContent()}
+        <div className="volt-bot-main">
+          <div className="volt-bot-toolbar">
+            <h2 style={{ fontSize: '16px', fontWeight: 700, margin: 0, letterSpacing: '-0.01em' }}>{activeTabData?.label}</h2>
+            <button type="button" onClick={handleSave} disabled={saving || !settings} className="volt-btn-primary">
+              <Save size={15} /> {saving ? 'Guardando...' : 'Guardar'}
+            </button>
+          </div>
+          <div className="volt-bot-content volt-config-page">
+            {renderContent()}
+          </div>
         </div>
       </div>
-    </div>
     </div>
   );
 }

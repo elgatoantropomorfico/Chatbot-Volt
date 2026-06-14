@@ -92,177 +92,165 @@ export default function SettingsPage() {
     }
   }
 
-  const cardStyle: React.CSSProperties = {
-    background: 'var(--color-surface)',
-    border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-lg)',
-    padding: '24px',
-    marginBottom: '16px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)',
-    position: 'relative' as const,
-    overflow: 'hidden' as const,
-  };
-
-  const rowStyle: React.CSSProperties = {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    fontSize: '13px',
-    padding: '8px 0',
-    borderBottom: '1px solid rgba(139, 92, 246, 0.04)',
-    gap: '12px',
-  };
-
-  const inputStyle: React.CSSProperties = {
-    padding: '8px 12px',
-    background: 'var(--color-bg-secondary)',
-    border: '1px solid var(--color-border-light)',
-    borderRadius: 'var(--radius-sm)',
-    color: 'var(--color-text)',
-    fontSize: '13px',
-    outline: 'none',
-    width: '240px',
-    maxWidth: '100%',
-  };
-
-  const btnStyle: React.CSSProperties = {
-    padding: '7px 16px',
-    borderRadius: 'var(--radius-sm)',
-    fontSize: '12px',
-    fontWeight: 600,
-    border: 'none',
-    cursor: 'pointer',
-    transition: 'all 0.15s',
-  };
-
   return (
-    <div style={{ maxWidth: '700px', margin: '0 auto' }}>
-      <h1 style={{ fontSize: '26px', fontWeight: 700, marginBottom: '24px', letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Configuración</h1>
+    <div className="volt-page">
+      <div className="volt-page-header">
+        <div>
+          <h1 className="volt-page-title">Configuración</h1>
+          <p className="volt-page-sub">Administrá tu cuenta y el nombre visible de tu negocio.</p>
+        </div>
+      </div>
 
       {message && (
-        <div style={{
-          padding: '10px 16px', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '13px', fontWeight: 500,
-          background: message.type === 'success' ? 'rgba(52, 211, 153, 0.1)' : 'rgba(251, 113, 133, 0.1)',
-          border: `1px solid ${message.type === 'success' ? 'rgba(52, 211, 153, 0.3)' : 'rgba(251, 113, 133, 0.3)'}`,
-          color: message.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)',
-        }}>
+        <div
+          className="volt-panel"
+          style={{
+            padding: '12px 18px',
+            fontSize: '13px',
+            fontWeight: 500,
+            background: message.type === 'success' ? 'rgba(61, 214, 140, 0.08)' : 'rgba(251, 113, 133, 0.08)',
+            borderColor: message.type === 'success' ? 'rgba(61, 214, 140, 0.25)' : 'rgba(251, 113, 133, 0.25)',
+            color: message.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)',
+          }}
+        >
           {message.text}
         </div>
       )}
 
       {!isSuperAdmin && user?.tenant && (
-        <div style={cardStyle}>
-          <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, #e879f9, #8b5cf6, transparent)' }} />
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div className="volt-panel volt-panel-accent-violet">
+          <div className="volt-panel-body volt-config-page">
+            <div className="volt-page-header" style={{ marginBottom: 0 }}>
+              <div>
+                <h3 className="volt-panel-title">Nombre del negocio</h3>
+                <p className="volt-panel-desc">
+                  Es el nombre que ves en el dashboard, sidebar y saludos. Solo afecta a tu tenant.
+                </p>
+              </div>
+              {isTenantAdmin && !editingBusiness && (
+                <button type="button" className="volt-btn-ghost" onClick={startEditBusiness}>
+                  <Pencil size={13} /> Editar
+                </button>
+              )}
+            </div>
+            <div className="volt-toggle-row">
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nombre visible</span>
+              {editingBusiness ? (
+                <input
+                  type="text"
+                  value={businessName}
+                  onChange={(e) => setBusinessName(e.target.value)}
+                  placeholder="Ej: Le Rocher"
+                  style={{ maxWidth: 260 }}
+                />
+              ) : (
+                <span style={{ fontWeight: 600, fontSize: '13px' }}>
+                  {tenantLabel || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin configurar</span>}
+                </span>
+              )}
+            </div>
+            {editingBusiness && (
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                <button type="button" className="volt-btn-ghost" onClick={cancelEditBusiness}>Cancelar</button>
+                <button type="button" className="volt-btn-primary" onClick={saveBusinessName} disabled={saving}>
+                  {saving ? 'Guardando...' : 'Guardar negocio'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <div className="volt-panel volt-panel-accent-violet">
+        <div className="volt-panel-body volt-config-page">
+          <div className="volt-page-header" style={{ marginBottom: 0 }}>
             <div>
-              <h3 style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em', marginBottom: '4px' }}>Nombre del negocio</h3>
-              <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: 0 }}>
-                Es el nombre que ves en el dashboard, sidebar y saludos. Solo afecta a tu tenant.
+              <h3 className="volt-panel-title">Tu cuenta</h3>
+              <p className="volt-panel-desc">
+                Tu nombre personal como usuario del panel (no es el nombre del negocio).
               </p>
             </div>
-            {isTenantAdmin && !editingBusiness && (
-              <button onClick={startEditBusiness} style={{ ...btnStyle, background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {!editingProfile && (
+              <button type="button" className="volt-btn-ghost" onClick={startEditProfile}>
                 <Pencil size={13} /> Editar
               </button>
             )}
           </div>
-          <div style={rowStyle}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Nombre visible</span>
-            {editingBusiness ? (
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Tu nombre</span>
+            {editingProfile ? (
               <input
                 type="text"
-                value={businessName}
-                onChange={(e) => setBusinessName(e.target.value)}
-                placeholder="Ej: Le Rocher"
-                style={inputStyle}
+                value={profileForm.name}
+                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                placeholder="Tu nombre"
+                style={{ maxWidth: 260 }}
               />
             ) : (
-              <span style={{ fontWeight: 600 }}>{tenantLabel || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin configurar</span>}</span>
+              <span style={{ fontWeight: 500, fontSize: '13px' }}>
+                {user?.name || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin nombre</span>}
+              </span>
             )}
           </div>
-          {editingBusiness && (
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Email</span>
+            <span style={{ fontWeight: 500, fontSize: '13px' }}>{user?.email}</span>
+          </div>
+          {editingProfile && (
+            <>
+              <div className="volt-toggle-row">
+                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nueva contraseña</span>
+                <input
+                  type="password"
+                  value={profileForm.password}
+                  onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                  placeholder="Dejar vacío para no cambiar"
+                  style={{ maxWidth: 260 }}
+                />
+              </div>
+              <div className="volt-toggle-row">
+                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Confirmar contraseña</span>
+                <input
+                  type="password"
+                  value={profileForm.confirmPassword}
+                  onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })}
+                  placeholder="Repetir contraseña"
+                  style={{ maxWidth: 260 }}
+                />
+              </div>
+            </>
+          )}
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Rol</span>
+            <span style={{ textTransform: 'capitalize', fontWeight: 500, fontSize: '13px' }}>
+              {user?.role?.replace('_', ' ')}
+            </span>
+          </div>
+          {editingProfile && (
             <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-              <button onClick={cancelEditBusiness} style={{ ...btnStyle, background: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}>
-                Cancelar
-              </button>
-              <button onClick={saveBusinessName} disabled={saving} style={{ ...btnStyle, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: '#fff', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)' }}>
-                {saving ? 'Guardando...' : 'Guardar negocio'}
+              <button type="button" className="volt-btn-ghost" onClick={cancelEditProfile}>Cancelar</button>
+              <button type="button" className="volt-btn-primary" onClick={saveProfile} disabled={saving}>
+                {saving ? 'Guardando...' : 'Guardar cuenta'}
               </button>
             </div>
           )}
         </div>
-      )}
-
-      <div style={cardStyle}>
-        <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, #8b5cf6, #e879f9, transparent)' }} />
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-          <div>
-            <h3 style={{ fontSize: '14px', fontWeight: 700, letterSpacing: '-0.01em', marginBottom: '4px' }}>Tu cuenta</h3>
-            <p style={{ fontSize: '11.5px', color: 'var(--color-text-muted)', margin: 0 }}>Tu nombre personal como usuario del panel (no es el nombre del negocio).</p>
-          </div>
-          {!editingProfile && (
-            <button onClick={startEditProfile} style={{ ...btnStyle, background: 'var(--color-primary-light)', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Pencil size={13} /> Editar
-            </button>
-          )}
-        </div>
-        <div style={{ display: 'flex', flexDirection: 'column' as const }}>
-          <div style={rowStyle}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Tu nombre</span>
-            {editingProfile ? (
-              <input type="text" value={profileForm.name} onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })} placeholder="Tu nombre" style={inputStyle} />
-            ) : (
-              <span style={{ fontWeight: 500 }}>{user?.name || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin nombre</span>}</span>
-            )}
-          </div>
-          <div style={rowStyle}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Email</span>
-            <span style={{ fontWeight: 500 }}>{user?.email}</span>
-          </div>
-          {editingProfile && (
-            <>
-              <div style={rowStyle}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Nueva contraseña</span>
-                <input type="password" value={profileForm.password} onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })} placeholder="Dejar vacío para no cambiar" style={inputStyle} />
-              </div>
-              <div style={rowStyle}>
-                <span style={{ color: 'var(--color-text-muted)' }}>Confirmar contraseña</span>
-                <input type="password" value={profileForm.confirmPassword} onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })} placeholder="Repetir contraseña" style={inputStyle} />
-              </div>
-            </>
-          )}
-          <div style={{ ...rowStyle, borderBottom: 'none' }}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Rol</span>
-            <span style={{ textTransform: 'capitalize' as const, fontWeight: 500 }}>{user?.role?.replace('_', ' ')}</span>
-          </div>
-        </div>
-        {editingProfile && (
-          <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-            <button onClick={cancelEditProfile} style={{ ...btnStyle, background: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)', border: '1px solid var(--color-border)' }}>
-              Cancelar
-            </button>
-            <button onClick={saveProfile} disabled={saving} style={{ ...btnStyle, background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: '#fff', boxShadow: '0 2px 8px rgba(139, 92, 246, 0.25)' }}>
-              {saving ? 'Guardando...' : 'Guardar cuenta'}
-            </button>
-          </div>
-        )}
       </div>
 
-      <div style={cardStyle}>
-        <div style={{ position: 'absolute' as const, top: 0, left: 0, right: 0, height: '2px', background: 'linear-gradient(90deg, #67e8f9, #8b5cf6, transparent)' }} />
-        <h3 style={{ fontSize: '14px', fontWeight: 700, marginBottom: '16px', letterSpacing: '-0.01em' }}>Plataforma</h3>
-        <div style={{ display: 'flex', flexDirection: 'column' as const }}>
-          <div style={rowStyle}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Versión</span>
+      <div className="volt-panel volt-panel-accent-cyan">
+        <div className="volt-panel-body volt-config-page">
+          <h3 className="volt-panel-title">Plataforma</h3>
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Versión</span>
             <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>0.1.0 (MVP 1)</span>
           </div>
-          <div style={rowStyle}>
-            <span style={{ color: 'var(--color-text-muted)' }}>WhatsApp API</span>
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>WhatsApp API</span>
             <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>v21.0</span>
           </div>
-          <div style={{ ...rowStyle, borderBottom: 'none' }}>
-            <span style={{ color: 'var(--color-text-muted)' }}>Motor IA</span>
-            <span style={{ fontWeight: 500 }}>OpenAI</span>
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Motor IA</span>
+            <span style={{ fontWeight: 500, fontSize: '13px' }}>OpenAI</span>
           </div>
         </div>
       </div>

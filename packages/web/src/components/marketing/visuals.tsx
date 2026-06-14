@@ -15,59 +15,8 @@ import {
 } from 'lucide-react';
 import type { ReactNode } from 'react';
 
-const panelStyle: React.CSSProperties = {
-  background: 'var(--color-surface)',
-  border: '1px solid var(--color-border-light)',
-  borderRadius: 'var(--radius-xl)',
-  overflow: 'hidden',
-  boxShadow: 'var(--shadow-glow-lg)',
-};
-
 export function HeroOrbs() {
-  return (
-    <>
-      <div
-        style={{
-          position: 'absolute',
-          top: -200,
-          left: '50%',
-          transform: 'translateX(-50%)',
-          width: 800,
-          height: 800,
-          borderRadius: '50%',
-          background:
-            'radial-gradient(circle, rgba(139, 92, 246, 0.12) 0%, rgba(232, 121, 249, 0.05) 40%, transparent 70%)',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          top: 100,
-          right: '10%',
-          width: 300,
-          height: 300,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(232, 121, 249, 0.08) 0%, transparent 70%)',
-          animation: 'float 6s ease-in-out infinite',
-          pointerEvents: 'none',
-        }}
-      />
-      <div
-        style={{
-          position: 'absolute',
-          top: 200,
-          left: '5%',
-          width: 200,
-          height: 200,
-          borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(103, 232, 249, 0.06) 0%, transparent 70%)',
-          animation: 'float 8s ease-in-out infinite 1s',
-          pointerEvents: 'none',
-        }}
-      />
-    </>
-  );
+  return null;
 }
 
 export function IntegrationsLogoBar() {
@@ -110,20 +59,7 @@ export function IntegrationsLogoBar() {
           }}
         >
           {techs.map((t) => (
-            <span
-              key={t}
-              style={{
-                fontSize: 13,
-                fontWeight: 600,
-                color: 'var(--color-text-muted)',
-                padding: '8px 16px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--color-primary-light)',
-                border: '1px solid var(--color-border)',
-              }}
-            >
-              {t}
-            </span>
+            <span key={t} className="mkt-tech-pill">{t}</span>
           ))}
         </div>
       </div>
@@ -158,7 +94,7 @@ export function ChatMockup({ variant = 'commerce' }: { variant?: 'commerce' | 'l
         ];
 
   return (
-    <div style={{ ...panelStyle, maxWidth: 700, width: '100%', margin: '0 auto' }}>
+    <div className="mkt-mockup-panel" style={{ maxWidth: 700, width: '100%', margin: '0 auto' }}>
       <MockHeader title="Volt Assistant" subtitle="Online" icon={<Bot size={18} color="#fff" />} />
       <div style={{ padding: 20, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 360 }}>
         {messages.map((msg, i) => (
@@ -196,7 +132,7 @@ export function DashboardMockup() {
   ];
 
   return (
-    <div style={{ ...panelStyle, maxWidth: 720, width: '100%', margin: '0 auto' }}>
+    <div className="mkt-mockup-panel" style={{ maxWidth: 720, width: '100%', margin: '0 auto' }}>
       <div
         style={{
           display: 'flex',
@@ -300,7 +236,7 @@ export function MetaHubVisual() {
     { name: 'Facebook', color: '#1877F2', icon: <Facebook size={22} /> },
   ];
   return (
-    <div style={{ ...panelStyle, maxWidth: 560, width: '100%', margin: '0 auto', padding: 28 }}>
+    <div className="mkt-mockup-panel" style={{ maxWidth: 560, width: '100%', margin: '0 auto', padding: 28 }}>
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         <div
           style={{
@@ -362,7 +298,7 @@ export function MetaHubVisual() {
 export function TurnosVisual() {
   const slots = ['09:00', '10:30', '11:00', '15:00'];
   return (
-    <div style={{ ...panelStyle, maxWidth: 480, width: '100%', margin: '0 auto', padding: 24 }}>
+    <div className="mkt-mockup-panel" style={{ maxWidth: 480, width: '100%', margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <Calendar size={20} color="var(--color-success)" />
         <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>Agenda automática</span>
@@ -405,7 +341,7 @@ export function TurnosVisual() {
 export function SoftwareVisual() {
   const modules = ['CRM', 'API', 'Dashboard', 'E-commerce', 'Logística', 'IA'];
   return (
-    <div style={{ ...panelStyle, maxWidth: 520, width: '100%', margin: '0 auto', padding: 24 }}>
+    <div className="mkt-mockup-panel" style={{ maxWidth: 520, width: '100%', margin: '0 auto', padding: 24 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
         <Code2 size={20} color="#e879f9" />
         <span style={{ fontSize: 15, fontWeight: 700, color: '#fff' }}>Arquitectura a medida</span>
@@ -466,17 +402,7 @@ export function FeatureCardsRow() {
       }}
     >
       {items.map((item) => (
-        <div
-          key={item.title}
-          style={{
-            padding: 16,
-            borderRadius: 'var(--radius-lg)',
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            textAlign: 'center',
-            boxShadow: 'var(--shadow-card)',
-          }}
-        >
+        <div key={item.title} className="mkt-glass-card" style={{ padding: 16, textAlign: 'center' }}>
           <div
             style={{
               width: 40,

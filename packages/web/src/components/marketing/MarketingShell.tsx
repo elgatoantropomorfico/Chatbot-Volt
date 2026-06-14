@@ -13,9 +13,14 @@ import {
 
 export function MarketingShell({ children }: { children: React.ReactNode }) {
   return (
-    <div style={{ minHeight: '100vh' }}>
+    <div className="mkt-root">
+      <div className="mkt-ambient" aria-hidden>
+        <div className="mkt-ambient-orb1" />
+        <div className="mkt-ambient-orb2" />
+        <div className="mkt-ambient-orb3" />
+      </div>
       <MarketingNavbar />
-      <main>{children}</main>
+      <main style={{ position: 'relative', zIndex: 1 }}>{children}</main>
       <MarketingFooter />
       <MarketingStyles />
     </div>
@@ -46,64 +51,32 @@ function MarketingNavbar() {
 
   return (
     <>
-      <nav
-        style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          zIndex: 200,
-          background: 'rgba(6, 6, 12, 0.85)',
-          backdropFilter: 'blur(20px)',
-          borderBottom: '1px solid var(--color-border)',
-        }}
-      >
-        <div
-          style={{
-            maxWidth: 1200,
-            margin: '0 auto',
-            padding: '0 24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            height: 64,
-          }}
-        >
-          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 10, textDecoration: 'none' }}>
-            <div
-              style={{
-                width: 34,
-                height: 34,
-                borderRadius: 10,
-                background: 'linear-gradient(135deg, #8b5cf6, #e879f9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
+      <nav className="mkt-nav">
+        <div className="mkt-nav-inner">
+          <Link href="/" className="mkt-brand">
+            <div className="mkt-brand-icon">
               <Zap size={18} color="#fff" />
             </div>
-            <span style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.03em' }}>
-              <span style={{ color: '#fff' }}>Volt</span>
-              <span style={{ color: 'var(--color-text-muted)' }}> IA</span>
+            <span className="mkt-brand-text">
+              <span className="mkt-brand-volt">Volt</span>
+              <span className="mkt-brand-ia"> IA</span>
             </span>
           </Link>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            <div className="landing-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
-              <Link href="/" className="landing-nav-link" style={navLinkStyle}>
+            <div className="mkt-nav-links landing-nav-links" style={{ display: 'flex', alignItems: 'center', gap: 22 }}>
+              <Link href="/" className="mkt-nav-link landing-nav-link">
                 Inicio
               </Link>
 
               <div ref={dropdownRef} className="landing-solutions-dropdown" style={{ position: 'relative' }}>
                 <button
                   type="button"
-                  className="landing-nav-link"
+                  className="mkt-nav-link landing-nav-link"
                   aria-expanded={solutionsOpen}
                   aria-haspopup="true"
                   onClick={() => setSolutionsOpen((o) => !o)}
                   style={{
-                    ...navLinkStyle,
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
@@ -166,7 +139,7 @@ function MarketingNavbar() {
               </div>
 
               {NAV_LINKS.filter((l) => l.href !== '/').map((l) => (
-                <Link key={l.href} href={l.href} className="landing-nav-link" style={navLinkStyle}>
+                <Link key={l.href} href={l.href} className="mkt-nav-link landing-nav-link">
                   {l.label}
                 </Link>
               ))}
@@ -174,7 +147,7 @@ function MarketingNavbar() {
 
             <button
               type="button"
-              className="landing-nav-mobile-toggle"
+              className="mkt-nav-mobile-toggle landing-nav-mobile-toggle"
               aria-label={mobileOpen ? 'Cerrar menú' : 'Abrir menú'}
               onClick={() => setMobileOpen((o) => !o)}
               style={{
@@ -190,7 +163,7 @@ function MarketingNavbar() {
               {mobileOpen ? <X size={20} /> : <Menu size={20} />}
             </button>
 
-            <a href={PLATFORM_LOGIN} className="landing-nav-acceder" style={accederStyle}>
+            <a href={PLATFORM_LOGIN} className="mkt-nav-cta landing-nav-acceder">
               Acceder
             </a>
           </div>
@@ -253,7 +226,8 @@ function MarketingNavbar() {
           </div>
           <a
             href={PLATFORM_LOGIN}
-            style={{ ...accederStyle, display: 'block', textAlign: 'center', marginTop: 24 }}
+            className="mkt-nav-cta"
+            style={{ display: 'block', textAlign: 'center', marginTop: 24 }}
             onClick={() => setMobileOpen(false)}
           >
             Acceder al panel
@@ -264,36 +238,9 @@ function MarketingNavbar() {
   );
 }
 
-const navLinkStyle: React.CSSProperties = {
-  color: 'var(--color-text-secondary)',
-  fontSize: 14,
-  fontWeight: 500,
-  textDecoration: 'none',
-  transition: 'color 0.15s',
-};
-
-const accederStyle: React.CSSProperties = {
-  padding: '8px 20px',
-  borderRadius: 'var(--radius-full)',
-  background: 'linear-gradient(135deg, #7c3aed, #a855f7)',
-  color: '#fff',
-  fontSize: 13,
-  fontWeight: 600,
-  textDecoration: 'none',
-  transition: 'all 0.25s',
-  boxShadow: '0 0 20px rgba(139, 92, 246, 0.3)',
-  whiteSpace: 'nowrap',
-};
-
 function MarketingFooter() {
   return (
-    <footer
-      style={{
-        padding: '48px 24px',
-        borderTop: '1px solid var(--color-border)',
-        background: 'var(--color-bg-secondary)',
-      }}
-    >
+    <footer className="mkt-footer">
       <div
         className="landing-footer-inner"
         style={{

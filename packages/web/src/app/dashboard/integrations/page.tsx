@@ -18,6 +18,7 @@ import {
   CreditCard,
   Cloud,
 } from 'lucide-react';
+import { VoltDrawer } from '@/components/ui/VoltDrawer';
 
 interface WooConfig {
   baseUrl: string;
@@ -191,8 +192,6 @@ export default function IntegrationsPage() {
 
   if (!isSuperAdmin && !isTenantAdmin) return <p style={{ color: 'var(--color-text-muted)' }}>Acceso denegado</p>;
 
-  const statusColors: Record<string, string> = { active: '#34d399', inactive: 'var(--color-text-muted)' };
-
   const inputStyle: React.CSSProperties = {
     width: '100%', padding: '10px 14px', background: 'var(--color-bg-secondary)',
     border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)',
@@ -203,10 +202,15 @@ export default function IntegrationsPage() {
     marginBottom: '6px', fontWeight: 600, letterSpacing: '0.01em',
   };
   const sectionStyle: React.CSSProperties = {
-    background: 'var(--color-surface)', border: '1px solid var(--color-border)',
-    borderRadius: 'var(--radius-lg)', padding: '24px', marginBottom: '16px',
-    boxShadow: '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)',
-    position: 'relative', overflow: 'hidden',
+    background: 'rgba(10, 10, 20, 0.72)',
+    border: '1px solid rgba(255, 255, 255, 0.07)',
+    borderRadius: '18px',
+    padding: '20px 22px',
+    marginBottom: '16px',
+    backdropFilter: 'blur(16px)',
+    boxShadow: 'var(--shadow-card)',
+    position: 'relative',
+    overflow: 'hidden',
   };
   const sectionTitleStyle: React.CSSProperties = {
     fontSize: '15px', fontWeight: 700, marginBottom: '18px',
@@ -595,31 +599,29 @@ export default function IntegrationsPage() {
   }
 
   return (
-    <div style={{ maxWidth: '700px', margin: '0 auto' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '26px', fontWeight: 700, letterSpacing: '-0.02em', background: 'linear-gradient(135deg, var(--color-text), var(--color-text-secondary))', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>Integraciones</h1>
+    <div className="volt-page volt-page-wide">
+      <div className="volt-page-header">
+        <div>
+          <h1 className="volt-page-title">Integraciones</h1>
+          <p className="volt-page-sub">Conectá WooCommerce, CRM, Mercado Pago y más con tu asistente.</p>
+        </div>
         {!showCreate && !editingId && (
           <button
+            type="button"
             onClick={() => { setShowCreate(true); setEditingId(null); setConfig({ ...defaultWooConfig }); setZohoConfig({ ...defaultZohoConfig }); setMpConfig({ ...defaultMpConfig }); setCreateForm({ tenantId: '', type: 'woocommerce' }); }}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '8px', padding: '9px 18px',
-              background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white', border: 'none',
-              borderRadius: 'var(--radius-sm)', fontSize: '13px', fontWeight: 600, cursor: 'pointer',
-              boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s',
-            }}
+            className="volt-btn-primary"
           >
-            <Plus size={16} /> Nueva integracion
+            <Plus size={16} /> Nueva integración
           </button>
         )}
       </div>
 
-      {/* Create Form */}
-      {showCreate && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Nueva integracion</h2>
-            <button onClick={() => setShowCreate(false)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
-              <X size={20} />
+      <VoltDrawer open={showCreate} onClose={() => setShowCreate(false)} width={560}>
+        <div className="volt-config-page">
+          <div className="volt-page-header" style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>Nueva integración</h2>
+            <button type="button" onClick={() => setShowCreate(false)} className="volt-btn-ghost" style={{ padding: '6px 10px' }}>
+              <X size={18} />
             </button>
           </div>
 
@@ -682,77 +684,43 @@ export default function IntegrationsPage() {
               : renderConfigForm(true)}
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-              <button
-                type="submit"
-                disabled={saving}
-                style={{
-                  padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
-                  border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '14px',
-                  fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.5 : 1,
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s',
-                }}
-              >
-                <Save size={16} /> {saving ? 'Creando...' : 'Crear integracion'}
+              <button type="submit" disabled={saving} className="volt-btn-primary">
+                <Save size={16} /> {saving ? 'Creando...' : 'Crear integración'}
               </button>
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                style={{
-                  padding: '10px 18px', background: 'transparent',
-                  border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                  color: 'var(--color-text-secondary)', fontSize: '14px', cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
+              <button type="button" onClick={() => setShowCreate(false)} className="volt-btn-ghost">
                 Cancelar
               </button>
             </div>
           </form>
         </div>
-      )}
+      </VoltDrawer>
 
-      {/* Edit Panel */}
-      {editingId && (
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: '18px', fontWeight: 600 }}>Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : editType === 'mercadopago' ? 'Mercado Pago' : 'WooCommerce'}</h2>
-            <button onClick={() => setEditingId(null)} style={{ background: 'none', border: 'none', color: 'var(--color-text-muted)', cursor: 'pointer' }}>
-              <X size={20} />
+      <VoltDrawer open={!!editingId} onClose={() => setEditingId(null)} width={560}>
+        <div className="volt-config-page">
+          <div className="volt-page-header" style={{ marginBottom: 16 }}>
+            <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>
+              Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : editType === 'mercadopago' ? 'Mercado Pago' : 'WooCommerce'}
+            </h2>
+            <button type="button" onClick={() => setEditingId(null)} className="volt-btn-ghost" style={{ padding: '6px 10px' }}>
+              <X size={18} />
             </button>
           </div>
 
           {editType === 'zoho_crm' ? renderZohoConfigForm()
             : editType === 'pilot_crm' ? (
-              <div style={{ padding: '16px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-md)', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-                Credenciales Pilot configuradas en el servidor. Gestioná campos de captura en el menú <strong>Pilot CRM</strong>.
+              <div className="volt-panel" style={{ marginBottom: 16 }}>
+                <div className="volt-panel-body" style={{ fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                  Credenciales Pilot configuradas en el servidor. Gestioná campos de captura en el menú <strong>Pilot CRM</strong>.
+                </div>
               </div>
             ) : editType === 'mercadopago' ? renderMpConfigForm()
             : renderConfigForm(false)}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px' }}>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              style={{
-                padding: '10px 24px', background: 'linear-gradient(135deg, #7c3aed, #8b5cf6)', color: 'white',
-                border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '14px',
-                fontWeight: 600, cursor: 'pointer', opacity: saving ? 0.5 : 1,
-                display: 'flex', alignItems: 'center', gap: '8px',
-                boxShadow: '0 2px 8px rgba(139, 92, 246, 0.3)', transition: 'all 0.15s',
-              }}
-            >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
+            <button type="button" onClick={handleSave} disabled={saving} className="volt-btn-primary">
               <Save size={16} /> {saving ? 'Guardando...' : 'Guardar cambios'}
             </button>
-            <button
-              onClick={() => setEditingId(null)}
-              style={{
-                padding: '10px 18px', background: 'transparent',
-                border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                color: 'var(--color-text-secondary)', fontSize: '14px', cursor: 'pointer',
-                transition: 'all 0.15s',
-              }}
-            >
+            <button type="button" onClick={() => setEditingId(null)} className="volt-btn-ghost">
               Volver
             </button>
             {saveMsg && (
@@ -765,34 +733,29 @@ export default function IntegrationsPage() {
             )}
           </div>
         </div>
-      )}
+      </VoltDrawer>
 
-      {/* Integration List */}
-      {!showCreate && !editingId && (
-        <>
-          {loading ? <p style={{ color: 'var(--color-text-muted)', padding: '40px', textAlign: 'center' }}>Cargando...</p> : integrations.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--color-text-muted)' }}>
-              <Plug size={40} style={{ marginBottom: '12px', opacity: 0.4 }} />
-              <p style={{ fontSize: '16px', marginBottom: '4px' }}>No hay integraciones configuradas</p>
-              <p style={{ fontSize: '13px' }}>Crea una integracion para conectar tu servicio</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              {integrations.map((i) => (
-                <div
-                  key={i.id}
-                  style={{
-                    ...sectionStyle, marginBottom: 0, cursor: 'pointer',
-                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                    transition: 'all 0.2s',
-                  }}
-                  onClick={() => openEdit(i)}
-                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(139, 92, 246, 0.2)'; e.currentTarget.style.boxShadow = '0 4px 20px rgba(0,0,0,0.4), 0 0 12px rgba(139, 92, 246, 0.1)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'var(--color-border)'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3), 0 0 1px rgba(139, 92, 246, 0.15)'; }}
-                >
+      {loading ? (
+        <p className="volt-empty">Cargando...</p>
+      ) : integrations.length === 0 ? (
+        <div className="volt-empty volt-panel">
+          <Plug size={40} style={{ marginBottom: '12px', opacity: 0.4 }} />
+          <p style={{ fontSize: '16px', marginBottom: '4px' }}>No hay integraciones configuradas</p>
+          <p style={{ fontSize: '13px' }}>Creá una integración para conectar tu servicio</p>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {integrations.map((i) => (
+            <div
+              key={i.id}
+              className="volt-integration-card"
+              onClick={() => openEdit(i)}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => { if (e.key === 'Enter') openEdit(i); }}
+            >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                    <div style={{
-                      width: '42px', height: '42px', borderRadius: 'var(--radius-md)',
+                    <div className="volt-integration-icon" style={{
                       background: i.type === 'zoho_crm'
                         ? 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(251, 191, 36, 0.08))'
                         : i.type === 'pilot_crm'
@@ -852,22 +815,15 @@ export default function IntegrationsPage() {
                       )}
                     </div>
 
-                    <span style={{
-                      display: 'inline-flex', alignItems: 'center', gap: '6px',
-                      fontSize: '13px', color: statusColors[i.status], fontWeight: 500,
-                    }}>
-                      <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: statusColors[i.status], boxShadow: i.status === 'active' ? '0 0 6px rgba(52, 211, 153, 0.4)' : 'none' }} />
+                    <span className={`volt-status-pill ${i.status === 'active' ? 'volt-status-active' : 'volt-status-inactive'}`}>
                       {i.status === 'active' ? 'Activa' : 'Inactiva'}
                     </span>
 
                     <button
+                      type="button"
                       onClick={(e) => { e.stopPropagation(); toggleStatus(i.id, i.status); }}
-                      style={{
-                        padding: '5px 12px', background: 'transparent',
-                        border: '1px solid var(--color-border)', borderRadius: 'var(--radius-sm)',
-                        color: 'var(--color-text-secondary)', fontSize: '12px', cursor: 'pointer',
-                        fontWeight: 500, transition: 'all 0.15s',
-                      }}
+                      className="volt-btn-ghost"
+                      style={{ padding: '5px 12px', fontSize: '12px' }}
                     >
                       {i.status === 'active' ? 'Desactivar' : 'Activar'}
                     </button>
@@ -876,8 +832,6 @@ export default function IntegrationsPage() {
               ))}
             </div>
           )}
-        </>
-      )}
     </div>
   );
 }
