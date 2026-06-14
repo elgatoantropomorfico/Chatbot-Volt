@@ -67,13 +67,36 @@ function normalizeInput(text: string): string {
 }
 
 function pickOption(text: string, max: number): number | null {
-  const n = parseInt(text.replace(/\D/g, ''), 10);
-  if (n >= 1 && n <= max) return n;
-  const words: Record<string, number> = { uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5 };
-  for (const [w, v] of Object.entries(words)) {
-    if (text.includes(w)) return v <= max ? v : null;
+  const t = text.trim().toLowerCase();
+  if (!t) return null;
+
+  // Botones interactivos de WhatsApp envían "1", "2", etc.
+  if (/^\d+$/.test(t)) {
+    const n = parseInt(t, 10);
+    return n >= 1 && n <= max ? n : null;
   }
+
+  const wordOnly: Record<string, number> = {
+    uno: 1, una: 1, dos: 2, tres: 3, cuatro: 4, cinco: 5,
+  };
+  if (wordOnly[t] != null && wordOnly[t] <= max) return wordOnly[t];
+
+  // "opción 2" al inicio
+  const lead = t.match(/^(?:opci[oó]n\s+)?(\d+)\b/);
+  if (lead) {
+    const n = parseInt(lead[1], 10);
+    return n >= 1 && n <= max ? n : null;
+  }
+
   return null;
+}
+
+/** Texto libre que claramente no es elección de menú */
+function isFreeTextOffFlow(rawText: string, input: string, maxOptions?: number): boolean {
+  if (BookingAiService.looksLikeGreeting(rawText)) return false;
+  if (maxOptions != null && pickOption(input, maxOptions) !== null) return false;
+  if (isMoreOptionsInput(input, maxOptions || 99)) return false;
+  return rawText.trim().length >= 6 || BookingAiService.looksLikeQuestion(rawText);
 }
 
 function isMoreOptionsInput(input: string, totalOptions: number): boolean {
@@ -169,11 +192,19 @@ export class BookingFlowService {
       flow = { state: 'booking_start' };
       await this.saveFlow(conversationId, flow);
       const menu = this.mainMenuReply(tenantId, settings);
-      if (!BookingAiService.looksLikeGreeting(input) && input.length >= 3) {
+      if (isFreeTextOffFlow(text, input, 3)) {
         const answer = await BookingAiService.answerOffFlow(tenantId, text, settings, flow.state);
         if (answer) {
-          return { handled: true, text: `${answer}\n\n${menu.text}`, interactive: menu.interactive };
+          return {
+            handled: true,
+            text: `${answer}\n\n${menu.text}`,
+            interactive: {
+              ...menu.interactive!,
+              body: `${answer}\n\n${menu.interactive!.body}`.slice(0, 1020),
+            },
+          };
         }
+        console.warn('📅 Booking IA sin respuesta en idle — revisar OPENAI_API_KEY');
       }
       return menu;
     }
@@ -191,7 +222,7 @@ export class BookingFlowService {
       case 'slot_selection':
         return this.handleSlotSelection(tenantId, conversationId, settings, flow, input, text);
       case 'customer_name':
-        return this.handleCustomerName(conversationId, settings, flow, input, params.profileName);
+        return this.handleCustomerName(tenantId, conversationId, settings, flow, input, text, params.profileName);
       case 'customer_first_time':
         return this.handleFirstTime(conversationId, settings, flow, input);
       case 'customer_notes':
@@ -211,13 +242,31 @@ export class BookingFlowService {
     settings: any,
     flow: BookingFlowContext,
     resume: () => Promise<FlowHandleResult>,
+    maxOptions?: number,
   ): Promise<FlowHandleResult> {
-    const answer = await BookingAiService.answerOffFlow(tenantId, userText, settings, flow.state);
     const next = await resume();
-    if (answer) {
-      return { handled: true, text: `${answer}\n\n${next.text}`, interactive: next.interactive };
+    if (!isFreeTextOffFlow(userText, normalizeInput(userText), maxOptions)) {
+      return next;
     }
-    return next;
+
+    const answer = await BookingAiService.answerOffFlow(tenantId, userText, settings, flow.state);
+    if (!answer) {
+      console.warn(`📅 Booking IA sin respuesta (state=${flow.state}) — revisar OPENAI_API_KEY`);
+      return next;
+    }
+
+    const text = `${answer}\n\n${next.text}`;
+    if (next.interactive) {
+      return {
+        handled: true,
+        text,
+        interactive: {
+          ...next.interactive,
+          body: `${answer}\n\n${next.interactive.body}`.slice(0, 1020),
+        },
+      };
+    }
+    return { handled: true, text };
   }
 
   private static async getDisplaySlots(tenantId: string, flow: BookingFlowContext) {
@@ -278,7 +327,7 @@ export class BookingFlowService {
         text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
       };
     }
-    return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.mainMenuReply(tenantId, settings));
+    return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.mainMenuReply(tenantId, settings), 3);
   }
 
   private static async serviceListReply(tenantId: string): Promise<FlowHandleResult> {
@@ -310,7 +359,7 @@ export class BookingFlowService {
       return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
         handled: true,
         text: `${await this.renderServiceList(tenantId)}\n\n(Elegí el número del camino)`,
-      }));
+      }), services.length);
     }
     const service = services[opt - 1];
     flow = {
@@ -330,7 +379,7 @@ export class BookingFlowService {
     if (!opt) {
       return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply('¿Qué sentís que necesitás hoy?', [
         'Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez',
-      ]));
+      ]), 5);
     }
     flow = { ...flow, state: 'recommender_q2', recommenderQ1: String(opt) };
     await this.saveFlow(conversationId, flow);
@@ -373,7 +422,7 @@ export class BookingFlowService {
     if (!opt) {
       return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply('¿Cómo te gustaría vivir la sesión?', [
         'Suave y relajante', 'Profunda y envolvente', 'Con calor', 'Con aromas/herbales', 'Más corporal',
-      ]));
+      ]), 5);
     }
 
     const q1 = parseInt(flow.recommenderQ1 || '1', 10);
@@ -434,7 +483,7 @@ export class BookingFlowService {
       return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply(
         flow.serviceName ? `¿Reservamos ${flow.serviceName}?` : '¿Seguimos con la reserva?',
         ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'],
-      ));
+      ), 3);
     }
 
     if (flow.slotBrowse === 'more_menu') {
@@ -463,7 +512,7 @@ export class BookingFlowService {
         await this.saveFlow(conversationId, flow);
         return this.slotReply(tenantId, flow.serviceName || '');
       }
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.moreSlotsMenuReply());
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.moreSlotsMenuReply(), 3);
     }
 
     if (flow.slotBrowse === 'pick_day') {
@@ -514,7 +563,7 @@ export class BookingFlowService {
           return this.slotsListReply('Elegí un horario:', flow.tempSlots);
         }
         return this.slotReply(tenantId, flow.serviceName || '');
-      });
+      }, totalOptions);
     }
 
     const slot = pageSlots[opt - 1];
@@ -536,9 +585,27 @@ export class BookingFlowService {
   }
 
   private static async handleCustomerName(
-    conversationId: string, settings: any, flow: BookingFlowContext, input: string, profileName?: string | null,
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+    profileName?: string | null,
   ): Promise<FlowHandleResult> {
-    const name = input.length >= 2 ? textCapitalize(input) : (profileName || '');
+    if (isFreeTextOffFlow(rawText, input)) {
+      const answer = await BookingAiService.answerOffFlow(tenantId, rawText, settings, flow.state);
+      if (answer) {
+        return {
+          handled: true,
+          text: `${answer}\n\nPasame tu *nombre y apellido* para dejar el turno preparado.`,
+        };
+      }
+    }
+
+    const name = input.length >= 2 && !rawText.includes('?')
+      ? textCapitalize(input)
+      : (profileName || '');
     if (!name || name.length < 2) {
       return { handled: true, text: 'Necesito tu nombre y apellido para continuar.' };
     }
@@ -622,7 +689,7 @@ Importante: ${policyShort}
       return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply(
         'Elegí cómo querés pagar:',
         [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'],
-      ));
+      ), 3);
     }
 
     const paymentType = opt === 1 ? 'sena' : 'total';

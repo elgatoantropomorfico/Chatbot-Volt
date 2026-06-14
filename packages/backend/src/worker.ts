@@ -542,10 +542,19 @@ async function processMessage(job: Job<IncomingMessage>) {
   let providerMessageId: string | null = null;
   if (bookingFlowResult?.interactive) {
     const ix = bookingFlowResult.interactive;
+    // El body del interactivo puede ser más corto que el texto completo (respuesta IA + menú)
+    let body = ix.body;
+    if (bookingFlowResult.text && bookingFlowResult.text.length > body.length) {
+      const enriched = bookingFlowResult.text
+        .replace(/\n\n(?:\d+️⃣[^\n]+\n?)+$/u, '')
+        .trim()
+        .slice(0, 1020);
+      if (enriched.length > body.length) body = enriched;
+    }
     providerMessageId = await WhatsAppService.sendInteractive({
       phoneNumberId: channel.phoneNumberId,
       to: data.from,
-      body: ix.body,
+      body,
       type: ix.type,
       buttons: ix.buttons,
       listButtonText: ix.listButtonText,

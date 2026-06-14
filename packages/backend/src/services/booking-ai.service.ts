@@ -81,7 +81,6 @@ ${services.map((s) => `- ${s.name}: ${s.botSummary || s.shortDescription || s.se
     settings: any,
     flowState?: string,
   ): Promise<string | null> {
-    if (!this.openai) return null;
     if (this.looksLikeGreeting(question)) return null;
 
     const context = await this.buildContext(tenantId, settings);
@@ -89,29 +88,61 @@ ${services.map((s) => `- ${s.name}: ${s.botSummary || s.shortDescription || s.se
       ? `El usuario está en el paso "${flowState}" del flujo de reserva de turnos por WhatsApp.`
       : '';
 
-    try {
-      const res = await this.openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        temperature: 0.35,
-        max_tokens: 180,
-        messages: [
-          {
-            role: 'system',
-            content: `Sos la asistente de un spa/masajes en Argentina. ${stepHint}
+    const messages = [
+      {
+        role: 'system' as const,
+        content: `Sos la asistente de un spa/masajes en Argentina. ${stepHint}
 Respondé en español argentino, cálido y breve (máximo 3 oraciones).
 Usá SOLO el contexto provisto. No inventes precios, horarios ni direcciones.
 Si no tenés el dato, decí que podés ayudar a reservar un turno o derivar a una persona.
 No hagas listas largas ni repetís menús.
 
 ${context}`,
-          },
-          { role: 'user', content: question },
-        ],
-      });
-      return res.choices[0]?.message?.content?.trim() || null;
-    } catch {
-      return null;
+      },
+      { role: 'user' as const, content: question },
+    ];
+
+    if (this.openai) {
+      try {
+        const res = await this.openai.chat.completions.create({
+          model: 'gpt-4o-mini',
+          temperature: 0.35,
+          max_tokens: 180,
+          messages,
+        });
+        const text = res.choices[0]?.message?.content?.trim();
+        if (text) return text;
+      } catch (err: any) {
+        console.warn('📅 Booking OpenAI error:', err.message);
+      }
     }
+
+    if (env.GROQ_API_KEY && env.GROQ_API_BASE) {
+      try {
+        const res = await fetch(`${env.GROQ_API_BASE}/chat/completions`, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${env.GROQ_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'llama-3.3-70b-versatile',
+            temperature: 0.35,
+            max_tokens: 180,
+            messages,
+          }),
+        });
+        if (res.ok) {
+          const data = await res.json() as any;
+          const text = data.choices?.[0]?.message?.content?.trim();
+          if (text) return text;
+        }
+      } catch (err: any) {
+        console.warn('📅 Booking Groq error:', err.message);
+      }
+    }
+
+    return null;
   }
 
   /** @deprecated use answerOffFlow */
