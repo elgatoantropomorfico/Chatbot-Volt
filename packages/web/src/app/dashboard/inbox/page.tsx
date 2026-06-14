@@ -245,7 +245,9 @@ export default function InboxPage() {
   }
 
   return (
-    <div className={`${styles.container} ${selectedId ? styles.mobileChatOpen : ''}`}>
+    <div className={styles.wrapper}>
+      <div className={styles.shell}>
+        <div className={`${styles.container} ${selectedId ? styles.mobileChatOpen : ''}`}>
       {/* Conversation list */}
       <div className={styles.conversationList}>
         <div className={styles.listHeader}>
@@ -443,6 +445,8 @@ export default function InboxPage() {
             )}
           </>
         )}
+      </div>
+        </div>
       </div>
     </div>
   );

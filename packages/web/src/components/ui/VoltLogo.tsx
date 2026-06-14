@@ -28,6 +28,8 @@ export function VoltLogo({
         <>
           <span className="volt-logo-aura volt-logo-aura--deep" aria-hidden />
           <span className="volt-logo-aura volt-logo-aura--mid" aria-hidden />
+          <span className="volt-logo-edge" aria-hidden />
+          <span className="volt-logo-rim" aria-hidden />
           <span className="volt-logo-lens" aria-hidden />
         </>
       )}
