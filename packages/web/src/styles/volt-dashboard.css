@@ -63,7 +63,7 @@
 .dashboard-main input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']),
 .dashboard-main select,
 .dashboard-main textarea {
-  background: var(--color-bg-secondary);
+  background: var(--input-bg);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   color: var(--color-text);
@@ -77,7 +77,7 @@
 .dashboard-main select:hover,
 .dashboard-main textarea:hover {
   border-color: var(--color-border-light);
-  background: var(--color-bg-tertiary);
+  background: var(--color-surface-hover);
 }
 
 .dashboard-main input:not([type='checkbox']):not([type='radio']):focus,

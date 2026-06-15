@@ -62,9 +62,7 @@
   z-index: 20;
   border-radius: 16px;
   overflow: visible;
-  box-shadow:
-    0 4px 24px rgba(0, 0, 0, 0.22),
-    inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  box-shadow: var(--sidebar-shadow);
 }
 
 .sidebar::before {
@@ -484,7 +482,7 @@
     transform: translateX(calc(-100% - 16px));
     transition: transform var(--transition-base);
     z-index: 30;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.32);
+    box-shadow: var(--shell-shadow);
   }
 
   .sidebarOpen {
