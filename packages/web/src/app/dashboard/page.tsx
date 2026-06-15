@@ -1,17 +1,17 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import {
   Users, ShoppingCart, Bot, Bell, AlertTriangle, Info, Settings, ArrowRight,
-  LayoutGrid, Calendar, Zap, BarChart3, Check, Inbox, TrendingUp, Phone,
+  Calendar, Zap, Inbox, TrendingUp, Phone,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SuperAdminPanel } from '@/components/superadmin/SuperAdminPanel';
 import { DashboardSearch } from '@/components/dashboard/DashboardSearch';
 import {
-  GlowingBarChart, HeroOrb, MiniSparkline, useDelta, pct, type TrendDay,
+  GlowingBarChart, MiniSparkline, useDelta, pct, type TrendDay,
 } from '@/components/dashboard/DashboardVisuals';
 import { getTenantDisplayName } from '@/lib/tenant';
 import styles from './page.module.css';
@@ -34,44 +34,6 @@ interface DashboardStats {
   modules?: TenantModules;
 }
 
-type WidgetId =
-  | 'activity-chart'
-  | 'pipeline-modules'
-  | 'leads-funnel'
-  | 'response-time'
-  | 'human-queue'
-  | 'booking-overview'
-  | 'sales-overview'
-  | 'bot-activity';
-
-const WIDGET_META: Record<WidgetId, { label: string; requires?: keyof TenantModules }> = {
-  'activity-chart': { label: 'Actividad semanal' },
-  'pipeline-modules': { label: 'Módulos activos' },
-  'leads-funnel': { label: 'Embudo de leads' },
-  'response-time': { label: 'Tiempo de respuesta' },
-  'human-queue': { label: 'Cola humana' },
-  'booking-overview': { label: 'Turnera', requires: 'booking' },
-  'sales-overview': { label: 'Ventas', requires: 'sales' },
-  'bot-activity': { label: 'Actividad del bot' },
-};
-
-function defaultWidgetsForTenant(stats: DashboardStats): WidgetId[] {
-  const m = stats.modules || { sales: false, booking: false, zoho: false, pilot: false };
-  const widgets: WidgetId[] = ['activity-chart', 'pipeline-modules', 'leads-funnel', 'response-time', 'bot-activity'];
-  if ((stats.conversations.pendingHuman ?? 0) > 0) widgets.push('human-queue');
-  if (m.booking) widgets.push('booking-overview');
-  if (m.sales) widgets.push('sales-overview');
-  return widgets;
-}
-
-const STAGE_COLORS: Record<string, string> = {
-  nuevo: '#34d399', contactado: '#60a5fa', interesado: '#fbbf24', venta: '#a78bfa', perdido: '#6b7280',
-};
-
-const STAGE_LABELS: Record<string, string> = {
-  nuevo: 'Nuevo', contactado: 'Contactado', interesado: 'Interesado', venta: 'Venta', perdido: 'Perdido',
-};
-
 const ROLE_LABELS: Record<string, string> = {
   tenant_admin: 'Admin',
   agent: 'Agente',
@@ -83,26 +45,8 @@ function TenantDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [actions, setActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editMode, setEditMode] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const [chartMetric, setChartMetric] = useState<'messages' | 'conversations' | 'leads'>('messages');
-  const [visibleWidgets, setVisibleWidgets] = useState<WidgetId[]>([]);
   const notifRef = useRef<HTMLDivElement>(null);
-  const widgetsInitRef = useRef(false);
-
-  const storageKey = `volt-dashboard-widgets-${user?.tenantId || 'default'}`;
-
-  const saveWidgets = useCallback((widgets: WidgetId[]) => {
-    setVisibleWidgets(widgets);
-    try { localStorage.setItem(storageKey, JSON.stringify(widgets)); } catch { /* ignore */ }
-  }, [storageKey]);
-
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem(storageKey);
-      if (saved) setVisibleWidgets(JSON.parse(saved));
-    } catch { /* ignore */ }
-  }, [storageKey]);
 
   useEffect(() => {
     (async () => {
@@ -113,20 +57,10 @@ function TenantDashboard() {
         ]);
         setStats(statsData);
         setActions(actionsData.actions);
-        if (!widgetsInitRef.current) {
-          widgetsInitRef.current = true;
-          try {
-            if (!localStorage.getItem(storageKey)) {
-              saveWidgets(defaultWidgetsForTenant(statsData));
-            }
-          } catch {
-            saveWidgets(defaultWidgetsForTenant(statsData));
-          }
-        }
       } catch (err) { console.error(err); }
       finally { setLoading(false); }
     })();
-  }, [storageKey, saveWidgets]);
+  }, []);
 
   useEffect(() => {
     function onClickOutside(e: MouseEvent) {
@@ -146,12 +80,6 @@ function TenantDashboard() {
   const convDelta = useDelta(convTrend);
   const leadDelta = useDelta(leadTrend);
 
-  const chartColors: Record<string, [string, string]> = {
-    messages: ['#22d3ee', '#0891b2'],
-    conversations: ['#a78bfa', '#7c3aed'],
-    leads: ['#e879f9', '#c026d3'],
-  };
-
   const chartTotals = useMemo(() => ({
     messages: msgTrend.reduce((a, b) => a + b, 0),
     conversations: convTrend.reduce((a, b) => a + b, 0),
@@ -168,7 +96,7 @@ function TenantDashboard() {
         progress: pct(stats.conversations.active, stats.conversations.total || 1),
         color: '#22d3ee',
         bg: 'rgba(34, 211, 238, 0.1)',
-        icon: <Inbox size={20} />,
+        icon: <Inbox size={18} />,
         href: '/dashboard/inbox',
       },
       {
@@ -178,7 +106,7 @@ function TenantDashboard() {
         progress: pct(stats.leads.newThisWeek, stats.leads.total || 1),
         color: '#a78bfa',
         bg: 'rgba(167, 139, 250, 0.1)',
-        icon: <Users size={20} />,
+        icon: <Users size={18} />,
         href: '/dashboard/leads',
       },
     ];
@@ -190,7 +118,7 @@ function TenantDashboard() {
         progress: pct(stats.booking.confirmed, stats.booking.confirmed + stats.booking.pendingPayment || 1),
         color: '#e879f9',
         bg: 'rgba(232, 121, 249, 0.1)',
-        icon: <Calendar size={20} />,
+        icon: <Calendar size={18} />,
         href: '/dashboard/turnos',
       });
     }
@@ -203,12 +131,97 @@ function TenantDashboard() {
         progress: pct(done, stats.sales.total || 1),
         color: '#34d399',
         bg: 'rgba(52, 211, 153, 0.1)',
-        icon: <ShoppingCart size={20} />,
+        icon: <ShoppingCart size={18} />,
         href: '/dashboard/sales',
       });
     }
     return items;
   }, [stats]);
+
+  const thirdKpi = useMemo(() => {
+    if (!stats) return null;
+    if (stats.modules?.booking && stats.booking) {
+      return {
+        label: 'Turnos hoy',
+        value: String(stats.booking.todayAppointments),
+        sub: `${stats.booking.pendingPayment} pend. pago`,
+        delta: `+${stats.booking.confirmed} conf.`,
+        progress: pct(stats.booking.confirmed, stats.booking.confirmed + stats.booking.pendingPayment || 1),
+        from: '#a78bfa', to: '#22d3ee',
+      };
+    }
+    if (stats.modules?.sales && stats.sales) {
+      return {
+        label: 'Ventas',
+        value: `$${(stats.sales.todayRevenue || 0).toLocaleString('es-AR')}`,
+        sub: `${stats.sales.pendingOrders} pendientes`,
+        delta: `${stats.sales.total} total`,
+        progress: pct(stats.sales.total - stats.sales.pendingOrders, stats.sales.total || 1),
+        from: '#34d399', to: '#059669',
+      };
+    }
+    return {
+      label: 'Bot hoy',
+      value: String(stats.messages.todayCount ?? 0),
+      sub: 'mensajes procesados',
+      delta: `${msgDelta >= 0 ? '+' : ''}${msgDelta}%`,
+      progress: Math.min(100, Math.max(8, stats.messages.todayCount * 4)),
+      from: '#e879f9', to: '#a78bfa',
+    };
+  }, [stats, msgDelta]);
+
+  const sideCards = useMemo(() => {
+    if (!stats) return [];
+    const cards: Array<{
+      id: string;
+      label: string;
+      value: string;
+      sub?: string;
+      spark?: number[];
+      sparkColor?: string;
+      urgent?: boolean;
+      href?: string;
+    }> = [
+      {
+        id: 'human-queue',
+        label: 'Cola humana',
+        value: String(stats.conversations.pendingHuman),
+        sub: 'conversaciones esperando',
+        urgent: stats.conversations.pendingHuman > 0,
+        href: '/dashboard/inbox',
+      },
+      {
+        id: 'response-time',
+        label: 'Respuesta IA',
+        value: formatResponse(stats.messages.avgResponseTime || 0),
+        spark: msgTrend,
+        sparkColor: '#22d3ee',
+      },
+    ];
+
+    if (stats.modules?.sales && stats.sales) {
+      cards.push({
+        id: 'sales-side',
+        label: 'Ventas hoy',
+        value: `$${(stats.sales.todayRevenue || 0).toLocaleString('es-AR')}`,
+        sub: `${stats.sales.pendingOrders} pendientes`,
+        spark: leadTrend,
+        sparkColor: '#34d399',
+        href: '/dashboard/sales',
+      });
+    } else {
+      cards.push({
+        id: 'bot-side',
+        label: 'Bot hoy',
+        value: String(stats.messages.todayCount ?? 0),
+        sub: 'mensajes',
+        spark: convTrend,
+        sparkColor: '#a78bfa',
+      });
+    }
+
+    return cards;
+  }, [stats, msgTrend, convTrend, leadTrend]);
 
   const actionStyle = (type: string) => {
     switch (type) {
@@ -228,24 +241,6 @@ function TenantDashboard() {
     }
   };
 
-  const formatResponse = (sec: number) => {
-    if (!sec) return '—';
-    if (sec < 60) return `${Math.round(sec)}s`;
-    return `${Math.round(sec / 60)}m`;
-  };
-
-  const isVisible = (id: WidgetId) => visibleWidgets.includes(id);
-
-  const availableWidgets = useMemo(() => {
-    if (!stats) return Object.keys(WIDGET_META) as WidgetId[];
-    return (Object.keys(WIDGET_META) as WidgetId[]).filter((id) => {
-      const req = WIDGET_META[id].requires;
-      if (!req) return true;
-      if (req === 'booking' || req === 'sales') return stats.modules?.[req];
-      return stats.modules?.[req];
-    });
-  }, [stats]);
-
   const tenantName = getTenantDisplayName(user?.tenant) || 'Tu negocio';
   const displayName = user?.name || user?.email?.split('@')[0] || 'Usuario';
   const roleLabel = ROLE_LABELS[user?.role || 'agent'] || user?.role;
@@ -264,45 +259,19 @@ function TenantDashboard() {
     return { text: `${stats.messages.todayCount} mensajes hoy`, urgent: false, icon: <Bot size={13} /> };
   }, [stats]);
 
-  const thirdFloatCard = useMemo(() => {
-    if (!stats) return null;
-    if (stats.modules?.booking && stats.booking) {
-      return {
-        label: 'Turnos hoy',
-        value: String(stats.booking.todayAppointments),
-        sub: `${stats.booking.pendingPayment} pend. pago`,
-        delta: `+${stats.booking.confirmed} conf.`,
-        progress: pct(stats.booking.confirmed, stats.booking.confirmed + stats.booking.pendingPayment || 1),
-        glow: 'rgba(232,121,249,0.2)', from: '#e879f9', to: '#c026d3',
-      };
-    }
-    if (stats.modules?.sales && stats.sales) {
-      return {
-        label: 'Ventas pend.',
-        value: String(stats.sales.pendingOrders),
-        sub: `$${(stats.sales.todayRevenue || 0).toLocaleString('es-AR')} hoy`,
-        delta: `${stats.sales.total} total`,
-        progress: pct(stats.sales.total - stats.sales.pendingOrders, stats.sales.total || 1),
-        glow: 'rgba(52,211,153,0.2)', from: '#34d399', to: '#059669',
-      };
-    }
-    return {
-      label: 'Respuesta IA',
-      value: formatResponse(stats.messages.avgResponseTime || 0),
-      sub: 'promedio bot',
-      delta: 'bot',
-      progress: Math.min(100, Math.max(8, 100 - (stats.messages.avgResponseTime || 0) / 3)),
-      glow: 'rgba(232,121,249,0.2)', from: '#e879f9', to: '#c026d3',
-    };
-  }, [stats]);
-
   if (loading) {
     return (
       <div className={styles.shell}>
         <div className={styles.loadingHero} />
-        <div className={styles.loadingGrid}>
+        <div className={styles.loadingBody}>
           <div className={styles.loadingPanel} />
           <div className={styles.loadingPanel} />
+          <div className={styles.loadingSide} />
+        </div>
+        <div className={styles.loadingKpis}>
+          <div className={styles.loadingKpi} />
+          <div className={styles.loadingKpi} />
+          <div className={styles.loadingKpi} />
         </div>
       </div>
     );
@@ -321,14 +290,6 @@ function TenantDashboard() {
               {statusPill.text}
             </span>
           )}
-          <button
-            type="button"
-            className={`${styles.iconBtn} ${editMode ? styles.iconBtnActive : ''}`}
-            onClick={() => setEditMode(!editMode)}
-            title="Personalizar widgets"
-          >
-            <LayoutGrid size={16} />
-          </button>
           <div className={styles.notifWrap} ref={notifRef}>
             <button
               type="button"
@@ -381,30 +342,7 @@ function TenantDashboard() {
         </div>
       </div>
 
-      {editMode && (
-        <div className={styles.widgetEditor}>
-          <div className={styles.widgetEditorTitle}><BarChart3 size={14} /> Widgets para {tenantName}</div>
-          <div className={styles.widgetToggles}>
-            {availableWidgets.map((id) => (
-              <button
-                key={id}
-                type="button"
-                className={`${styles.widgetToggle} ${isVisible(id) ? styles.widgetToggleOn : ''}`}
-                onClick={() => {
-                  const next = isVisible(id) ? visibleWidgets.filter((w) => w !== id) : [...visibleWidgets, id];
-                  saveWidgets(next);
-                }}
-              >
-                {isVisible(id) && <Check size={12} />}
-                {WIDGET_META[id].label}
-              </button>
-            ))}
-          </div>
-        </div>
-      )}
-
       <section className={styles.heroStage}>
-        <div className={styles.heroVisual}><HeroOrb /></div>
         <div className={styles.heroContent}>
           <div className={styles.heroEyebrow}>
             <span className={styles.liveDotSmall} />
@@ -420,60 +358,12 @@ function TenantDashboard() {
           </p>
         </div>
 
-        <div className={styles.floatingStats}>
-          <div className={styles.floatCard} style={{ '--card-glow': 'rgba(34,211,238,0.2)', '--bar-from': '#22d3ee', '--bar-to': '#0891b2' } as React.CSSProperties}>
-            <div className={styles.floatCardHead}>
-              <span className={styles.floatCardLabel}>Conversaciones</span>
-              <span className={`${styles.floatCardDelta} ${convDelta < 0 ? styles.floatCardDeltaNeg : ''}`}>
-                {convDelta >= 0 ? '+' : ''}{convDelta}%
-              </span>
-            </div>
-            <div className={styles.floatCardValue}>
-              {stats?.conversations.active ?? 0}<small>/{stats?.conversations.total ?? 0}</small>
-            </div>
-            <div className={styles.progressTrack}>
-              <div className={styles.progressFill} style={{ width: `${pct(stats?.conversations.active ?? 0, stats?.conversations.total ?? 1)}%` }} />
-            </div>
-          </div>
-
-          <div className={styles.floatCard} style={{ '--card-glow': 'rgba(167,139,250,0.2)', '--bar-from': '#a78bfa', '--bar-to': '#7c3aed' } as React.CSSProperties}>
-            <div className={styles.floatCardHead}>
-              <span className={styles.floatCardLabel}>Leads</span>
-              <span className={`${styles.floatCardDelta} ${leadDelta < 0 ? styles.floatCardDeltaNeg : ''}`}>
-                {leadDelta >= 0 ? '+' : ''}{leadDelta}%
-              </span>
-            </div>
-            <div className={styles.floatCardValue}>
-              {stats?.leads.newToday ?? 0}<small> hoy</small>
-            </div>
-            <div className={styles.progressTrack}>
-              <div className={styles.progressFill} style={{ width: `${pct(stats?.leads.newThisWeek ?? 0, stats?.leads.total ?? 1)}%` }} />
-            </div>
-          </div>
-
-          {thirdFloatCard && (
-            <div className={styles.floatCard} style={{ '--card-glow': thirdFloatCard.glow, '--bar-from': thirdFloatCard.from, '--bar-to': thirdFloatCard.to } as React.CSSProperties}>
-              <div className={styles.floatCardHead}>
-                <span className={styles.floatCardLabel}>{thirdFloatCard.label}</span>
-                <span className={`${styles.floatCardDelta} ${styles.floatCardDeltaNeutral}`}>{thirdFloatCard.delta}</span>
-              </div>
-              <div className={styles.floatCardValue}>
-                {thirdFloatCard.value}
-                {thirdFloatCard.sub ? <small> · {thirdFloatCard.sub}</small> : null}
-              </div>
-              <div className={styles.progressTrack}>
-                <div className={styles.progressFill} style={{ width: `${thirdFloatCard.progress}%` }} />
-              </div>
-            </div>
-          )}
-        </div>
-
         <div className={styles.heroAlerts}>
           <div className={styles.heroAlertsHead}>
             <div>
               <h3 className={styles.heroAlertsTitle}>Acciones requeridas</h3>
               <p className={styles.heroAlertsSub}>
-                {actions.length > 0 ? `${actions.length} tarea${actions.length > 1 ? 's' : ''} para tu operación` : 'Sin pendientes críticos'}
+                {actions.length > 0 ? `${actions.length} tarea${actions.length > 1 ? 's' : ''} pendiente${actions.length > 1 ? 's' : ''}` : 'Sin pendientes críticos'}
               </p>
             </div>
             {actions.length > 0 && (
@@ -502,162 +392,153 @@ function TenantDashboard() {
         </div>
       </section>
 
-      <div className={styles.mainGrid}>
-        {isVisible('activity-chart') && (
-          <div className={styles.glassPanel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <h2 className={styles.panelTitle}>Actividad semanal</h2>
-                <p className={styles.panelSub}>Últimos 7 días · {tenantName}</p>
-              </div>
-              <div className={styles.periodToggle}>
-                {(['messages', 'conversations', 'leads'] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    className={`${styles.periodBtn} ${chartMetric === m ? styles.periodBtnActive : ''}`}
-                    onClick={() => setChartMetric(m)}
-                  >
-                    {m === 'messages' ? 'Mensajes' : m === 'conversations' ? 'Chats' : 'Leads'}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div className={styles.chartArea}>
-              {trends.length > 0 ? (
-                <GlowingBarChart data={trends} metric={chartMetric} colors={chartColors[chartMetric]} id={`chart-${chartMetric}`} />
-              ) : (
-                <div className={styles.chartEmpty}>Sin datos de tendencia aún</div>
-              )}
-            </div>
-            <div className={styles.chartFooter}>
-              <div className={styles.chartStat}><div className={styles.chartStatValue}>{chartTotals.messages}</div><div className={styles.chartStatLabel}>Mensajes</div></div>
-              <div className={styles.chartStat}><div className={styles.chartStatValue}>{chartTotals.conversations}</div><div className={styles.chartStatLabel}>Chats</div></div>
-              <div className={styles.chartStat}><div className={styles.chartStatValue}>{chartTotals.leads}</div><div className={styles.chartStatLabel}>Leads</div></div>
-              {(stats?.conversations.pendingHuman ?? 0) > 0 && (
-                <div className={styles.chartStat}>
-                  <div className={styles.chartStatValue} style={{ color: '#fbbf24' }}>{stats?.conversations.pendingHuman}</div>
-                  <div className={styles.chartStatLabel}>Humana</div>
-                </div>
-              )}
+      <div className={styles.bodyGrid}>
+        <div className={styles.glassPanel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2 className={styles.panelTitle}>Actividad semanal</h2>
+              <p className={styles.panelSub}>Últimos 7 días</p>
             </div>
           </div>
-        )}
+          <div className={styles.chartArea}>
+            {trends.length > 0 ? (
+              <GlowingBarChart data={trends} metric="messages" id="weekly-activity" />
+            ) : (
+              <div className={styles.chartEmpty}>Sin datos de tendencia aún</div>
+            )}
+          </div>
+          <div className={styles.chartFooter}>
+            <div className={styles.chartStat}>
+              <div className={styles.chartStatValue}>{chartTotals.messages}</div>
+              <div className={styles.chartStatLabel}>Mensajes</div>
+            </div>
+            <div className={styles.chartStat}>
+              <div className={styles.chartStatValue}>{chartTotals.conversations}</div>
+              <div className={styles.chartStatLabel}>Chats</div>
+            </div>
+            <div className={styles.chartStat}>
+              <div className={styles.chartStatValue}>{chartTotals.leads}</div>
+              <div className={styles.chartStatLabel}>Leads</div>
+            </div>
+            {(stats?.conversations.pendingHuman ?? 0) > 0 && (
+              <div className={styles.chartStat}>
+                <div className={styles.chartStatValue} style={{ color: '#fbbf24' }}>{stats?.conversations.pendingHuman}</div>
+                <div className={styles.chartStatLabel}>Humana</div>
+              </div>
+            )}
+          </div>
+        </div>
 
-        {isVisible('pipeline-modules') && (
-          <div className={styles.glassPanel}>
-            <div className={styles.panelHeader}>
-              <div>
-                <h2 className={styles.panelTitle}>Módulos activos</h2>
-                <p className={styles.panelSub}>
-                  {[
-                    'Inbox',
-                    'Leads',
-                    stats?.modules?.booking ? 'Turnera' : null,
-                    stats?.modules?.sales ? 'Ventas' : null,
-                  ].filter(Boolean).join(' · ')}
-                </p>
-              </div>
-              <TrendingUp size={18} style={{ color: 'var(--color-primary)', opacity: 0.6 }} />
+        <div className={styles.glassPanel}>
+          <div className={styles.panelHeader}>
+            <div>
+              <h2 className={styles.panelTitle}>Módulos activos</h2>
+              <p className={styles.panelSub}>
+                {[
+                  'Inbox',
+                  'Leads',
+                  stats?.modules?.booking ? 'Turnera' : null,
+                  stats?.modules?.sales ? 'Ventas' : null,
+                ].filter(Boolean).join(' · ')}
+              </p>
             </div>
-            <div className={styles.pipelineList}>
-              {pipelines.map((p) => (
-                <div key={p.id} className={styles.pipelineRow} onClick={() => router.push(p.href)}>
-                  <div className={styles.pipelineIcon} style={{ '--pipe-bg': p.bg, '--pipe-color': p.color } as React.CSSProperties}>{p.icon}</div>
-                  <div className={styles.pipelineBody}>
-                    <div className={styles.pipelineName}>{p.name}</div>
-                    <div className={styles.pipelineMeta}>{p.meta}</div>
-                  </div>
-                  <div className={styles.pipelineProgress}>
-                    <div className={styles.pipelinePct}>{p.progress}%</div>
-                    <div className={styles.pipelineBar}>
-                      <div className={styles.pipelineBarFill} style={{ width: `${p.progress}%`, '--pipe-color': p.color } as React.CSSProperties} />
-                    </div>
+            <TrendingUp size={16} style={{ color: 'var(--color-text-faint)', opacity: 0.7 }} />
+          </div>
+          <div className={styles.pipelineList}>
+            {pipelines.map((p) => (
+              <div key={p.id} className={styles.pipelineRow} onClick={() => router.push(p.href)}>
+                <div className={styles.pipelineIcon} style={{ '--pipe-bg': p.bg, '--pipe-color': p.color } as React.CSSProperties}>{p.icon}</div>
+                <div className={styles.pipelineBody}>
+                  <div className={styles.pipelineName}>{p.name}</div>
+                  <div className={styles.pipelineMeta}>{p.meta}</div>
+                </div>
+                <div className={styles.pipelineProgress}>
+                  <div className={styles.pipelinePct}>{p.progress}%</div>
+                  <div className={styles.pipelineBar}>
+                    <div className={styles.pipelineBarFill} style={{ width: `${p.progress}%`, '--pipe-color': p.color } as React.CSSProperties} />
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            ))}
           </div>
-        )}
+        </div>
+
+        <div className={styles.sideStack}>
+          {sideCards.map((card) => (
+            <div
+              key={card.id}
+              className={`${styles.sideCard} ${card.urgent ? styles.sideCardUrgent : ''}`}
+              onClick={card.href ? () => router.push(card.href!) : undefined}
+              role={card.href ? 'button' : undefined}
+            >
+              <div className={styles.sideCardHead}>
+                <span className={styles.sideCardLabel}>{card.label}</span>
+                {card.spark && card.sparkColor && (
+                  <MiniSparkline values={card.spark} color={card.sparkColor} />
+                )}
+              </div>
+              <div className={styles.sideCardValue}>{card.value}</div>
+              {card.sub && <div className={styles.sideCardSub}>{card.sub}</div>}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className={styles.secondaryGrid}>
-        {isVisible('human-queue') && (stats?.conversations.pendingHuman ?? 0) > 0 && (
-          <div className={`${styles.miniWidget} ${styles.miniWidgetUrgent}`} onClick={() => router.push('/dashboard/inbox')} role="button">
-            <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><Phone size={12} /> Cola humana</span>
-            </div>
-            <div className={styles.miniWidgetValue}>{stats?.conversations.pendingHuman}</div>
-            <div className={styles.miniWidgetSub}>conversaciones esperando agente</div>
+      <div className={styles.kpiRow}>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHead}>
+            <span className={styles.kpiLabel}>Conversaciones</span>
+            <span className={`${styles.kpiDelta} ${convDelta < 0 ? styles.kpiDeltaNeg : ''}`}>
+              {convDelta >= 0 ? '+' : ''}{convDelta}%
+            </span>
           </div>
-        )}
-
-        {isVisible('response-time') && (
-          <div className={styles.miniWidget}>
-            <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><Zap size={12} /> Respuesta IA</span>
-              <MiniSparkline values={msgTrend} color="#22d3ee" />
-            </div>
-            <div className={styles.miniWidgetValue}>{formatResponse(stats?.messages.avgResponseTime || 0)}</div>
-            <div className={styles.miniWidgetSub}>promedio última semana</div>
+          <div className={styles.kpiValue}>
+            {stats?.conversations.active ?? 0}<small>/{stats?.conversations.total ?? 0}</small>
           </div>
-        )}
-
-        {isVisible('leads-funnel') && (stats?.leadStages?.length ?? 0) > 0 && (
-          <div className={styles.miniWidget}>
-            <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><Users size={12} /> Embudo leads</span>
-              <MiniSparkline values={leadTrend} color="#e879f9" />
-            </div>
-            <div className={styles.funnelList}>
-              {(stats?.leadStages || []).slice(0, 4).map((s) => (
-                <div key={s.stage} className={styles.funnelRow}>
-                  <span className={styles.funnelDot} style={{ background: STAGE_COLORS[s.stage] || '#6b7280' }} />
-                  <span className={styles.funnelLabel}>{STAGE_LABELS[s.stage] || s.stage}</span>
-                  <span className={styles.funnelCount}>{s.count}</span>
-                </div>
-              ))}
-            </div>
+          <div className={styles.kpiTrack}>
+            <div className={styles.kpiFill} style={{ width: `${pct(stats?.conversations.active ?? 0, stats?.conversations.total ?? 1)}%`, '--bar-from': '#22d3ee', '--bar-to': '#0891b2' } as React.CSSProperties} />
           </div>
-        )}
+        </div>
 
-        {isVisible('booking-overview') && stats?.booking && (
-          <div className={styles.miniWidget} onClick={() => router.push('/dashboard/turnos')} role="button">
-            <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><Calendar size={12} /> Turnera</span>
-            </div>
-            <div className={styles.miniWidgetValue}>{stats.booking.todayAppointments}</div>
-            <div className={styles.miniWidgetSub}>
-              turnos hoy · {stats.booking.pendingPayment} pend. pago · ${stats.booking.weekRevenue.toLocaleString('es-AR')}
-            </div>
+        <div className={styles.kpiCard}>
+          <div className={styles.kpiHead}>
+            <span className={styles.kpiLabel}>Leads</span>
+            <span className={`${styles.kpiDelta} ${leadDelta < 0 ? styles.kpiDeltaNeg : ''}`}>
+              {leadDelta >= 0 ? '+' : ''}{leadDelta}%
+            </span>
           </div>
-        )}
-
-        {isVisible('sales-overview') && stats?.sales && (
-          <div className={styles.miniWidget} onClick={() => router.push('/dashboard/sales')} role="button">
-            <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><ShoppingCart size={12} /> Ventas</span>
-            </div>
-            <div className={styles.miniWidgetValue}>${(stats.sales.todayRevenue || 0).toLocaleString('es-AR')}</div>
-            <div className={styles.miniWidgetSub}>{stats.sales.pendingOrders} órdenes pendientes</div>
+          <div className={styles.kpiValue}>
+            {stats?.leads.newToday ?? 0}<small> hoy</small>
           </div>
-        )}
+          <div className={styles.kpiTrack}>
+            <div className={styles.kpiFill} style={{ width: `${pct(stats?.leads.newThisWeek ?? 0, stats?.leads.total ?? 1)}%`, '--bar-from': '#a78bfa', '--bar-to': '#7c3aed' } as React.CSSProperties} />
+          </div>
+        </div>
 
-        {isVisible('bot-activity') && (
-          <div className={styles.miniWidget}>
-            <div className={styles.miniWidgetHead}>
-              <span className={styles.miniWidgetTitle}><Bot size={12} /> Bot hoy</span>
-              <span className={`${styles.miniWidgetDelta} ${msgDelta < 0 ? styles.miniWidgetDeltaNeg : ''}`}>
-                {msgDelta >= 0 ? '+' : ''}{msgDelta}%
-              </span>
+        {thirdKpi && (
+          <div className={styles.kpiCard}>
+            <div className={styles.kpiHead}>
+              <span className={styles.kpiLabel}>{thirdKpi.label}</span>
+              <span className={styles.kpiDeltaNeutral}>{thirdKpi.delta}</span>
             </div>
-            <div className={styles.miniWidgetValue}>{stats?.messages.todayCount ?? 0}</div>
-            <div className={styles.miniWidgetSub}>mensajes procesados hoy</div>
+            <div className={styles.kpiValue}>
+              {thirdKpi.value}
+              {thirdKpi.sub ? <small> · {thirdKpi.sub}</small> : null}
+            </div>
+            <div className={styles.kpiTrack}>
+              <div className={styles.kpiFill} style={{ width: `${thirdKpi.progress}%`, '--bar-from': thirdKpi.from, '--bar-to': thirdKpi.to } as React.CSSProperties} />
+            </div>
           </div>
         )}
       </div>
     </div>
   );
+}
+
+function formatResponse(sec: number) {
+  if (!sec) return '—';
+  if (sec < 60) return `${Math.round(sec)}s`;
+  return `${Math.round(sec / 60)}m`;
 }
 
 function SuperAdminFallback() {
