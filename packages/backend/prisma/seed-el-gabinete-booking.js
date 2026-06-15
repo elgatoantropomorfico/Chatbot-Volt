@@ -73,6 +73,11 @@ const SLOTS = ['16:30', '18:00', '19:30'];
 
 const MESSAGES = {
   welcome: 'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPuedo ayudarte a elegir el camino ideal o, si ya sabés cuál querés, avanzamos directo con la reserva.',
+  welcome_resume: 'Retomemos donde quedamos 🌿',
+  cancel_select: 'Estos son tus turnos activos. Elegí cuál querés cancelar:',
+  cancel_warning: '¿Confirmás la cancelación de este turno?\n\n{{service}} — {{slot}}\n\n⚠️ Esta acción no tiene vuelta atrás.\n{{policy}}',
+  cancel_done: 'Listo, cancelamos tu turno:\n\n{{service}} — {{slot}}\n\nSi querés reservar otro horario, escribí *menu*.',
+  cancel_none: 'No encontré turnos activos para cancelar. Si querés reservar uno nuevo, escribí *menu*.',
   payment_summary: 'Te dejo el resumen de tu turno:\n\nCamino: {{service}}\nDía y horario: {{slot}}\nDuración: {{duration}} minutos\nValor de la sesión: ${{price}}\n\nPara confirmar el turno se abona una seña del {{deposit}}%.\nTambién podés abonar el 100% ahora.\n\nImportante: en caso de cancelación, la seña no es reembolsable.\n\n1️⃣ Señar {{deposit}}%\n2️⃣ Pagar 100%\n3️⃣ Cambiar horario',
   payment_pending: 'Perfecto. Te genero el link de pago seguro por Mercado Pago.\nEl horario queda reservado durante 15 minutos.',
   confirmation: 'Listo, tu turno quedó confirmado 🌿',

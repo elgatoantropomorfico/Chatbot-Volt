@@ -40,7 +40,9 @@ export type BookingFlowState =
   | 'payment_choice'
   | 'waiting_payment'
   | 'confirmed'
-  | 'handoff';
+  | 'handoff'
+  | 'cancel_pick'
+  | 'cancel_confirm';
 
 export interface BookingFlowContext {
   state: BookingFlowState;
@@ -59,12 +61,27 @@ export interface BookingFlowContext {
   slotPage?: number;
   slotBrowse?: 'more_menu' | 'pick_day';
   tempSlots?: Array<{ date: string; time: string; label: string }>;
+  cancelAppointmentId?: string;
+  cancelOptions?: Array<{ id: string; label: string; listTitle: string }>;
 }
 
-const GLOBAL_COMMANDS = ['volver', 'cancelar', 'menú', 'menu', 'humano', 'empezar de nuevo', 'inicio'];
+const MAIN_MENU_COMMANDS = ['menú', 'menu', 'empezar de nuevo', 'inicio'];
 
 function normalizeInput(text: string): string {
   return text.trim().toLowerCase();
+}
+
+function looksLikeCancelIntent(input: string): boolean {
+  if (/no\s+(quiero|voy\s+a)\s+cancelar/.test(input)) return false;
+  if (/^(cancelar|anular)(\s+(mi|el|un))?\s*(turno|reserva|cita)?\s*$/.test(input)) return true;
+  if (/quiero\s+cancelar/.test(input)) return true;
+  if (/cancel(ar|ación|acion).*(turno|reserva|cita)/.test(input)) return true;
+  if (/(turno|reserva|cita).*(cancel|anular)/.test(input)) return true;
+  return false;
+}
+
+function isExactCommand(input: string, command: string): boolean {
+  return input === command || input === command.replace('ó', 'o');
 }
 
 function pickOption(text: string, max: number): number | null {
@@ -190,14 +207,30 @@ export class BookingFlowService {
 
     let flow = await this.getFlow(conversationId);
 
-    if (GLOBAL_COMMANDS.some((c) => input === c || input.includes(c))) {
-      if (input.includes('humano')) {
-        await this.saveFlow(conversationId, { state: 'handoff' });
-        return { handled: true, handoff: true, text: msg(settings, 'human_handoff', 'Te comunico con una persona del equipo.') };
-      }
+    if (flow.state === 'cancel_pick') {
+      return this.handleCancelPick(tenantId, conversationId, leadId, phone, settings, flow, input, text);
+    }
+    if (flow.state === 'cancel_confirm') {
+      return this.handleCancelConfirm(tenantId, conversationId, settings, flow, input);
+    }
+
+    if (isExactCommand(input, 'humano') || input === 'hablar con persona') {
+      await this.saveFlow(conversationId, { state: 'handoff' });
+      return { handled: true, handoff: true, text: msg(settings, 'human_handoff', 'Te comunico con una persona del equipo.') };
+    }
+
+    if (MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))) {
       flow = { state: 'booking_start' };
       await this.saveFlow(conversationId, flow);
       return this.mainMenuReply(tenantId, settings);
+    }
+
+    if (looksLikeCancelIntent(input)) {
+      return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
+    }
+
+    if (isExactCommand(input, 'volver')) {
+      return this.resumeCurrentStep(tenantId, conversationId, settings, flow);
     }
 
     if (flow.state === 'idle' || flow.state === 'handoff') {
@@ -241,6 +274,8 @@ export class BookingFlowService {
         return this.handleNotes(tenantId, conversationId, leadId, phone, settings, flow, input);
       case 'payment_choice':
         return this.handlePaymentChoice(tenantId, conversationId, leadId, phone, settings, flow, input, text);
+      case 'waiting_payment':
+        return this.handleWaitingPayment(tenantId, conversationId, leadId, phone, settings, flow, input, text);
       default:
         flow = { state: 'booking_start' };
         await this.saveFlow(conversationId, flow);
@@ -279,6 +314,324 @@ export class BookingFlowService {
       };
     }
     return { handled: true, text };
+  }
+
+  private static wrapWithResumeBridge(settings: any, result: FlowHandleResult): FlowHandleResult {
+    const bridge = msg(settings, 'welcome_resume', '').trim();
+    if (!bridge) return result;
+    if (result.interactive) {
+      const body = `${bridge}\n\n${result.interactive.body}`.slice(0, 1020);
+      return {
+        ...result,
+        text: `${bridge}\n\n${result.text}`,
+        interactive: { ...result.interactive, body },
+      };
+    }
+    return { ...result, text: `${bridge}\n\n${result.text}` };
+  }
+
+  /** Retoma el paso actual sin volver al menú madre ni repetir la bienvenida principal */
+  private static async resumeCurrentStep(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+  ): Promise<FlowHandleResult> {
+    switch (flow.state) {
+      case 'booking_start':
+        return this.wrapWithResumeBridge(settings, this.mainMenuReply(tenantId, settings));
+      case 'choosing_service_mode':
+        return this.wrapWithResumeBridge(settings, await this.serviceListReply(tenantId));
+      case 'recommender_q1':
+        return this.wrapWithResumeBridge(settings, flowReply('¿Qué sentís que necesitás hoy?', [
+          'Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez',
+        ]));
+      case 'recommender_q2':
+        return this.wrapWithResumeBridge(settings, flowReply('¿Cómo te gustaría vivir la sesión?', [
+          'Suave y relajante', 'Profunda y envolvente', 'Con calor', 'Con aromas/herbales', 'Más corporal',
+        ]));
+      case 'service_selected':
+        return this.wrapWithResumeBridge(settings, flowReply(
+          flow.serviceName ? `¿Reservamos ${flow.serviceName}?` : '¿Seguimos con la reserva?',
+          ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'],
+        ));
+      case 'slot_selection':
+        if (flow.slotBrowse === 'more_menu') {
+          return this.wrapWithResumeBridge(settings, this.moreSlotsMenuReply());
+        }
+        if (flow.slotBrowse === 'pick_day') {
+          return this.wrapWithResumeBridge(settings, {
+            handled: true,
+            text: '¿Qué día te queda bien? Podés decir *jueves*, *mañana* o una fecha como *20/06*.',
+          });
+        }
+        if (flow.tempSlots?.length) {
+          return this.wrapWithResumeBridge(settings, this.slotsListReply('Elegí un horario:', flow.tempSlots));
+        }
+        return this.wrapWithResumeBridge(settings, await this.slotReply(tenantId, flow.serviceName || ''));
+      case 'customer_name':
+        return this.wrapWithResumeBridge(settings, {
+          handled: true,
+          text: 'Pasame tu *nombre y apellido* para dejar el turno preparado.',
+        });
+      case 'customer_first_time':
+        return this.wrapWithResumeBridge(settings, flowReply(
+          flow.customerName ? `Gracias, ${flow.customerName.split(' ')[0]}. ¿Es tu primera vez?` : '¿Es tu primera vez?',
+          ['Sí', 'No'],
+        ));
+      case 'customer_notes':
+        return this.wrapWithResumeBridge(settings, {
+          handled: true,
+          text: '¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.',
+        });
+      case 'payment_choice':
+        return this.wrapWithResumeBridge(settings, flowReply(
+          'Elegí cómo querés pagar:',
+          [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'],
+        ));
+      case 'waiting_payment':
+        return this.wrapWithResumeBridge(settings, {
+          handled: true,
+          text: msg(settings, 'payment_pending',
+            'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación. Si necesitás el link de nuevo, escribí *humano*.'),
+        });
+      default:
+        flow = { state: 'booking_start' };
+        await this.saveFlow(conversationId, flow);
+        return this.mainMenuReply(tenantId, settings);
+    }
+  }
+
+  private static async getCancellableAppointments(tenantId: string, leadId: string, phone: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return prisma.appointment.findMany({
+      where: {
+        tenantId,
+        OR: [{ leadId }, { customerPhone: phone }],
+        status: { in: ['confirmado', 'pendiente_pago'] },
+        appointmentDate: { gte: today },
+      },
+      include: { service: true },
+      orderBy: [{ appointmentDate: 'asc' }, { appointmentTime: 'asc' }],
+    });
+  }
+
+  private static formatAppointmentSlot(apt: { appointmentDate: Date; appointmentTime: string }, timezone: string): string {
+    const dateStr = apt.appointmentDate.toLocaleDateString('es-AR', {
+      weekday: 'long',
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: timezone,
+    });
+    return `${dateStr} ${apt.appointmentTime}`;
+  }
+
+  private static formatAppointmentLabel(apt: { appointmentDate: Date; appointmentTime: string; service: { name: string } }, timezone: string): string {
+    return `${this.formatAppointmentSlot(apt, timezone)} — ${apt.service.name}`;
+  }
+
+  private static async startCancelFlow(
+    tenantId: string,
+    conversationId: string,
+    leadId: string,
+    phone: string,
+    settings: any,
+    flow: BookingFlowContext,
+  ): Promise<FlowHandleResult> {
+    const appointments = await this.getCancellableAppointments(tenantId, leadId, phone);
+
+    if (appointments.length === 0) {
+      return {
+        handled: true,
+        text: msg(settings, 'cancel_none', 'No encontré turnos activos para cancelar. Si querés reservar uno nuevo, escribí *menu*.'),
+      };
+    }
+
+    if (appointments.length === 1) {
+      const apt = appointments[0];
+      const nextFlow: BookingFlowContext = {
+        ...flow,
+        state: 'cancel_confirm',
+        cancelAppointmentId: apt.id,
+      };
+      await this.saveFlow(conversationId, nextFlow);
+      return this.cancelWarningReply(settings, apt);
+    }
+
+    const timezone = settings.timezone || 'America/Argentina/Cordoba';
+    const options = appointments.map((apt, i) => {
+      const short = apt.appointmentDate.toLocaleDateString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: timezone,
+      });
+      return {
+        id: apt.id,
+        label: `${short} ${apt.appointmentTime} — ${apt.service.name}`.slice(0, 72),
+        listTitle: `T${i + 1} ${short} ${apt.appointmentTime}`.slice(0, 24),
+      };
+    });
+    const nextFlow: BookingFlowContext = {
+      ...flow,
+      state: 'cancel_pick',
+      cancelOptions: options.map((o) => ({ id: o.id, label: o.label, listTitle: o.listTitle })),
+    };
+    await this.saveFlow(conversationId, nextFlow);
+
+    const intro = msg(settings, 'cancel_select',
+      'Estos son tus turnos activos. Elegí cuál querés cancelar:');
+    return flowReply(intro, options.map((o) => o.listTitle));
+  }
+
+  private static cancelWarningReply(settings: any, apt: { appointmentDate: Date; appointmentTime: string; service: { name: string } }): FlowHandleResult {
+    const policy = (settings.cancellationPolicyJson as any)?.policy_short_text
+      || 'La seña abonada no es reembolsable.';
+    const timezone = settings.timezone || 'America/Argentina/Cordoba';
+    const slot = this.formatAppointmentSlot(apt, timezone);
+
+    const template = msg(settings, 'cancel_warning', `¿Confirmás la cancelación de este turno?
+
+{{service}} — {{slot}}
+
+⚠️ Esta acción no tiene vuelta atrás.
+{{policy}}`);
+
+    const body = template
+      .replace(/\{\{service\}\}/g, apt.service.name)
+      .replace(/\{\{slot\}\}/g, slot)
+      .replace(/\{\{policy\}\}/g, policy);
+
+    return flowReply(body, ['Sí, cancelar', 'No, volver']);
+  }
+
+  private static async handleCancelPick(
+    tenantId: string,
+    conversationId: string,
+    leadId: string,
+    phone: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult> {
+    const options = flow.cancelOptions || [];
+    const opt = pickOption(input, options.length);
+
+    if (!opt) {
+      if (looksLikeCancelIntent(input)) {
+        return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
+      }
+      return this.offFlowThen(tenantId, rawText, settings, flow, async () => {
+        const intro = msg(settings, 'cancel_select', 'Elegí el turno que querés cancelar:');
+        return flowReply(intro, options.map((o) => o.listTitle));
+      }, options.length);
+    }
+
+    const selected = options[opt - 1];
+    const apt = await prisma.appointment.findFirst({
+      where: { id: selected.id, tenantId, status: { in: ['confirmado', 'pendiente_pago'] } },
+      include: { service: true },
+    });
+
+    if (!apt) {
+      return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, { state: 'booking_start' });
+    }
+
+    const nextFlow: BookingFlowContext = {
+      ...flow,
+      state: 'cancel_confirm',
+      cancelAppointmentId: apt.id,
+    };
+    await this.saveFlow(conversationId, nextFlow);
+    return this.cancelWarningReply(settings, apt);
+  }
+
+  private static async handleCancelConfirm(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+  ): Promise<FlowHandleResult> {
+    const opt = pickOption(input, 2);
+
+    if (opt === 2 || isExactCommand(input, 'volver') || isExactCommand(input, 'menu') || isExactCommand(input, 'menú')) {
+      const restored: BookingFlowContext = { ...flow, state: 'booking_start', cancelAppointmentId: undefined, cancelOptions: undefined };
+      await this.saveFlow(conversationId, restored);
+      return this.mainMenuReply(tenantId, settings);
+    }
+
+    if (opt !== 1 && !/^(sí|si|confirmo|confirmar)/.test(input)) {
+      const apt = flow.cancelAppointmentId
+        ? await prisma.appointment.findUnique({
+            where: { id: flow.cancelAppointmentId },
+            include: { service: true },
+          })
+        : null;
+      if (apt) {
+        return this.cancelWarningReply(settings, apt);
+      }
+      return { handled: true, text: 'Respondé *1* para confirmar la cancelación o *2* para volver.' };
+    }
+
+    if (!flow.cancelAppointmentId) {
+      return { handled: true, text: 'No encontré el turno. Escribí *menu* para empezar de nuevo.' };
+    }
+
+    const apt = await prisma.appointment.findFirst({
+      where: {
+        id: flow.cancelAppointmentId,
+        tenantId,
+        status: { in: ['confirmado', 'pendiente_pago'] },
+      },
+      include: { service: true },
+    });
+
+    if (!apt) {
+      await this.saveFlow(conversationId, { state: 'booking_start' });
+      return {
+        handled: true,
+        text: msg(settings, 'cancel_none', 'Ese turno ya no está disponible para cancelar.'),
+      };
+    }
+
+    await prisma.appointment.update({
+      where: { id: apt.id },
+      data: { status: 'cancelado', cancelledAt: new Date() },
+    });
+
+    await this.saveFlow(conversationId, { state: 'booking_start' });
+
+    const timezone = settings.timezone || 'America/Argentina/Cordoba';
+    const slot = this.formatAppointmentSlot(apt, timezone);
+    const doneTemplate = msg(settings, 'cancel_done',
+      'Listo, cancelamos tu turno:\n\n{{service}} — {{slot}}\n\nSi querés reservar otro horario, escribí *menu*.');
+    const text = doneTemplate
+      .replace(/\{\{service\}\}/g, apt.service.name)
+      .replace(/\{\{slot\}\}/g, slot);
+
+    return { handled: true, text };
+  }
+
+  private static async handleWaitingPayment(
+    tenantId: string,
+    conversationId: string,
+    leadId: string,
+    phone: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult> {
+    if (looksLikeCancelIntent(input)) {
+      return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
+    }
+    return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
+      handled: true,
+      text: msg(settings, 'payment_pending',
+        'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación.'),
+    }));
   }
 
   private static async getDisplaySlots(tenantId: string, flow: BookingFlowContext) {
