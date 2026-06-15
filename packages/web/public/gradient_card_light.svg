@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 800" preserveAspectRatio="none">
+  <defs>
+    <filter id="soft" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="52" />
+    </filter>
+    <linearGradient id="base" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" />
+      <stop offset="45%" stop-color="#f8fbff" />
+      <stop offset="100%" stop-color="#ffffff" />
+    </linearGradient>
+    <linearGradient id="rim" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.95" />
+      <stop offset="18%" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+  </defs>
+  <rect width="1400" height="800" fill="url(#base)" />
+  <g filter="url(#soft)">
+    <!-- S abierta: arriba-izq ’ centro ’ abajo-der -->
+    <ellipse cx="160" cy="140" rx="420" ry="300" fill="#b3d4f7" fill-opacity="0.62" />
+    <ellipse cx="620" cy="400" rx="360" ry="260" fill="#c5dff9" fill-opacity="0.38" />
+    <ellipse cx="1180" cy="660" rx="440" ry="320" fill="#a8ccf0" fill-opacity="0.55" />
+    <ellipse cx="1280" cy="80" rx="280" ry="200" fill="#ddd6fe" fill-opacity="0.22" />
+  </g>
+  <!-- Hotspot glare detrás del texto -->
+  <ellipse cx="340" cy="360" rx="320" ry="280" fill="#ffffff" fill-opacity="0.88" filter="url(#soft)" />
+  <rect width="1400" height="800" fill="url(#rim)" />
+</svg>
