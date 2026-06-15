@@ -154,6 +154,7 @@
   --row-active-bg: rgba(255, 255, 255, 0.05);
   --row-active-border: rgba(255, 255, 255, 0.2);
   --pane-bg: rgba(255, 255, 255, 0.02);
+  --inbox-chat-bg: transparent;
   --shell-shadow: 0 4px 24px rgba(0, 0, 0, 0.2);
   --tab-active-bg: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(139, 92, 246, 0.12));
   --tab-active-color: #a78bfa;
@@ -272,7 +273,8 @@
   --row-hover: rgba(124, 58, 237, 0.06);
   --row-active-bg: rgba(124, 58, 237, 0.09);
   --row-active-border: rgba(124, 58, 237, 0.24);
-  --pane-bg: #ececf1;
+  --pane-bg: #f3f3f7;
+  --inbox-chat-bg: #f8f8fb;
   --shell-shadow: 0 1px 3px rgba(15, 15, 35, 0.06), 0 6px 20px rgba(15, 15, 35, 0.06);
   --tab-active-bg: rgba(124, 58, 237, 0.1);
   --tab-active-color: var(--color-primary);
