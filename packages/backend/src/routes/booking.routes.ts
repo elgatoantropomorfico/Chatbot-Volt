@@ -31,6 +31,7 @@ const settingsUpdateSchema = z.object({
   messagesJson: z.record(z.any()).optional(),
   allowCustomSlots: z.boolean().optional(),
   allowCustomServices: z.boolean().optional(),
+  cancelEnabled: z.boolean().optional(),
 });
 
 const serviceSchema = z.object({

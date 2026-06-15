@@ -32,10 +32,6 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles }[] = [
 const MESSAGE_LABELS: Record<string, string> = {
   welcome: 'Bienvenida (menú principal)',
   welcome_resume: 'Retomar flujo (volver sin repetir bienvenida)',
-  cancel_select: 'Cancelación — elegir turno',
-  cancel_warning: 'Cancelación — confirmación final',
-  cancel_done: 'Cancelación — turno cancelado',
-  cancel_none: 'Cancelación — sin turnos activos',
   payment_summary: 'Resumen de pago',
   payment_pending: 'Link de pago enviado',
   confirmation: 'Confirmación post-pago',
@@ -857,6 +853,18 @@ export default function TurneraConfigPage() {
                 style={{ accentColor: '#8b5cf6', width: 18, height: 18 }} />
             </div>
 
+            <div className={styles.toggleRow}>
+              <div>
+                <div className={styles.toggleLabel}>Cancelación por WhatsApp</div>
+                <div className={styles.toggleHint}>
+                  Si está desactivada, el cliente se deriva al contacto humano configurado en Bot/IA
+                </div>
+              </div>
+              <input type="checkbox" checked={settings.cancelEnabled !== false}
+                onChange={(e) => saveSettings({ cancelEnabled: e.target.checked })}
+                style={{ accentColor: '#8b5cf6', width: 18, height: 18 }} />
+            </div>
+
             <div className={styles.formGroup}>
               <label>Política de cancelación (texto corto)</label>
               <textarea className={styles.formTextarea} rows={2} value={policyText}
@@ -919,8 +927,8 @@ export default function TurneraConfigPage() {
           <>
             <h2 className={styles.sectionTitle}>Mensajes del bot</h2>
             <p className={styles.sectionHint}>
-              Plantillas del flujo de turnera. Variables: {'{{service}}'}, {'{{slot}}'}, {'{{price}}'}, {'{{deposit}}'}, {'{{duration}}'}, {'{{policy}}'}.
-              La bienvenida principal se usa solo en el menú madre; &quot;Retomar flujo&quot; se usa con *volver* sin repetir la bienvenida.
+              Plantillas del flujo de turnera. Variables: {'{{service}}'}, {'{{slot}}'}, {'{{price}}'}, {'{{deposit}}'}, {'{{duration}}'}.
+              La bienvenida principal se usa solo en el menú madre; &quot;Retomar flujo&quot; se usa con *volver*.
             </p>
             {Object.keys(MESSAGE_LABELS).map((key) => (
               <div key={key} className={styles.formGroup}>

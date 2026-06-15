@@ -8,7 +8,20 @@ import { BookingPricingService } from './booking-pricing.service';
 import { MercadoPagoService } from './mercadopago.service';
 import { BookingAiService } from './booking-ai.service';
 import { BookingExpiryService } from './booking-notification.service';
+import { HandoffService } from './handoff.service';
 import crypto from 'crypto';
+
+/** Mensajes internos del flujo de cancelación (no editables en turnera) */
+const CANCEL_MSG = {
+  select: 'Estos son tus turnos activos. Elegí cuál querés cancelar:',
+  none: 'No encontré turnos activos para cancelar. Si querés reservar uno nuevo, escribí *menu*.',
+  unavailable: 'Ese turno ya no está disponible para cancelar.',
+  disabled: 'Por el momento no podemos cancelar turnos automáticamente por acá.',
+  done: (service: string, slot: string) =>
+    `Listo, cancelamos tu turno:\n\n${service} — ${slot}\n\nSi querés reservar otro horario, escribí *menu*.`,
+  warning: (service: string, slot: string, policy: string) =>
+    `¿Confirmás la cancelación de este turno?\n\n${service} — ${slot}\n\n⚠️ Esta acción no tiene vuelta atrás.\n${policy}`,
+};
 
 export interface FlowInteractive {
   type: 'button' | 'list';
@@ -226,6 +239,9 @@ export class BookingFlowService {
     }
 
     if (looksLikeCancelIntent(input)) {
+      if (!settings.cancelEnabled) {
+        return this.replyCancelDisabled(tenantId);
+      }
       return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
     }
 
@@ -444,7 +460,7 @@ export class BookingFlowService {
     if (appointments.length === 0) {
       return {
         handled: true,
-        text: msg(settings, 'cancel_none', 'No encontré turnos activos para cancelar. Si querés reservar uno nuevo, escribí *menu*.'),
+        text: CANCEL_MSG.none,
       };
     }
 
@@ -479,9 +495,7 @@ export class BookingFlowService {
     };
     await this.saveFlow(conversationId, nextFlow);
 
-    const intro = msg(settings, 'cancel_select',
-      'Estos son tus turnos activos. Elegí cuál querés cancelar:');
-    return flowReply(intro, options.map((o) => o.listTitle));
+    return flowReply(CANCEL_MSG.select, options.map((o) => o.listTitle));
   }
 
   private static cancelWarningReply(settings: any, apt: { appointmentDate: Date; appointmentTime: string; service: { name: string } }): FlowHandleResult {
@@ -489,18 +503,7 @@ export class BookingFlowService {
       || 'La seña abonada no es reembolsable.';
     const timezone = settings.timezone || 'America/Argentina/Cordoba';
     const slot = this.formatAppointmentSlot(apt, timezone);
-
-    const template = msg(settings, 'cancel_warning', `¿Confirmás la cancelación de este turno?
-
-{{service}} — {{slot}}
-
-⚠️ Esta acción no tiene vuelta atrás.
-{{policy}}`);
-
-    const body = template
-      .replace(/\{\{service\}\}/g, apt.service.name)
-      .replace(/\{\{slot\}\}/g, slot)
-      .replace(/\{\{policy\}\}/g, policy);
+    const body = CANCEL_MSG.warning(apt.service.name, slot, policy);
 
     return flowReply(body, ['Sí, cancelar', 'No, volver']);
   }
@@ -523,8 +526,7 @@ export class BookingFlowService {
         return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
       }
       return this.offFlowThen(tenantId, rawText, settings, flow, async () => {
-        const intro = msg(settings, 'cancel_select', 'Elegí el turno que querés cancelar:');
-        return flowReply(intro, options.map((o) => o.listTitle));
+        return flowReply(CANCEL_MSG.select, options.map((o) => o.listTitle));
       }, options.length);
     }
 
@@ -592,7 +594,7 @@ export class BookingFlowService {
       await this.saveFlow(conversationId, { state: 'booking_start' });
       return {
         handled: true,
-        text: msg(settings, 'cancel_none', 'Ese turno ya no está disponible para cancelar.'),
+        text: CANCEL_MSG.unavailable,
       };
     }
 
@@ -605,11 +607,7 @@ export class BookingFlowService {
 
     const timezone = settings.timezone || 'America/Argentina/Cordoba';
     const slot = this.formatAppointmentSlot(apt, timezone);
-    const doneTemplate = msg(settings, 'cancel_done',
-      'Listo, cancelamos tu turno:\n\n{{service}} — {{slot}}\n\nSi querés reservar otro horario, escribí *menu*.');
-    const text = doneTemplate
-      .replace(/\{\{service\}\}/g, apt.service.name)
-      .replace(/\{\{slot\}\}/g, slot);
+    const text = CANCEL_MSG.done(apt.service.name, slot);
 
     return { handled: true, text };
   }
@@ -625,6 +623,9 @@ export class BookingFlowService {
     rawText: string,
   ): Promise<FlowHandleResult> {
     if (looksLikeCancelIntent(input)) {
+      if (!settings.cancelEnabled) {
+        return this.replyCancelDisabled(tenantId);
+      }
       return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
     }
     return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
@@ -632,6 +633,22 @@ export class BookingFlowService {
       text: msg(settings, 'payment_pending',
         'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación.'),
     }));
+  }
+
+  private static async replyCancelDisabled(tenantId: string): Promise<FlowHandleResult> {
+    const bot = await prisma.botSettings.findUnique({ where: { tenantId } });
+    const digits = bot?.handoffPhoneE164?.replace(/\D/g, '');
+    if (!digits) {
+      return {
+        handled: true,
+        text: `${CANCEL_MSG.disabled}\n\nEscribí *humano* para que alguien del equipo te ayude.`,
+      };
+    }
+    const waLink = HandoffService.buildWaMeLink(digits, 'Hola, necesito cancelar un turno');
+    return {
+      handled: true,
+      text: `${CANCEL_MSG.disabled}\n\nPara gestionar tu cancelación, escribile al equipo por WhatsApp:\n${waLink}`,
+    };
   }
 
   private static async getDisplaySlots(tenantId: string, flow: BookingFlowContext) {
