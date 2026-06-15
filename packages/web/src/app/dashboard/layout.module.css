@@ -28,7 +28,7 @@
   height: 520px;
   top: -180px;
   left: 12%;
-  background: radial-gradient(circle, rgba(124, 58, 237, 0.14) 0%, transparent 68%);
+  background: var(--ambient-orb-1);
 }
 
 .ambientOrb2 {
@@ -36,7 +36,7 @@
   height: 420px;
   bottom: -120px;
   right: 8%;
-  background: radial-gradient(circle, rgba(212, 141, 232, 0.09) 0%, transparent 70%);
+  background: var(--ambient-orb-2);
 }
 
 .ambientOrb3 {
@@ -44,7 +44,7 @@
   height: 280px;
   top: 42%;
   right: 28%;
-  background: radial-gradient(circle, rgba(94, 234, 212, 0.04) 0%, transparent 72%);
+  background: var(--ambient-orb-3);
 }
 
 .sidebar {

@@ -140,6 +140,9 @@
   --chart-tick: rgba(34, 211, 238, 0.35);
   --main-ambient-1: radial-gradient(ellipse 70% 45% at 8% -8%, rgba(124, 58, 237, 0.06), transparent 55%);
   --main-ambient-2: radial-gradient(ellipse 50% 35% at 95% 105%, rgba(212, 141, 232, 0.04), transparent 50%);
+  --ambient-orb-1: radial-gradient(circle, rgba(124, 58, 237, 0.14) 0%, transparent 68%);
+  --ambient-orb-2: radial-gradient(circle, rgba(212, 141, 232, 0.09) 0%, transparent 70%);
+  --ambient-orb-3: radial-gradient(circle, rgba(94, 234, 212, 0.04) 0%, transparent 72%);
   --noise-opacity: 0.35;
   --selection-bg: rgba(155, 123, 247, 0.28);
   --selection-color: #fff;
@@ -233,25 +236,29 @@
   --glass-shine-start: rgba(255, 255, 255, 0.95);
   --glass-shine-mid: rgba(255, 255, 255, 0.4);
 
-  --hero-bg-color: #ffffff;
+  --hero-bg-color: #fbfbfc;
   --hero-bg-image:
-    radial-gradient(ellipse 58% 52% at 84% 28%, rgba(167, 139, 250, 0.22), transparent 62%),
-    radial-gradient(ellipse 38% 38% at 10% 82%, rgba(34, 211, 238, 0.1), transparent 55%),
-    radial-gradient(ellipse 45% 40% at 72% 68%, rgba(232, 121, 249, 0.08), transparent 58%),
-    linear-gradient(165deg, #ffffff 0%, #faf8ff 42%, #f3f0fa 100%);
-  --hero-border: rgba(124, 58, 237, 0.1);
-  --hero-eyebrow: rgba(74, 69, 96, 0.75);
-  --hero-sub: rgba(74, 69, 96, 0.65);
-  --hero-title-em: linear-gradient(135deg, #5b21b6, #a78bfa);
-  --hero-alerts-bg: rgba(255, 255, 255, 0.72);
-  --hero-alerts-border: rgba(0, 0, 0, 0.08);
-  --hero-alerts-title: rgba(74, 69, 96, 0.85);
-  --hero-alerts-sub: rgba(111, 106, 130, 0.75);
+    radial-gradient(ellipse 100% 82% at 96% -8%, rgba(167, 139, 250, 0.1), transparent 56%),
+    radial-gradient(ellipse 72% 58% at -4% 102%, rgba(191, 219, 254, 0.09), transparent 52%),
+    radial-gradient(ellipse 48% 40% at 66% 48%, rgba(237, 233, 254, 0.28), transparent 70%),
+    radial-gradient(ellipse 32% 28% at 22% 18%, rgba(255, 255, 255, 0.92), transparent 68%),
+    linear-gradient(158deg, #ffffff 0%, #fcfcff 30%, #f7f5fb 62%, #f2f0f7 100%);
+  --hero-border: rgba(124, 58, 237, 0.07);
+  --hero-eyebrow: rgba(76, 29, 149, 0.55);
+  --hero-sub: rgba(74, 69, 96, 0.62);
+  --hero-title-em: linear-gradient(135deg, #4c1d95 0%, #6d28d9 48%, #a78bfa 100%);
+  --hero-alerts-bg: rgba(255, 255, 255, 0.8);
+  --hero-alerts-border: rgba(124, 58, 237, 0.06);
+  --hero-alerts-title: rgba(49, 46, 68, 0.88);
+  --hero-alerts-sub: rgba(100, 96, 120, 0.72);
   --chart-grid: rgba(0, 0, 0, 0.06);
   --chart-label: rgba(74, 69, 96, 0.45);
   --chart-tick: rgba(8, 145, 178, 0.45);
-  --main-ambient-1: radial-gradient(ellipse 70% 45% at 8% -8%, rgba(124, 58, 237, 0.04), transparent 55%);
-  --main-ambient-2: radial-gradient(ellipse 50% 35% at 95% 105%, rgba(212, 141, 232, 0.03), transparent 50%);
+  --main-ambient-1: radial-gradient(ellipse 72% 48% at 6% -6%, rgba(139, 92, 246, 0.035), transparent 58%);
+  --main-ambient-2: radial-gradient(ellipse 54% 38% at 96% 102%, rgba(196, 181, 253, 0.04), transparent 52%);
+  --ambient-orb-1: radial-gradient(circle, rgba(139, 92, 246, 0.055) 0%, transparent 68%);
+  --ambient-orb-2: radial-gradient(circle, rgba(196, 181, 253, 0.045) 0%, transparent 70%);
+  --ambient-orb-3: radial-gradient(circle, rgba(191, 219, 254, 0.05) 0%, transparent 72%);
   --noise-opacity: 0.12;
   --selection-bg: rgba(124, 58, 237, 0.18);
   --selection-color: #12101a;

@@ -2,14 +2,13 @@ import type { Metadata } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
+import { themeInitScript } from '@/lib/theme';
 
 export const metadata: Metadata = {
   title: 'Volt — Automatización, IA e integraciones para tu empresa',
   description:
     'Asistentes inteligentes, integraciones con WhatsApp e Instagram, automatización de turnos y desarrollo de software a medida.',
 };
-
-const themeInitScript = `(function(){try{var t=localStorage.getItem('volt_theme');if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t);}catch(e){}})();`;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,11 +20,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
       </head>
       <body>
-        <ThemeProvider>
-          <AuthProvider>
+        <AuthProvider>
+          <ThemeProvider>
             {children}
-          </AuthProvider>
-        </ThemeProvider>
+          </ThemeProvider>
+        </AuthProvider>
       </body>
     </html>
   );
