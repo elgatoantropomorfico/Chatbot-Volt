@@ -203,8 +203,8 @@ export default function IntegrationsPage() {
     marginBottom: '6px', fontWeight: 600, letterSpacing: '0.01em',
   };
   const sectionStyle: React.CSSProperties = {
-    background: 'rgba(10, 10, 20, 0.72)',
-    border: '1px solid rgba(255, 255, 255, 0.07)',
+    background: 'var(--elevated-surface)',
+    border: '1px solid var(--elevated-border)',
     borderRadius: '18px',
     padding: '20px 22px',
     marginBottom: '16px',
@@ -220,7 +220,7 @@ export default function IntegrationsPage() {
   };
   const toggleWrapStyle: React.CSSProperties = {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-    padding: '14px 0', borderBottom: '1px solid rgba(139, 92, 246, 0.06)',
+    padding: '14px 0', borderBottom: '1px solid var(--divider)',
   };
 
   function renderMpConfigForm() {

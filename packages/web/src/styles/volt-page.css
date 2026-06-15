@@ -233,7 +233,7 @@
   padding: 9px 16px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-subtle);
   color: var(--color-text-secondary);
   font-size: 12.5px;
   font-weight: 600;
@@ -253,9 +253,9 @@
   padding: 4px 10px;
   font-size: 11px;
   font-weight: 600;
-  background: rgba(139, 92, 246, 0.08);
-  color: #a78bfa;
-  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: var(--color-primary-light);
+  color: var(--tab-active-color);
+  border: 1px solid var(--color-border-accent);
   border-radius: var(--radius-full);
   cursor: pointer;
   transition: all var(--transition-fast);
@@ -263,7 +263,7 @@
 }
 
 .volt-btn-ai:hover:not(:disabled) {
-  background: rgba(139, 92, 246, 0.15);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 
 .volt-btn-ai:disabled {
@@ -335,8 +335,8 @@
   gap: 14px;
   padding: 16px 18px;
   border-radius: 18px;
-  border: 1px solid var(--color-border);
-  background: rgba(10, 10, 20, 0.65);
+  border: 1px solid var(--elevated-border);
+  background: var(--elevated-surface);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   cursor: pointer;
@@ -344,8 +344,8 @@
 }
 
 .volt-integration-card:hover {
-  border-color: rgba(155, 123, 247, 0.25);
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35), 0 0 20px rgba(155, 123, 247, 0.08);
+  border-color: var(--color-border-glow);
+  box-shadow: var(--shadow-card-hover);
   transform: translateY(-1px);
 }
 
@@ -364,7 +364,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 12px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--divider);
 }
 
 .volt-toggle-row:last-child {
@@ -390,7 +390,7 @@
 }
 
 .volt-status-inactive {
-  background: rgba(110, 100, 148, 0.12);
+  background: var(--fill-muted);
   color: var(--color-text-muted);
   border: 1px solid var(--color-border);
 }
@@ -447,7 +447,7 @@
 }
 
 .volt-bot-nav-item:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-subtle);
   color: var(--color-text);
 }
 

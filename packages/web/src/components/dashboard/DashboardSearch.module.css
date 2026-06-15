@@ -71,7 +71,7 @@
   right: 0;
   z-index: 200;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--border-ui);
   background: var(--menu-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
@@ -109,14 +109,14 @@
 
 .resultItem:hover,
 .resultItemActive {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--row-hover);
 }
 
 .resultIcon {
   width: 32px;
   height: 32px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-muted);
   color: var(--color-text-secondary);
   display: flex;
   align-items: center;
@@ -163,7 +163,7 @@
   font-weight: 600;
   padding: 2px 6px;
   border-radius: var(--radius-full);
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--fill-muted);
   color: var(--color-text-muted);
   text-transform: capitalize;
   flex-shrink: 0;

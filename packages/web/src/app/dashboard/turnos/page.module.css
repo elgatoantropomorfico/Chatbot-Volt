@@ -113,14 +113,14 @@
 
 .viewTab:hover {
   color: var(--color-text);
-  background: rgba(139, 92, 246, 0.06);
+  background: var(--row-hover);
 }
 
 .viewTabActive {
-  background: linear-gradient(135deg, rgba(124, 58, 237, 0.2), rgba(139, 92, 246, 0.12));
-  color: #a78bfa;
+  background: var(--tab-active-bg);
+  color: var(--tab-active-color);
   font-weight: 600;
-  box-shadow: 0 1px 4px rgba(139, 92, 246, 0.15);
+  box-shadow: var(--shadow-xs);
 }
 
 .filterSelect {
@@ -539,7 +539,7 @@
   letter-spacing: 0.06em;
   color: var(--color-text-muted);
   text-align: left;
-  background: rgba(139, 92, 246, 0.04);
+  background: var(--fill-subtle);
   border-bottom: 1px solid var(--color-border);
 }
 
@@ -557,7 +557,7 @@
 }
 
 .table tbody tr:hover {
-  background: rgba(139, 92, 246, 0.04);
+  background: var(--fill-subtle);
 }
 
 .table tbody tr:last-child td {
@@ -648,7 +648,7 @@
 .detailBackdrop {
   position: fixed;
   inset: 0;
-  background: rgba(3, 3, 8, 0.68);
+  background: var(--backdrop-scrim);
   backdrop-filter: blur(12px) saturate(1.2);
   -webkit-backdrop-filter: blur(12px) saturate(1.2);
   z-index: 998;
@@ -915,9 +915,9 @@
 .dateFilterField input {
   height: 42px;
   padding: 0 12px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  border: 1px solid var(--input-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--input-bg);
   color: var(--color-text);
   font-size: 14px;
   outline: none;
@@ -926,7 +926,7 @@
 }
 
 .dateFilterField input:focus {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--input-border-focus);
 }
 
 .presetRow {
@@ -950,7 +950,7 @@
 
 .presetBtn:hover {
   color: var(--color-text-secondary);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fill-hover);
 }
 
 .listResultCount {
@@ -963,14 +963,15 @@
 .listView {
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 18px;
 }
 
 .listGroup {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: var(--elevated-surface);
+  border: 1px solid var(--elevated-border);
   border-radius: 14px;
   overflow: hidden;
+  box-shadow: var(--shadow-xs);
 }
 
 .listGroupHeader {
@@ -979,8 +980,8 @@
   align-items: center;
   gap: 10px;
   padding: 10px 14px;
-  background: rgba(255, 255, 255, 0.02);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: var(--fill-muted);
+  border-bottom: 1px solid var(--divider);
 }
 
 .listGroupTitle {
@@ -1005,7 +1006,7 @@
 .listRow {
   display: flex;
   align-items: stretch;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid var(--divider);
 }
 
 .listRow:last-child {
@@ -1026,7 +1027,7 @@
 }
 
 .listRowMain:hover {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--fill-muted);
 }
 
 .listRowTime {

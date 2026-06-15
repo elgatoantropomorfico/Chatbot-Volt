@@ -818,7 +818,7 @@ function LeadRequestsPanel({ lead, fieldConfigs, onChange, onPhotoClick }: LeadR
           style={{
             display: 'flex', alignItems: 'center', gap: 4, fontSize: '10px', fontWeight: 500,
             padding: '4px 8px', borderRadius: 'var(--radius-sm)',
-            background: 'rgba(139,92,246,0.1)', border: '1px solid rgba(139,92,246,0.3)',
+            background: 'var(--color-primary-light)', border: '1px solid var(--color-border-accent)',
             color: 'var(--color-text)', cursor: 'pointer',
           }}
         >
@@ -893,7 +893,7 @@ function RequestCard({ request, indexFromEnd, textFields, photoFields, onSaveDat
   return (
     <div style={{
       padding: '10px', marginBottom: '8px', borderRadius: 'var(--radius-sm)',
-      border: '1px solid var(--color-border)', background: 'rgba(255,255,255,0.02)',
+      border: '1px solid var(--color-border)', background: 'var(--fill-subtle)',
     }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginBottom: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flex: 1, minWidth: 0 }}>

@@ -216,7 +216,7 @@ export default function BotSettingsPage() {
         title="Generar con IA"
         className="volt-btn-ai"
         style={{
-          background: isGenerating ? 'rgba(139, 92, 246, 0.15)' : undefined,
+          background: isGenerating ? 'var(--color-primary-light)' : undefined,
           opacity: generatingField && !isGenerating ? 0.4 : 1,
         }}
       >
@@ -682,7 +682,7 @@ export default function BotSettingsPage() {
           const realIdx = allGuardrails.findIndex(g => g.id === guardrail.id);
           const isCustom = !guardrail.id.startsWith('g_') && guardrail.id !== 'woo_no_prices' && guardrail.id !== 'woo_no_stock' && guardrail.id !== 'woo_catalogue_only';
           return (
-            <label key={guardrail.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: guardrail.enabled ? 'rgba(139, 92, 246, 0.08)' : 'transparent', border: `1px solid ${guardrail.enabled ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
+            <label key={guardrail.id} style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '10px 12px', background: guardrail.enabled ? 'var(--color-primary-light)' : 'transparent', border: `1px solid ${guardrail.enabled ? 'var(--color-primary)' : 'var(--color-border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer' }}>
               <input type="checkbox" checked={guardrail.enabled} onChange={(e) => { const updated = [...allGuardrails]; updated[realIdx] = { ...updated[realIdx], enabled: e.target.checked }; updateField('guardrailsJson', updated); }} style={{ marginTop: '2px', accentColor: 'var(--color-primary)' }} />
               <div style={{ flex: 1 }}>
                 <span style={{ fontSize: '13px', fontWeight: 500 }}>{guardrail.label}</span>
@@ -812,9 +812,9 @@ export default function BotSettingsPage() {
                 onClick={() => setMobileNavOpen(!mobileNavOpen)}
                 style={{
                   display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 16px',
-                  background: 'rgba(255,255,255,0.03)', border: '1px solid var(--color-border)',
+                  background: 'var(--fill-subtle)', border: '1px solid var(--color-border)',
                   borderRadius: mobileNavOpen ? '14px 14px 0 0' : '14px',
-                  color: '#b49dff', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
+                  color: 'var(--color-primary)', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
                   transition: 'all 0.15s',
                 }}
               >
@@ -826,7 +826,7 @@ export default function BotSettingsPage() {
               {mobileNavOpen && (
                 <div style={{
                   position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                  background: 'rgba(10,10,20,0.95)', border: '1px solid var(--color-border)', borderTop: 'none',
+                  background: 'var(--dropdown-bg)', border: '1px solid var(--color-border)', borderTop: 'none',
                   borderRadius: '0 0 14px 14px',
                   boxShadow: 'var(--shadow-lg)',
                   maxHeight: '60vh', overflowY: 'auto',
