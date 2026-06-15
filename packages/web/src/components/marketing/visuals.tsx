@@ -128,7 +128,7 @@ export function ChatMockup({ variant = 'commerce' }: { variant?: 'commerce' | 'l
 export function DashboardMockup() {
   const stats = [
     { label: 'Conversaciones', value: '1.284', color: '#8b5cf6' },
-    { label: 'Leads nuevos', value: '86', color: '#34d399' },
+    { label: 'Clientes nuevos', value: '86', color: '#34d399' },
     { label: 'Tasa respuesta', value: '98%', color: '#67e8f9' },
   ];
 
@@ -389,7 +389,7 @@ export function FeatureCardsRow() {
   const items = [
     { icon: <Bot size={20} />, color: '#8b5cf6', title: 'Bot IA', desc: 'Respuestas 24/7' },
     { icon: <ShoppingCart size={20} />, color: '#e879f9', title: 'Ventas', desc: 'Catálogo + carrito' },
-    { icon: <Users size={20} />, color: '#34d399', title: 'Leads', desc: 'Captura automática' },
+    { icon: <Users size={20} />, color: '#34d399', title: 'Clientes', desc: 'Captura automática' },
     { icon: <Inbox size={20} />, color: '#67e8f9', title: 'Inbox', desc: 'Todo en un panel' },
   ];
   return (

@@ -15,7 +15,7 @@ export type ChartMetric = 'messages' | 'conversations' | 'leads';
 export const CHART_METRIC_META: Record<ChartMetric, { label: string; colors: [string, string] }> = {
   messages: { label: 'Mensajes', colors: ['#22d3ee', '#0891b2'] },
   conversations: { label: 'Chats', colors: ['#e879f9', '#a855f7'] },
-  leads: { label: 'Leads', colors: ['#a78bfa', '#7c3aed'] },
+  leads: { label: 'Clientes', colors: ['#a78bfa', '#7c3aed'] },
 };
 
 interface WeeklyActivityChartProps {

@@ -223,9 +223,9 @@ export default function LeadsPage() {
     <div className={styles.container}>
       <div className={styles.listPanel}>
         <div className={styles.header}>
-          <h1 className="volt-page-compact-title">Leads</h1>
+          <h1 className="volt-page-compact-title">Clientes</h1>
           <span className="volt-page-compact-meta">
-            {search.trim() ? `${filteredLeads.length} de ${total}` : total} leads
+            {search.trim() ? `${filteredLeads.length} de ${total}` : total} clientes
           </span>
         </div>
 
@@ -258,7 +258,7 @@ export default function LeadsPage() {
         ) : filteredLeads.length === 0 ? (
           <div className={styles.emptyState}>
             <Users size={32} />
-            <p>No se encontraron leads</p>
+            <p>No se encontraron clientes</p>
           </div>
         ) : (
           <>
@@ -381,7 +381,7 @@ export default function LeadsPage() {
             return (
               <div className={styles.detailSection}>
                 <h3 style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FileText size={12} /> Datos del lead</span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}><FileText size={12} /> Datos del cliente</span>
                   <span style={{ fontSize: '10px', fontWeight: 500, color: filled === textFields.length ? 'var(--color-success)' : 'var(--color-warning)', textTransform: 'none', letterSpacing: 0 }}>
                     {filled}/{textFields.length} campos
                   </span>
@@ -727,7 +727,7 @@ export default function LeadsPage() {
                 } catch { /* use cached count */ }
 
                 const parts = [
-                  `¿Eliminar lead "${selectedLead.name || selectedLead.phone}"?`,
+                  `¿Eliminar cliente "${selectedLead.name || selectedLead.phone}"?`,
                   '',
                   'Se eliminarán permanentemente:',
                   '• Conversaciones y mensajes',
@@ -743,12 +743,12 @@ export default function LeadsPage() {
                   loadLeads();
                 } catch (err) {
                   console.error('Error deleting lead:', err);
-                  alert('Error al eliminar el lead');
+                  alert('Error al eliminar el cliente');
                 }
               }}
             >
               <Trash2 size={14} />
-              Eliminar lead
+              Eliminar cliente
             </button>
           </div>
         </VoltDrawer>

@@ -35,7 +35,7 @@ const SECTORS = [
     icon: <Users size={24} />,
     color: '#8b5cf6',
     title: 'Equipos comerciales',
-    desc: 'Clasificación de leads, registro automático de oportunidades, seguimiento y métricas de conversión.',
+    desc: 'Clasificación de clientes, registro automático de oportunidades, seguimiento y métricas de conversión.',
   },
 ];
 

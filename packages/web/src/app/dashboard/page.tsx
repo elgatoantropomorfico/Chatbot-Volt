@@ -103,7 +103,7 @@ function TenantDashboard() {
       },
       {
         id: 'leads',
-        name: 'Pipeline de leads',
+        name: 'Pipeline de clientes',
         meta: `${stats.leads.newToday} nuevos hoy · ${stats.leads.total} total`,
         progress: pct(stats.leads.newThisWeek, stats.leads.total || 1),
         color: '#a78bfa',
@@ -421,7 +421,7 @@ function TenantDashboard() {
             </div>
             <div className={styles.chartStat}>
               <div className={styles.chartStatValue}>{chartTotals.leads}</div>
-              <div className={styles.chartStatLabel}>Leads</div>
+              <div className={styles.chartStatLabel}>Clientes</div>
             </div>
             {(stats?.conversations.pendingHuman ?? 0) > 0 && (
               <div className={styles.chartStat}>
@@ -439,7 +439,7 @@ function TenantDashboard() {
               <p className={styles.panelSub}>
                 {[
                   'Inbox',
-                  'Leads',
+                  'Clientes',
                   stats?.modules?.booking ? 'Turnera' : null,
                   stats?.modules?.sales ? 'Ventas' : null,
                 ].filter(Boolean).join(' · ')}
@@ -505,7 +505,7 @@ function TenantDashboard() {
 
         <div className={styles.kpiCard}>
           <div className={styles.kpiHead}>
-            <span className={styles.kpiLabel}>Leads</span>
+            <span className={styles.kpiLabel}>Clientes</span>
             <span className={`${styles.kpiDelta} ${leadDelta < 0 ? styles.kpiDeltaNeg : ''}`}>
               {leadDelta >= 0 ? '+' : ''}{leadDelta}%
             </span>

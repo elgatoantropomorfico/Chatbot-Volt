@@ -19,7 +19,7 @@ export interface SearchResult {
 
 const TYPE_META: Record<SearchResult['type'], { label: string; icon: React.ReactNode }> = {
   conversation: { label: 'Conversación', icon: <MessageSquare size={14} /> },
-  lead: { label: 'Lead', icon: <Users size={14} /> },
+  lead: { label: 'Cliente', icon: <Users size={14} /> },
   appointment: { label: 'Turno', icon: <Calendar size={14} /> },
   sale: { label: 'Venta', icon: <ShoppingCart size={14} /> },
 };
@@ -39,7 +39,7 @@ export function DashboardSearch({ modules }: DashboardSearchProps) {
   const debounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const placeholder = [
-    'Buscar conversaciones, leads',
+    'Buscar conversaciones, clientes',
     modules?.booking ? 'turnos' : null,
     modules?.sales ? 'ventas' : null,
   ].filter(Boolean).join(', ') + '...';

@@ -31,7 +31,7 @@ export default function ChatbotInteligentePage() {
         'Atención inmediata las 24 horas.',
         'Reducción de tiempos operativos.',
         'Mayor conversión de consultas en ventas.',
-        'Captura y clasificación automática de leads.',
+        'Captura y clasificación automática de clientes.',
         'Respuestas consistentes y alineadas a tu negocio.',
         'Escalamiento inteligente hacia equipos humanos.',
         'Reportes y métricas en tiempo real.',
@@ -39,7 +39,7 @@ export default function ChatbotInteligentePage() {
       casosUso={[
         'Atención comercial.',
         'Soporte al cliente.',
-        'Generación de leads.',
+        'Generación de clientes.',
         'Gestión de consultas frecuentes.',
         'Seguimiento de prospectos.',
         'Derivación automática según área o interés.',

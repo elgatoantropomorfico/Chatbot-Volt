@@ -342,7 +342,7 @@ export default function ZohoFieldsPage() {
                 <input className={styles.formInput} value={form.label} onChange={(e) => setForm(f => ({ ...f, label: e.target.value }))} placeholder="Ej: Programa" />
               </div>
               <div className={styles.formGroup}>
-                <label>Clave local (Lead)</label>
+                <label>Clave local (Cliente)</label>
                 <input className={styles.formInput} value={form.localKey} onChange={(e) => setForm(f => ({ ...f, localKey: e.target.value }))} placeholder="Ej: offerInterest" disabled={!!editingField} />
               </div>
             </div>

@@ -144,7 +144,7 @@ export function TenantCard({ tenant, onOpen }: Props) {
       <div style={{ display: 'flex', gap: '16px', fontSize: '12px', color: 'var(--color-text-muted)' }}>
         <span><strong>{tenant._count?.users || 0}</strong> usuarios</span>
         <span><strong>{channelCount}</strong> canales</span>
-        <span><strong>{tenant._count?.leads || 0}</strong> leads</span>
+        <span><strong>{tenant._count?.leads || 0}</strong> clientes</span>
       </div>
     </div>
   );

@@ -320,7 +320,7 @@ export default function IntegrationsPage() {
           <div style={{ marginTop: '12px', padding: '12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}>
             <div style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '4px' }}>
               El mapeo de campos y valores fijos se configuran automaticamente.
-              Los campos de lead (nombre, email, DNI, oferta, modalidad, periodo) se extraen de la conversacion por IA.
+              Los campos del cliente (nombre, email, DNI, oferta, modalidad, periodo) se extraen de la conversacion por IA.
             </div>
           </div>
         </div>
@@ -656,7 +656,7 @@ export default function IntegrationsPage() {
                     <Cloud size={16} style={{ color: '#f59e0b' }} />
                     <span style={{ fontWeight: 600, fontSize: '14px' }}>Zoho CRM</span>
                   </div>
-                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Captura de leads, sync automatico</div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Captura de clientes, sync automatico</div>
                 </button>
                 <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'pilot_crm' })} style={{ flex: '1 1 45%', minWidth: '140px', padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'pilot_crm' ? '2px solid #3b82f6' : '1px solid var(--color-border)', background: createForm.type === 'pilot_crm' ? 'rgba(59, 130, 246, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
@@ -795,7 +795,7 @@ export default function IntegrationsPage() {
                     <div style={{ display: 'flex', gap: '6px' }}>
                       {i.type === 'zoho_crm' ? (
                         <>
-                          <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Leads</span>
+                          <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Clientes</span>
                           <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(245, 158, 11, 0.1)', color: '#f59e0b' }}>Auto-sync</span>
                         </>
                       ) : i.type === 'mercadopago' ? (

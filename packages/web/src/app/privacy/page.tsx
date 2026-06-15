@@ -65,7 +65,7 @@ export default function PrivacyPage() {
             <p>Los datos recopilados se utilizan exclusivamente para:</p>
             <ul>
               <li>Proveer el servicio de chatbot automatizado por WhatsApp.</li>
-              <li>Gestionar conversaciones, leads y ventas dentro de la plataforma.</li>
+              <li>Gestionar conversaciones, clientes y ventas dentro de la plataforma.</li>
               <li>Mejorar la calidad del servicio y la experiencia del usuario.</li>
               <li>Enviar comunicaciones relacionadas con el servicio (nunca spam).</li>
             </ul>

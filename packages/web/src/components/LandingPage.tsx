@@ -100,7 +100,7 @@ function PlatformPreview() {
         <SectionHeader
           badge="Plataforma"
           title="Todo tu negocio en un solo panel"
-          subtitle="Conversaciones, leads, métricas y configuración del bot en una interfaz pensada para equipos comerciales y de atención."
+          subtitle="Conversaciones, clientes, métricas y configuración del bot en una interfaz pensada para equipos comerciales y de atención."
         />
         <div style={{ marginTop: 48 }}>
           <DashboardMockup />

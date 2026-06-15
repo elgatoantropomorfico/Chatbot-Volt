@@ -423,7 +423,7 @@ export default function BotSettingsPage() {
         return (
           <div>
             <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Vista previa del flujo</h3>
-            <p style={{ ...hintStyle, marginBottom: '20px' }}>Pasos que sigue el bot al capturar leads y secciones activas del prompt.</p>
+            <p style={{ ...hintStyle, marginBottom: '20px' }}>Pasos que sigue el bot al capturar clientes y secciones activas del prompt.</p>
             {!flowPreview ? (
               <p style={{ color: 'var(--color-text-muted)' }}>Cargando vista previa...</p>
             ) : (

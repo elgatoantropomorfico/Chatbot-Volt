@@ -36,7 +36,7 @@ const superAdminItems = [
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['tenant_admin', 'agent'] },
   { href: '/dashboard/inbox', label: 'Inbox', icon: MessageSquare, roles: ['tenant_admin', 'agent'] },
-  { href: '/dashboard/leads', label: 'Leads', icon: Users, roles: ['tenant_admin', 'agent'] },
+  { href: '/dashboard/leads', label: 'Clientes', icon: Users, roles: ['tenant_admin', 'agent'] },
 ];
 
 const adminItems = [
@@ -107,6 +107,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }[user.role];
 
   const isInbox = pathname === '/dashboard/inbox';
+  const isTurnera = pathname === '/dashboard/turnera';
+  const isFixedPanel = isInbox || isTurnera;
 
   return (
     <div className={styles.wrapper}>
@@ -139,6 +141,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               size={36}
               glow
               iaSuffix={false}
+              suffix=" - Agente IA"
+              className="volt-brand--panel"
               subtitle={isSuperAdmin ? 'Super Admin' : getTenantDisplayName(user.tenant) || 'Panel'}
             />
           </div>
@@ -271,8 +275,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`${styles.main} dashboard-main${isInbox ? ` ${styles.mainInbox}` : ''}`}>
-        <div className={`${styles.contentArea}${isInbox ? ` ${styles.contentAreaInbox}` : ''}`}>
+      <main className={`${styles.main} dashboard-main${isFixedPanel ? ` ${styles.mainFixedPanel}` : ''}${isInbox ? ` ${styles.mainInbox}` : ''}`}>
+        <div className={`${styles.contentArea}${isInbox ? ` ${styles.contentAreaInbox}` : ''}${isTurnera ? ` ${styles.contentAreaTurnera}` : ''}`}>
           {children}
         </div>
       </main>

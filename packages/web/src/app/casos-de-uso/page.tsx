@@ -12,7 +12,7 @@ const USE_CASE_GROUPS = [
     href: '/chatbot-inteligente',
     items: [
       'Atención comercial y soporte al cliente',
-      'Generación y calificación de leads',
+      'Generación y calificación de clientes',
       'Consultas frecuentes y seguimiento de prospectos',
       'Derivación automática por área o interés',
       'Información sobre productos, servicios y precios',

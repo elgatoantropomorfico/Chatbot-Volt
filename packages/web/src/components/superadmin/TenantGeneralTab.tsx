@@ -47,7 +47,7 @@ export function TenantGeneralTab({ tenant, onRefresh, onDeleted, onFeedback }: P
           'Se borrará permanentemente:\n' +
           `• ${counts.users ?? 0} usuario(s)\n` +
           `• ${tenant.channels?.length ?? counts.channels ?? 0} canal(es) de WhatsApp\n` +
-          `• ${counts.leads ?? 0} lead(s) y sus fotos\n` +
+          `• ${counts.leads ?? 0} cliente(s) y sus fotos\n` +
           `• ${counts.conversations ?? 0} conversación(es)\n` +
           '• Integraciones, configuración del bot, campos y ofertas\n\n' +
           'Esta acción no se puede deshacer.',
@@ -91,7 +91,7 @@ export function TenantGeneralTab({ tenant, onRefresh, onDeleted, onFeedback }: P
         display: 'flex', gap: '10px', fontSize: '12px', color: 'var(--color-text-muted)',
         padding: '12px', background: 'var(--color-bg-secondary)', borderRadius: 'var(--radius-sm)',
       }}>
-        <div><strong>Leads:</strong> {tenant._count?.leads || 0}</div>
+        <div><strong>Clientes:</strong> {tenant._count?.leads || 0}</div>
         <div>·</div>
         <div><strong>Conversaciones:</strong> {tenant._count?.conversations || 0}</div>
         <div>·</div>
@@ -111,7 +111,7 @@ export function TenantGeneralTab({ tenant, onRefresh, onDeleted, onFeedback }: P
       }}>
         <div style={{ fontSize: '13px', fontWeight: 600, color: '#fb7185', marginBottom: '6px' }}>Zona peligrosa</div>
         <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginBottom: '12px', lineHeight: 1.5 }}>
-          Elimina el tenant completo con todos sus usuarios, canales, leads, conversaciones y configuraciones.
+          Elimina el tenant completo con todos sus usuarios, canales, clientes, conversaciones y configuraciones.
         </p>
         <button type="button" onClick={handleDeleteTenant} disabled={deleting} style={dangerBtnStyle}>
           <Trash2 size={14} /> {deleting ? 'Eliminando...' : 'Eliminar tenant'}

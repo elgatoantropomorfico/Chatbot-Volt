@@ -320,3 +320,34 @@
   letter-spacing: 0.12em;
   font-weight: 500;
 }
+
+/* Panel sidebar — deeper violet than logo glow */
+.volt-brand--panel .volt-brand-text {
+  font-size: 17px;
+  font-weight: 800;
+  letter-spacing: -0.025em;
+}
+
+.volt-brand--panel .volt-brand-volt {
+  background: linear-gradient(135deg, #c4b5fd 0%, #a78bfa 48%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+}
+
+.volt-brand--panel .volt-brand-ia {
+  font-weight: 700;
+  color: #9b7bf7;
+}
+
+[data-theme='light'] .volt-brand--panel .volt-brand-volt {
+  background: linear-gradient(135deg, #4c1d95 0%, #5b21b6 42%, #6d28d9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+[data-theme='light'] .volt-brand--panel .volt-brand-ia {
+  color: #553c9a;
+}
