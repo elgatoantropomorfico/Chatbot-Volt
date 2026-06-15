@@ -2,12 +2,14 @@
 
 import { useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
+import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { getTenantDisplayName } from '@/lib/tenant';
-import { Pencil } from 'lucide-react';
+import { Moon, Pencil, Sun } from 'lucide-react';
 
 export default function SettingsPage() {
   const { user, isSuperAdmin, isTenantAdmin, refreshUser } = useAuth();
+  const { theme, setTheme } = useTheme();
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingBusiness, setEditingBusiness] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', password: '', confirmPassword: '' });
@@ -234,6 +236,34 @@ export default function SettingsPage() {
               </button>
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="volt-panel volt-panel-accent-violet">
+        <div className="volt-panel-body volt-config-page">
+          <h3 className="volt-panel-title">Apariencia</h3>
+          <p className="volt-panel-desc" style={{ marginBottom: 14 }}>
+            Elegí cómo se ve el panel. El modo claro mantiene la misma línea visual con fondos claros.
+          </p>
+          <div className="volt-toggle-row">
+            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Tema del panel</span>
+            <div className="volt-theme-switch" role="group" aria-label="Tema del panel">
+              <button
+                type="button"
+                className={`volt-theme-option ${theme === 'dark' ? 'volt-theme-option-active' : ''}`}
+                onClick={() => setTheme('dark')}
+              >
+                <Moon size={14} /> Oscuro
+              </button>
+              <button
+                type="button"
+                className={`volt-theme-option ${theme === 'light' ? 'volt-theme-option-active' : ''}`}
+                onClick={() => setTheme('light')}
+              >
+                <Sun size={14} /> Claro
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 

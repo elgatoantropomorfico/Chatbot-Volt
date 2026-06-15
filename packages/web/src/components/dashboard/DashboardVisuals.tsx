@@ -67,7 +67,7 @@ export function WeeklyActivityChart({ data, activeMetrics, id }: WeeklyActivityC
           x2={w - padX}
           y1={padY + plotH * (1 - pct)}
           y2={padY + plotH * (1 - pct)}
-          stroke="rgba(255,255,255,0.04)"
+          stroke="var(--chart-grid)"
           strokeWidth="1"
         />
       ))}
@@ -87,7 +87,7 @@ export function WeeklyActivityChart({ data, activeMetrics, id }: WeeklyActivityC
               x2={slotCenter + 10}
               y1={baseY - 10}
               y2={baseY - 10}
-              stroke="rgba(34, 211, 238, 0.35)"
+              stroke="var(--chart-tick)"
               strokeWidth="2"
               strokeLinecap="round"
             />
@@ -116,7 +116,7 @@ export function WeeklyActivityChart({ data, activeMetrics, id }: WeeklyActivityC
               x={slotCenter}
               y={h - 4}
               textAnchor="middle"
-              fill="rgba(255,255,255,0.3)"
+              fill="var(--chart-label)"
               fontSize="10"
               fontWeight="600"
             >

@@ -3,7 +3,6 @@
    ═══════════════════════════════════════════════════════════ */
 
 .shell {
-  --dash-panel: rgba(12, 12, 22, 0.78);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -35,8 +34,8 @@
   gap: 6px;
   padding: 7px 12px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-ui);
   font-size: 12px;
   font-weight: 500;
   color: var(--color-text-secondary);
@@ -69,7 +68,7 @@
   z-index: 200;
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
-  background: rgba(8, 8, 18, 0.94);
+  background: var(--dropdown-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   box-shadow: var(--shadow-lg);
@@ -149,8 +148,8 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-ui);
+  background: var(--fill-subtle);
   color: var(--color-text-muted);
   display: flex;
   align-items: center;
@@ -161,9 +160,9 @@
 
 .iconBtn:hover,
 .iconBtnActive {
-  border-color: rgba(255, 255, 255, 0.14);
+  border-color: var(--border-ui-strong);
   color: var(--color-text);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-hover);
 }
 
 .notifDot {
@@ -182,8 +181,8 @@
   gap: 8px;
   padding: 4px 12px 4px 4px;
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-ui);
+  background: var(--fill-subtle);
   max-width: 200px;
 }
 
@@ -238,13 +237,13 @@
   border-radius: 16px;
   min-height: 148px;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--hero-border);
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
   gap: 20px;
   padding: 22px 24px;
-  background-color: #0a0a12;
-  background-image: url('/gradient_card.svg');
+  background-color: var(--hero-bg-color);
+  background-image: var(--hero-bg-image);
   background-size: cover;
   background-position: center right;
   background-repeat: no-repeat;
@@ -264,7 +263,7 @@
   font-weight: 600;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--hero-eyebrow);
   margin-bottom: 8px;
   display: flex;
   align-items: center;
@@ -283,7 +282,7 @@
 
 .heroTitle em {
   font-style: normal;
-  background: linear-gradient(135deg, #f3e8ff, #c4b5fd);
+  background: var(--hero-title-em);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -291,7 +290,7 @@
 
 .heroSub {
   font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--hero-sub);
   margin: 0;
   line-height: 1.5;
 }
@@ -305,10 +304,10 @@
   justify-content: center;
   padding: 14px 16px;
   border-radius: 12px;
-  background: rgba(6, 6, 14, 0.55);
+  background: var(--hero-alerts-bg);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--hero-alerts-border);
 }
 
 .heroAlertsHead {
@@ -324,13 +323,13 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.08em;
-  color: rgba(255, 255, 255, 0.55);
+  color: var(--hero-alerts-title);
   margin: 0 0 2px;
 }
 
 .heroAlertsSub {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--hero-alerts-sub);
   margin: 0;
 }
 
@@ -417,7 +416,7 @@
 
 .glassPanel {
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--elevated-border);
   background: var(--dash-panel);
   backdrop-filter: blur(20px) saturate(1.1);
   -webkit-backdrop-filter: blur(20px) saturate(1.1);
@@ -591,7 +590,7 @@
 .sideCard {
   flex: 1;
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--elevated-border);
   background: var(--dash-panel);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
@@ -660,7 +659,7 @@
 
 .kpiCard {
   border-radius: 14px;
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--elevated-border);
   background: var(--dash-panel);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);

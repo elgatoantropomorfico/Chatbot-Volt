@@ -49,10 +49,10 @@
 
 .sidebar {
   width: var(--sidebar-width);
-  background: rgba(14, 14, 22, 0.62);
+  background: var(--sidebar-bg);
   backdrop-filter: blur(28px) saturate(1.15);
   -webkit-backdrop-filter: blur(28px) saturate(1.15);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--sidebar-border);
   display: flex;
   flex-direction: column;
   position: fixed;
@@ -74,14 +74,14 @@
   left: 12px;
   right: 12px;
   height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.08), transparent);
+  background: linear-gradient(90deg, transparent, var(--sidebar-shine), transparent);
   pointer-events: none;
   z-index: 1;
 }
 
 .sidebarHeader {
   padding: 20px 18px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  border-bottom: 1px solid var(--sidebar-divider);
   position: relative;
   flex-shrink: 0;
   overflow: visible;
@@ -167,7 +167,7 @@
 }
 
 .navItem:hover {
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--fill-hover);
   color: var(--color-text);
 }
 
@@ -176,7 +176,7 @@
 }
 
 .navItemActive {
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--fill-muted);
   color: var(--color-text);
   font-weight: var(--weight-semibold);
 }
@@ -285,8 +285,8 @@
   flex-direction: column;
   box-sizing: border-box;
   background:
-    radial-gradient(ellipse 70% 45% at 8% -8%, rgba(124, 58, 237, 0.06), transparent 55%),
-    radial-gradient(ellipse 50% 35% at 95% 105%, rgba(212, 141, 232, 0.04), transparent 50%),
+    var(--main-ambient-1),
+    var(--main-ambient-2),
     var(--color-bg);
 }
 

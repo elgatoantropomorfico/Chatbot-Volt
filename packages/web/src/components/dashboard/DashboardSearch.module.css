@@ -12,14 +12,14 @@
   height: 42px;
   padding: 0 16px;
   border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--input-border);
+  background: var(--input-bg);
   color: var(--color-text-muted);
   transition: border-color 0.15s ease;
 }
 
 .pill:focus-within {
-  border-color: rgba(255, 255, 255, 0.16);
+  border-color: var(--input-border-focus);
 }
 
 .pill input {
@@ -72,7 +72,7 @@
   z-index: 200;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(12, 12, 20, 0.96);
+  background: var(--menu-bg);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);

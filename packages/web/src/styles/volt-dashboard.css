@@ -120,7 +120,7 @@
 .volt-drawer-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(3, 3, 8, 0.62);
+  background: var(--backdrop-scrim);
   backdrop-filter: blur(10px) saturate(1.15);
   -webkit-backdrop-filter: blur(10px) saturate(1.15);
   z-index: 1000;
@@ -213,7 +213,7 @@
 .volt-modal-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(3, 3, 8, 0.68);
+  background: var(--backdrop-scrim);
   backdrop-filter: blur(14px) saturate(1.2);
   -webkit-backdrop-filter: blur(14px) saturate(1.2);
   animation: voltDrawerFade 0.22s var(--ease-out-expo);
