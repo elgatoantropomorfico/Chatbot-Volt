@@ -10,8 +10,9 @@ import {
 import { useRouter } from 'next/navigation';
 import { SuperAdminPanel } from '@/components/superadmin/SuperAdminPanel';
 import { DashboardSearch } from '@/components/dashboard/DashboardSearch';
+import { ChartMetricDropdown } from '@/components/dashboard/ChartMetricDropdown';
 import {
-  GlowingBarChart, MiniSparkline, useDelta, pct, type TrendDay,
+  WeeklyActivityChart, MiniSparkline, useDelta, pct, type TrendDay, type ChartMetric,
 } from '@/components/dashboard/DashboardVisuals';
 import { getTenantDisplayName } from '@/lib/tenant';
 import styles from './page.module.css';
@@ -46,6 +47,7 @@ function TenantDashboard() {
   const [actions, setActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [chartMetrics, setChartMetrics] = useState<ChartMetric[]>(['messages', 'conversations', 'leads']);
   const notifRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -397,12 +399,13 @@ function TenantDashboard() {
           <div className={styles.panelHeader}>
             <div>
               <h2 className={styles.panelTitle}>Actividad semanal</h2>
-              <p className={styles.panelSub}>Últimos 7 días</p>
+              <p className={styles.panelSub}>Últimos 7 días · {tenantName}</p>
             </div>
+            <ChartMetricDropdown value={chartMetrics} onChange={setChartMetrics} />
           </div>
           <div className={styles.chartArea}>
             {trends.length > 0 ? (
-              <GlowingBarChart data={trends} metric="messages" id="weekly-activity" />
+              <WeeklyActivityChart data={trends} activeMetrics={chartMetrics} id="weekly-activity" />
             ) : (
               <div className={styles.chartEmpty}>Sin datos de tendencia aún</div>
             )}

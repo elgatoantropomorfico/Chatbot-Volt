@@ -10,36 +10,54 @@ export interface TrendDay {
   leads: number;
 }
 
-const BAR_COLORS: [string, string][] = [
-  ['#a78bfa', '#7c3aed'],
-  ['#22d3ee', '#0891b2'],
-];
+export type ChartMetric = 'messages' | 'conversations' | 'leads';
 
-interface GlowingBarChartProps {
+export const CHART_METRIC_META: Record<ChartMetric, { label: string; colors: [string, string] }> = {
+  messages: { label: 'Mensajes', colors: ['#22d3ee', '#0891b2'] },
+  conversations: { label: 'Chats', colors: ['#e879f9', '#a855f7'] },
+  leads: { label: 'Leads', colors: ['#a78bfa', '#7c3aed'] },
+};
+
+interface WeeklyActivityChartProps {
   data: TrendDay[];
-  metric: 'messages' | 'conversations' | 'leads';
+  activeMetrics: ChartMetric[];
   id: string;
 }
 
-export function GlowingBarChart({ data, metric, id }: GlowingBarChartProps) {
-  const values = data.map((d) => d[metric]);
-  const max = Math.max(...values, 1);
-  const w = 520;
-  const h = 180;
-  const padX = 24;
-  const padY = 20;
-  const barGap = 18;
-  const barW = Math.min(12, (w - padX * 2 - barGap * (data.length - 1)) / Math.max(data.length, 1));
+export function WeeklyActivityChart({ data, activeMetrics, id }: WeeklyActivityChartProps) {
+  const metrics = activeMetrics.length > 0 ? activeMetrics : (['messages'] as ChartMetric[]);
+
+  const max = useMemo(() => {
+    const vals = data.flatMap((d) => metrics.map((m) => d[m]));
+    return Math.max(...vals, 1);
+  }, [data, metrics]);
+
+  const w = 560;
+  const h = 188;
+  const padX = 12;
+  const padY = 22;
+  const chartW = w - padX * 2;
+  const slotW = chartW / Math.max(data.length, 1);
+  const barGap = 3;
+  const innerPad = 6;
+  const barW = Math.min(
+    9,
+    (slotW - innerPad * 2 - barGap * (metrics.length - 1)) / Math.max(metrics.length, 1),
+  );
+  const plotH = h - padY * 2 - 14;
 
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="dash-bar-svg" preserveAspectRatio="xMidYMid meet">
+    <svg viewBox={`0 0 ${w} ${h}`} className="dash-bar-svg" preserveAspectRatio="none">
       <defs>
-        {BAR_COLORS.map(([from, to], i) => (
-          <linearGradient key={i} id={`${id}-grad-${i}`} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor={from} stopOpacity="0.95" />
-            <stop offset="100%" stopColor={to} stopOpacity="0.35" />
-          </linearGradient>
-        ))}
+        {metrics.map((m) => {
+          const [from, to] = CHART_METRIC_META[m].colors;
+          return (
+            <linearGradient key={m} id={`${id}-grad-${m}`} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={from} stopOpacity="0.95" />
+              <stop offset="100%" stopColor={to} stopOpacity="0.3" />
+            </linearGradient>
+          );
+        })}
       </defs>
 
       {[0.33, 0.66].map((pct) => (
@@ -47,38 +65,58 @@ export function GlowingBarChart({ data, metric, id }: GlowingBarChartProps) {
           key={pct}
           x1={padX}
           x2={w - padX}
-          y1={h - padY - (h - padY * 2) * pct}
-          y2={h - padY - (h - padY * 2) * pct}
+          y1={padY + plotH * (1 - pct)}
+          y2={padY + plotH * (1 - pct)}
           stroke="rgba(255,255,255,0.04)"
           strokeWidth="1"
         />
       ))}
 
       {data.map((d, i) => {
-        const v = d[metric];
-        const barH = Math.max((v / max) * (h - padY * 2 - 16), v > 0 ? 6 : 2);
-        const totalW = data.length * barW + (data.length - 1) * barGap;
-        const startX = (w - totalW) / 2;
-        const x = startX + i * (barW + barGap);
-        const y = h - padY - barH;
+        const slotX = padX + slotW * i;
+        const slotCenter = slotX + slotW / 2;
+        const groupW = metrics.length * barW + (metrics.length - 1) * barGap;
+        const groupStart = slotCenter - groupW / 2;
         const dayLabel = d.label.split(' ')[0]?.slice(0, 1).toUpperCase() || '?';
-        const colorIdx = i % BAR_COLORS.length;
+        const baseY = h - padY;
 
         return (
           <g key={d.date}>
-            <rect
-              x={x}
-              y={y}
-              width={barW}
-              height={barH}
-              rx={barW / 2}
-              fill={`url(#${id}-grad-${colorIdx})`}
+            <line
+              x1={slotCenter - 10}
+              x2={slotCenter + 10}
+              y1={baseY - 10}
+              y2={baseY - 10}
+              stroke="rgba(34, 211, 238, 0.35)"
+              strokeWidth="2"
+              strokeLinecap="round"
             />
+
+            {metrics.map((metric, j) => {
+              const v = d[metric];
+              const barH = Math.max((v / max) * plotH, v > 0 ? 5 : 0);
+              if (barH <= 0) return null;
+              const x = groupStart + j * (barW + barGap);
+              const y = baseY - 12 - barH;
+
+              return (
+                <rect
+                  key={metric}
+                  x={x}
+                  y={y}
+                  width={barW}
+                  height={barH}
+                  rx={barW / 2}
+                  fill={`url(#${id}-grad-${metric})`}
+                />
+              );
+            })}
+
             <text
-              x={x + barW / 2}
-              y={h - 5}
+              x={slotCenter}
+              y={h - 4}
               textAnchor="middle"
-              fill="rgba(255,255,255,0.28)"
+              fill="rgba(255,255,255,0.3)"
               fontSize="10"
               fontWeight="600"
             >
