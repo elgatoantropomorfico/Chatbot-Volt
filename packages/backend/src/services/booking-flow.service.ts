@@ -302,15 +302,10 @@ export class BookingFlowService {
     if (flow.state === 'idle' || flow.state === 'handoff') {
       flow = { state: 'booking_start' };
       await this.saveFlow(conversationId, flow);
-      const menu = this.mainMenuReply(tenantId, settings);
       if (isFreeTextOffFlow(text, input, 3)) {
-        const answer = await BookingAiService.answerOffFlow(tenantId, text, settings, this.flowAiContext(flow));
-        if (answer) {
-          return prependToReply(menu, answer);
-        }
-        console.warn('📅 Booking IA sin respuesta en idle — revisar OPENAI_API_KEY');
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, text);
       }
-      return menu;
+      return this.mainMenuReply(tenantId, settings);
     }
 
     switch (flow.state) {
@@ -379,13 +374,13 @@ export class BookingFlowService {
       body = await BookingAiService.answerOffFlow(tenantId, rawText, settings, this.flowAiContext(prevFlow));
     }
 
-    const bridge = await BookingAiService.generateFlowBridge(
-      tenantId, settings, this.flowAiContext(prevFlow), 'post_booking',
-    );
+    if (!body) {
+      body = await BookingAiService.generateFlowBridge(
+        tenantId, settings, this.flowAiContext(prevFlow), 'post_booking',
+      );
+    }
 
-    const merged = body && bridge
-      ? `${body}\n\n${bridge}`
-      : body || bridge || 'Si querés reservar otro turno o consultar algo más, decime y te ayudo 🌿';
+    const merged = body || 'Si querés reservar otro turno o consultar algo más, decime y te ayudo 🌿';
 
     const nextFlow: BookingFlowContext = { ...prevFlow, state: 'booking_start' };
     await this.saveFlow(conversationId, nextFlow);
@@ -792,6 +787,10 @@ export class BookingFlowService {
     return flowReply('¿Cómo querés ver los horarios?', ['Esta semana', 'Elegir un día', 'Próximos horarios'], true);
   }
 
+  private static mainMenuResumeReply(body = '¿Querés avanzar con la reserva?'): FlowHandleResult {
+    return this.mainMenuOptionsReply(body);
+  }
+
   private static mainMenuReply(tenantId: string, settings: any): FlowHandleResult {
     const welcome = msg(settings, 'welcome',
       'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPuedo ayudarte a elegir el camino ideal o, si ya sabés cuál querés, avanzamos directo con la reserva.');
@@ -835,7 +834,9 @@ export class BookingFlowService {
         text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
       };
     }
-    return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => this.mainMenuReply(tenantId, settings), 3);
+    return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
+      this.mainMenuResumeReply('¿Querés reservar un turno?')
+    ), 3);
   }
 
   private static async serviceListReply(tenantId: string): Promise<FlowHandleResult> {
