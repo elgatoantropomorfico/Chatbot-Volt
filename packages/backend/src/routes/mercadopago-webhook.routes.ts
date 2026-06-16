@@ -6,11 +6,17 @@ function extractPaymentId(request: FastifyRequest): string | null {
   const query = request.query as Record<string, unknown>;
 
   const data = body?.data as { id?: string | number } | undefined;
+  const resource = typeof body?.resource === 'string' ? body.resource : null;
+  const resourceMatch = resource?.match(/\/payments\/(\d+)/);
+
   const candidates = [
     data?.id,
+    body?.data_id,
     query['data.id'],
     query.id,
+    query.payment_id,
     body?.id,
+    resourceMatch?.[1],
   ];
 
   for (const raw of candidates) {

@@ -126,7 +126,7 @@ export class MercadoPagoService {
 
   /**
    * Process MP notification: always verify payment via API, never trust webhook body.
-   * Idempotent — repeated notifications for an already confirmed appointment are ignored.
+   * Idempotent — repeated notifications retry staff email if it failed on first confirm.
    */
   static async processPaymentNotification(tenantId: string, paymentId: string): Promise<void> {
     const payment = await this.getPayment(tenantId, paymentId);
@@ -141,8 +141,11 @@ export class MercadoPagoService {
     });
     if (!appointment) return;
 
-    // Idempotent: already confirmed — do not re-notify
-    if (appointment.status === 'confirmado') return;
+    // Idempotent: ya confirmado — reintentar email si falló en el primer webhook
+    if (appointment.status === 'confirmado') {
+      await BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
+      return;
+    }
 
     if (status !== 'approved') {
       await prisma.appointment.update({
@@ -194,6 +197,11 @@ export class MercadoPagoService {
     if (confirmed.count === 0) return;
 
     console.log(`✅ Turno ${appointment.id} confirmado por MP — disparando notificaciones`);
-    await BookingNotificationService.sendPaymentConfirmation(appointment.id);
+    try {
+      await BookingNotificationService.sendPaymentConfirmation(appointment.id);
+    } catch (err: any) {
+      console.error(`⚠️ sendPaymentConfirmation falló (${appointment.id}):`, err.message);
+      await BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
+    }
   }
 }

@@ -5,6 +5,8 @@ import { requireRole } from '../middleware/roles';
 import { BookingAvailabilityService } from '../services/booking-availability.service';
 import { BookingPricingService } from '../services/booking-pricing.service';
 import { WhatsAppService } from '../services/whatsapp.service';
+import { MercadoPagoService } from '../services/mercadopago.service';
+import { BookingNotificationService } from '../services/booking-notification.service';
 
 function resolveTenantId(user: any, queryTenantId?: string): string | null {
   if (user.role === 'superadmin' && queryTenantId) return queryTenantId;
@@ -568,11 +570,15 @@ export async function bookingRoutes(app: FastifyInstance) {
       }
     }
 
+    const wasNotConfirmed = existing.status !== 'confirmado';
     const appointment = await prisma.appointment.update({
       where: { id },
       data,
       include: { service: true, lead: { select: { id: true, name: true, phone: true } } },
     });
+    if (data.status === 'confirmado' && wasNotConfirmed && appointment.conversationId) {
+      void BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
+    }
     return reply.send({ appointment });
   });
 
@@ -689,9 +695,23 @@ export async function bookingPublicRoutes(app: FastifyInstance) {
     }));
   });
 
-  // Alias used by Mercado Pago back_urls
+  // Alias used by Mercado Pago back_urls — también confirma el pago si el webhook no llegó
   app.get('/payment-return/:token', async (request: FastifyRequest, reply: FastifyReply) => {
     const { token } = request.params as { token: string };
+    const query = request.query as { payment_id?: string; collection_id?: string };
+    const paymentId = query.payment_id || query.collection_id;
+
+    if (paymentId) {
+      const appointment = await loadAppointmentByReceipt(token);
+      if (appointment) {
+        try {
+          await MercadoPagoService.processPaymentNotification(appointment.tenantId, paymentId);
+        } catch (err: any) {
+          console.error(`⚠️ payment-return MP fallback (${token}):`, err.message);
+        }
+      }
+    }
+
     return reply.redirect(`/api/booking/receipt/${token}`);
   });
 }

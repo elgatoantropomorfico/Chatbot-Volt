@@ -114,6 +114,10 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
       console.log(`📧 Booking email skip: turno ${appointmentId} sin conversationId (carga manual)`);
       return;
     }
+    if (appointment.staffNotifyEmailSentAt) {
+      console.log(`📧 Booking email skip: ya enviado (${appointment.staffNotifyEmailSentAt.toISOString()})`);
+      return;
+    }
 
     const booking = await prisma.bookingSettings.findUnique({
       where: { tenantId: appointment.tenantId },
@@ -184,6 +188,10 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
         to,
         subject: `Turno confirmado — ${appointment.customerName || appointment.customerPhone} — ${dateStr}`,
         html,
+      });
+      await prisma.appointment.update({
+        where: { id: appointmentId },
+        data: { staffNotifyEmailSentAt: new Date() },
       });
       console.log(`📧 Booking email enviado a ${to} (turno ${appointmentId})`);
     } catch (err: any) {
