@@ -48,7 +48,6 @@ export type BookingFlowState =
   | 'service_selected'
   | 'slot_selection'
   | 'customer_name'
-  | 'customer_first_time'
   | 'customer_notes'
   | 'payment_choice'
   | 'waiting_payment'
@@ -284,8 +283,6 @@ export class BookingFlowService {
         return this.handleSlotSelection(tenantId, conversationId, settings, flow, input, text);
       case 'customer_name':
         return this.handleCustomerName(tenantId, conversationId, leadId, settings, flow, input, text, params.profileName);
-      case 'customer_first_time':
-        return this.handleFirstTime(conversationId, settings, flow, input);
       case 'customer_notes':
         return this.handleNotes(tenantId, conversationId, leadId, phone, settings, flow, input);
       case 'payment_choice':
@@ -390,11 +387,6 @@ export class BookingFlowService {
           handled: true,
           text: 'Pasame tu *nombre y apellido* para dejar el turno preparado.',
         });
-      case 'customer_first_time':
-        return this.wrapWithResumeBridge(settings, flowReply(
-          flow.customerName ? `Gracias, ${flow.customerName.split(' ')[0]}. ¿Es tu primera vez?` : '¿Es tu primera vez?',
-          ['Sí', 'No'],
-        ));
       case 'customer_notes':
         return this.wrapWithResumeBridge(settings, {
           handled: true,
@@ -966,6 +958,31 @@ export class BookingFlowService {
     };
   }
 
+  private static async resolveIsFirstTime(leadId: string): Promise<boolean> {
+    const prior = await prisma.appointment.count({
+      where: {
+        leadId,
+        status: { in: ['confirmado', 'completado'] },
+      },
+    });
+    return prior === 0;
+  }
+
+  private static async advanceToNotes(
+    conversationId: string,
+    leadId: string,
+    flow: BookingFlowContext,
+    name: string,
+  ): Promise<FlowHandleResult> {
+    const isFirstTime = await this.resolveIsFirstTime(leadId);
+    flow = { ...flow, state: 'customer_notes', customerName: name, isFirstTime };
+    await this.saveFlow(conversationId, flow);
+    return {
+      handled: true,
+      text: `Gracias, ${name.split(' ')[0]}. ¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
+    };
+  }
+
   private static async handleCustomerName(
     tenantId: string,
     conversationId: string,
@@ -983,9 +1000,7 @@ export class BookingFlowService {
       } catch (err: any) {
         console.warn('⚠️ No se pudo actualizar nombre del lead:', err.message);
       }
-      flow = { ...flow, state: 'customer_first_time', customerName: name };
-      await this.saveFlow(conversationId, flow);
-      return flowReply(`Gracias, ${name.split(' ')[0]}. ¿Es tu primera vez?`, ['Sí', 'No']);
+      return this.advanceToNotes(conversationId, leadId, flow, name);
     }
 
     if (BookingAiService.looksLikeQuestion(rawText)) {
@@ -1003,25 +1018,10 @@ export class BookingFlowService {
       try {
         await prisma.lead.update({ where: { id: leadId }, data: { name } });
       } catch {}
-      flow = { ...flow, state: 'customer_first_time', customerName: name };
-      await this.saveFlow(conversationId, flow);
-      return flowReply(`Gracias, ${name.split(' ')[0]}. ¿Es tu primera vez?`, ['Sí', 'No']);
+      return this.advanceToNotes(conversationId, leadId, flow, name);
     }
 
     return { handled: true, text: 'Necesito tu *nombre y apellido* para continuar con la reserva.' };
-  }
-
-  private static async handleFirstTime(
-    conversationId: string, settings: any, flow: BookingFlowContext, input: string,
-  ): Promise<FlowHandleResult> {
-    const opt = pickOption(input, 2);
-    if (!opt) return { handled: true, text: 'Respondé 1 (Sí) o 2 (No).' };
-    flow = { ...flow, state: 'customer_notes', isFirstTime: opt === 1 };
-    await this.saveFlow(conversationId, flow);
-    return {
-      handled: true,
-      text: '¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.',
-    };
   }
 
   private static async handleNotes(

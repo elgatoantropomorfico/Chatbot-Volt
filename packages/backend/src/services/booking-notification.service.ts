@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { WhatsAppService } from './whatsapp.service';
 import { ConversationService } from './conversation.service';
+import { ResendService } from './resend.service';
 
 export class BookingExpiryService {
   /** Mark expired pending-payment appointments and release slots */
@@ -29,6 +30,7 @@ export class BookingNotificationService {
       where: { id: appointmentId },
       include: {
         service: true,
+        tenant: { select: { name: true } },
         conversation: { include: { channel: true } },
         lead: true,
       },
@@ -71,6 +73,80 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
       }
     } catch (err: any) {
       console.error('⚠️ Failed to send booking confirmation WhatsApp:', err.message);
+    }
+
+    await this.sendStaffConfirmationEmail(appointmentId);
+  }
+
+  /** Email al equipo — solo turnos confirmados vía chatbot (conversationId presente). */
+  static async sendStaffConfirmationEmail(appointmentId: string) {
+    const appointment = await prisma.appointment.findUnique({
+      where: { id: appointmentId },
+      include: {
+        service: true,
+        tenant: { select: { name: true } },
+      },
+    });
+    if (!appointment?.conversationId) return;
+
+    const bot = await prisma.botSettings.findUnique({
+      where: { tenantId: appointment.tenantId },
+    });
+    if (!bot?.bookingNotifyEnabled || !bot.bookingNotifyEmail?.trim()) return;
+
+    const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
+    const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
+    const paymentLabel = appointment.paymentType === 'total' ? 'Pago total' : 'Seña';
+    const firstTimeLabel = appointment.isFirstTime == null
+      ? '—'
+      : appointment.isFirstTime ? 'Sí (primera vez)' : 'No (ya vino antes)';
+
+    const rows = [
+      ['Cliente', appointment.customerName || '—'],
+      ['WhatsApp', appointment.customerPhone],
+      ['Camino', appointment.service.name],
+      ['Fecha', dateStr],
+      ['Horario', appointment.appointmentTime],
+      ['Primera vez', firstTimeLabel],
+      ['Tipo de pago', paymentLabel],
+      ['Abonado', fmt(Number(appointment.amountPaid))],
+      ['Saldo', fmt(Number(appointment.balanceDue))],
+      ['Total sesión', fmt(Number(appointment.finalPrice))],
+    ];
+    if (appointment.customerNotes) {
+      rows.push(['Notas del cliente', appointment.customerNotes]);
+    }
+    if (appointment.discountLabel) {
+      rows.push(['Descuento', appointment.discountLabel]);
+    }
+
+    const tableRows = rows.map(([label, value]) => `
+      <tr>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;color:#666;font-size:13px;white-space:nowrap;">${label}</td>
+        <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${value}</td>
+      </tr>`).join('');
+
+    const html = `<!DOCTYPE html>
+<html lang="es">
+<body style="font-family:system-ui,sans-serif;background:#f5f5f7;margin:0;padding:24px;">
+  <div style="max-width:520px;margin:0 auto;background:#fff;border-radius:12px;padding:24px;border:1px solid #e5e5ea;">
+    <p style="margin:0 0 4px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Nuevo turno por chatbot</p>
+    <h1 style="margin:0 0 20px;font-size:20px;color:#1a1a1a;">${appointment.tenant.name}</h1>
+    <table style="width:100%;border-collapse:collapse;">${tableRows}</table>
+    <p style="margin:20px 0 0;font-size:12px;color:#999;">Confirmado automáticamente vía WhatsApp + Mercado Pago.</p>
+  </div>
+</body>
+</html>`;
+
+    try {
+      await ResendService.sendEmail({
+        tenantId: appointment.tenantId,
+        to: bot.bookingNotifyEmail.trim(),
+        subject: `Turno confirmado — ${appointment.customerName || appointment.customerPhone} — ${dateStr}`,
+        html,
+      });
+    } catch (err: any) {
+      console.error('⚠️ Failed to send booking staff email:', err.message);
     }
   }
 }

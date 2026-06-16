@@ -19,6 +19,8 @@ const updateBotSettingsSchema = z.object({
   handoffTriggersJson: z.any().optional(),
   guardrailsJson: z.any().optional(),
   promptBuilderJson: z.any().optional(),
+  bookingNotifyEnabled: z.boolean().optional(),
+  bookingNotifyEmail: z.string().email().nullable().optional(),
 });
 
 export async function botSettingsRoutes(app: FastifyInstance) {

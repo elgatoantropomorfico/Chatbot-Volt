@@ -6,7 +6,7 @@ import { useAuth } from '@/context/AuthContext';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
-  ChevronDown, WandSparkles, Loader2, X, GitBranch,
+  ChevronDown, WandSparkles, Loader2, X, GitBranch, CalendarCheck,
 } from 'lucide-react';
 
 interface PromptBuilder {
@@ -45,7 +45,7 @@ const TONE_OPTIONS = [
   'Técnico y preciso', 'Divertido y creativo', 'Corporativo',
 ];
 
-type TabId = 'business' | 'location' | 'hours' | 'contact' | 'products' | 'shipping' | 'promotions' | 'policies' | 'faq' | 'personality' | 'flow' | 'engine' | 'guardrails' | 'handoff';
+type TabId = 'business' | 'location' | 'hours' | 'contact' | 'products' | 'shipping' | 'promotions' | 'policies' | 'faq' | 'personality' | 'flow' | 'engine' | 'guardrails' | 'handoff' | 'booking';
 
 const TABS: { id: TabId; label: string; icon: any; group: string }[] = [
   { id: 'business', label: 'Negocio', icon: Building2, group: 'Contexto del Negocio' },
@@ -62,6 +62,7 @@ const TABS: { id: TabId; label: string; icon: any; group: string }[] = [
   { id: 'engine', label: 'Motor IA', icon: Brain, group: 'Configuración Técnica' },
   { id: 'guardrails', label: 'Guardrails', icon: ShieldCheck, group: 'Configuración Técnica' },
   { id: 'handoff', label: 'Derivación', icon: PhoneForwarded, group: 'Configuración Técnica' },
+  { id: 'booking', label: 'Turnos', icon: CalendarCheck, group: 'Configuración Técnica' },
 ];
 
 export default function BotSettingsPage() {
@@ -77,6 +78,7 @@ export default function BotSettingsPage() {
   const [generatingField, setGeneratingField] = useState<string | null>(null);
   const [flowPreview, setFlowPreview] = useState<any>(null);
   const [hasPilot, setHasPilot] = useState(false);
+  const [hasResend, setHasResend] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -131,6 +133,8 @@ export default function BotSettingsPage() {
       setSettings(data.settings);
       const pilot = integrationsRes.integrations?.find((i: any) => i.type === 'pilot_crm' && i.status === 'active');
       setHasPilot(!!pilot);
+      const resend = integrationsRes.integrations?.find((i: any) => i.type === 'resend' && i.status === 'active');
+      setHasResend(!!resend);
       try {
         const preview = await api.getFlowPreview(tenantId);
         setFlowPreview(preview);
@@ -158,6 +162,8 @@ export default function BotSettingsPage() {
         handoffTriggersJson: settings.handoffTriggersJson,
         guardrailsJson: settings.guardrailsJson,
         promptBuilderJson: settings.promptBuilderJson || defaultPB,
+        bookingNotifyEnabled: settings.bookingNotifyEnabled,
+        bookingNotifyEmail: settings.bookingNotifyEmail,
       });
       alert('Configuración guardada');
     } catch (err: any) { alert(err.message); }
@@ -766,6 +772,45 @@ export default function BotSettingsPage() {
               <label style={labelStyle}>Texto prefijado del wa.me</label>
               <textarea value={settings.handoffWaMeTemplate || ''} onChange={(e) => updateField('handoffWaMeTemplate', e.target.value)} rows={2} style={textareaStyle} placeholder="Hola, soy {{lead_name}} y vengo desde el bot." />
               <p style={{ ...hintStyle, marginTop: '4px' }}>Texto que se precarga en el link wa.me. Variables: {'{{lead_name}}'}, {'{{lead_phone}}'}, {'{{handoff_reason}}'}, {'{{tenant_name}}'}</p>
+            </div>
+          </div>
+        );
+
+      case 'booking':
+        return (
+          <div>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '4px' }}>Avisos de turnos confirmados</h3>
+            <p style={{ ...hintStyle, marginBottom: '20px' }}>
+              Cuando un cliente confirma un turno por el chatbot (WhatsApp + Mercado Pago), se envía un email al equipo.
+              Los turnos cargados manualmente desde el panel no disparan este aviso.
+            </p>
+            {!hasResend && (
+              <div style={{ padding: '12px 14px', marginBottom: '16px', borderRadius: 'var(--radius-sm)', background: 'var(--color-warning-light)', color: 'var(--color-warning)', fontSize: '13px' }}>
+                Primero configurá la integración <strong>Resend</strong> en Integraciones (API key y email remitente con dominio verificado).
+              </div>
+            )}
+            <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <label style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>Enviar email al confirmar turno por chatbot</label>
+              <input
+                type="checkbox"
+                checked={!!settings.bookingNotifyEnabled}
+                onChange={(e) => updateField('bookingNotifyEnabled', e.target.checked)}
+                style={{ accentColor: 'var(--color-primary)' }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>Email del equipo (destinatario)</label>
+              <input
+                type="email"
+                value={settings.bookingNotifyEmail || ''}
+                onChange={(e) => updateField('bookingNotifyEmail', e.target.value || null)}
+                placeholder="admin@tunegocio.com"
+                style={inputStyle}
+                disabled={!settings.bookingNotifyEnabled}
+              />
+              <p style={{ ...hintStyle, marginTop: '4px' }}>
+                El email incluye nombre, WhatsApp, camino, fecha, horario, pago, notas del cliente y si es primera vez.
+              </p>
             </div>
           </div>
         );

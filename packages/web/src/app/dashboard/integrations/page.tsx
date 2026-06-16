@@ -17,6 +17,7 @@ import {
   ExternalLink,
   CreditCard,
   Cloud,
+  Mail,
 } from 'lucide-react';
 import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import { VoltModal } from '@/components/ui/VoltModal';
@@ -42,6 +43,18 @@ interface MercadoPagoConfig {
 const defaultMpConfig: MercadoPagoConfig = {
   accessToken: '',
   publicKey: '',
+};
+
+interface ResendConfig {
+  apiKey: string;
+  fromEmail: string;
+  fromName: string;
+}
+
+const defaultResendConfig: ResendConfig = {
+  apiKey: '',
+  fromEmail: '',
+  fromName: '',
 };
 
 interface ZohoConfig {
@@ -88,6 +101,7 @@ export default function IntegrationsPage() {
   const [config, setConfig] = useState<WooConfig>({ ...defaultWooConfig });
   const [zohoConfig, setZohoConfig] = useState<ZohoConfig>({ ...defaultZohoConfig });
   const [mpConfig, setMpConfig] = useState<MercadoPagoConfig>({ ...defaultMpConfig });
+  const [resendConfig, setResendConfig] = useState<ResendConfig>({ ...defaultResendConfig });
   const [createForm, setCreateForm] = useState({ tenantId: '', type: 'woocommerce' });
   const [editType, setEditType] = useState<string>('woocommerce');
   const [saveMsg, setSaveMsg] = useState('');
@@ -126,6 +140,12 @@ export default function IntegrationsPage() {
         accessToken: c.accessToken || '',
         publicKey: c.publicKey || '',
       });
+    } else if (integration.type === 'resend') {
+      setResendConfig({
+        apiKey: c.apiKey || '',
+        fromEmail: c.fromEmail || '',
+        fromName: c.fromName || '',
+      });
     } else if (integration.type !== 'pilot_crm') {
       setConfig({
         baseUrl: c.baseUrl || '',
@@ -152,6 +172,7 @@ export default function IntegrationsPage() {
       const cfgPayload = createForm.type === 'zoho_crm' ? { ...zohoConfig }
         : createForm.type === 'pilot_crm' ? { serverConfigured: true }
         : createForm.type === 'mercadopago' ? { ...mpConfig }
+        : createForm.type === 'resend' ? { ...resendConfig }
         : { ...config };
       await api.createIntegration({
         tenantId: isTenantAdmin ? user?.tenantId : createForm.tenantId,
@@ -162,6 +183,7 @@ export default function IntegrationsPage() {
       setConfig({ ...defaultWooConfig });
       setZohoConfig({ ...defaultZohoConfig });
       setMpConfig({ ...defaultMpConfig });
+      setResendConfig({ ...defaultResendConfig });
       await loadIntegrations();
     } catch (err: any) { alert(err.message); }
     finally { setSaving(false); }
@@ -175,6 +197,7 @@ export default function IntegrationsPage() {
       const cfgPayload = editType === 'zoho_crm' ? { ...zohoConfig }
         : editType === 'pilot_crm' ? { serverConfigured: true }
         : editType === 'mercadopago' ? { ...mpConfig }
+        : editType === 'resend' ? { ...resendConfig }
         : { ...config };
       await api.updateIntegration(editingId, { config: cfgPayload });
       setSaveMsg('Guardado correctamente');
@@ -222,6 +245,45 @@ export default function IntegrationsPage() {
     display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     padding: '14px 0', borderBottom: '1px solid var(--divider)',
   };
+
+  function renderResendConfigForm() {
+    return (
+      <div style={{ ...sectionStyle, marginBottom: '16px' }}>
+        <label style={labelStyle}>API Key</label>
+        <input
+          type="password"
+          value={resendConfig.apiKey}
+          onChange={(e) => setResendConfig({ ...resendConfig, apiKey: e.target.value })}
+          placeholder="re_..."
+          required
+          style={inputStyle}
+        />
+        <label style={{ ...labelStyle, marginTop: '12px' }}>Email remitente</label>
+        <input
+          type="email"
+          value={resendConfig.fromEmail}
+          onChange={(e) => setResendConfig({ ...resendConfig, fromEmail: e.target.value })}
+          placeholder="turnos@tudominio.com"
+          required
+          style={inputStyle}
+        />
+        <label style={{ ...labelStyle, marginTop: '12px' }}>Nombre remitente (opcional)</label>
+        <input
+          value={resendConfig.fromName}
+          onChange={(e) => setResendConfig({ ...resendConfig, fromName: e.target.value })}
+          placeholder="El Gabinete Holístico"
+          style={inputStyle}
+        />
+        <p style={{ fontSize: '12px', color: 'var(--color-text-muted)', marginTop: '12px', lineHeight: 1.5 }}>
+          El dominio del email remitente debe estar verificado en{' '}
+          <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)' }}>
+            Resend
+          </a>
+          . El destinatario de avisos de turnos se configura en Bot/IA → Turnos.
+        </p>
+      </div>
+    );
+  }
 
   function renderMpConfigForm() {
     return (
@@ -672,6 +734,13 @@ export default function IntegrationsPage() {
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Señas y pagos de turnera</div>
                 </button>
+                <button type="button" onClick={() => setCreateForm({ ...createForm, type: 'resend' })} style={{ flex: '1 1 45%', minWidth: '140px', padding: '14px', borderRadius: 'var(--radius-sm)', cursor: 'pointer', border: createForm.type === 'resend' ? '2px solid #6366f1' : '1px solid var(--color-border)', background: createForm.type === 'resend' ? 'rgba(99, 102, 241, 0.08)' : 'var(--color-bg-secondary)', color: 'var(--color-text)', textAlign: 'left' as const }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                    <Mail size={16} style={{ color: '#6366f1' }} />
+                    <span style={{ fontWeight: 600, fontSize: '14px' }}>Resend</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>Emails de confirmación de turnos</div>
+                </button>
               </div>
             </div>
 
@@ -681,6 +750,7 @@ export default function IntegrationsPage() {
                   Las credenciales de Pilot (appkey, suborigen, etc.) se configuran en las variables de entorno del servidor Railway. Activá esta integración y configurá los campos en <strong>Pilot CRM</strong>.
                 </div>
               ) : createForm.type === 'mercadopago' ? renderMpConfigForm()
+              : createForm.type === 'resend' ? renderResendConfigForm()
               : renderConfigForm(true)}
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '8px', justifyContent: 'flex-end' }}>
@@ -699,7 +769,7 @@ export default function IntegrationsPage() {
         <div className="volt-config-page">
           <div className="volt-page-header" style={{ marginBottom: 16 }}>
             <h2 style={{ fontSize: '18px', fontWeight: 700, margin: 0 }}>
-              Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : editType === 'mercadopago' ? 'Mercado Pago' : 'WooCommerce'}
+              Configurar {editType === 'zoho_crm' ? 'Zoho CRM' : editType === 'pilot_crm' ? 'Pilot CRM' : editType === 'mercadopago' ? 'Mercado Pago' : editType === 'resend' ? 'Resend' : 'WooCommerce'}
             </h2>
             <button type="button" onClick={() => setEditingId(null)} className="volt-btn-ghost" style={{ padding: '6px 10px' }}>
               <X size={18} />
@@ -714,6 +784,7 @@ export default function IntegrationsPage() {
                 </div>
               </div>
             ) : editType === 'mercadopago' ? renderMpConfigForm()
+            : editType === 'resend' ? renderResendConfigForm()
             : renderConfigForm(false)}
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginTop: '8px', flexWrap: 'wrap' }}>
@@ -762,22 +833,26 @@ export default function IntegrationsPage() {
                           ? 'linear-gradient(135deg, rgba(59, 130, 246, 0.15), rgba(96, 165, 250, 0.08))'
                           : i.type === 'mercadopago'
                             ? 'linear-gradient(135deg, rgba(0, 177, 234, 0.15), rgba(56, 189, 248, 0.08))'
+                          : i.type === 'resend'
+                            ? 'linear-gradient(135deg, rgba(99, 102, 241, 0.15), rgba(129, 140, 248, 0.08))'
                           : 'linear-gradient(135deg, rgba(139, 92, 246, 0.15), rgba(232, 121, 249, 0.08))',
                       display: 'flex',
                       alignItems: 'center', justifyContent: 'center',
                       border: i.type === 'zoho_crm' ? '1px solid rgba(245, 158, 11, 0.12)'
                         : i.type === 'pilot_crm' ? '1px solid rgba(59, 130, 246, 0.12)'
                         : i.type === 'mercadopago' ? '1px solid rgba(0, 177, 234, 0.12)'
+                        : i.type === 'resend' ? '1px solid rgba(99, 102, 241, 0.12)'
                         : '1px solid rgba(139, 92, 246, 0.12)',
                     }}>
                       {i.type === 'zoho_crm' ? <Cloud size={20} style={{ color: '#f59e0b' }} />
                         : i.type === 'pilot_crm' ? <Cloud size={20} style={{ color: '#3b82f6' }} />
                         : i.type === 'mercadopago' ? <CreditCard size={20} style={{ color: '#00b1ea' }} />
+                        : i.type === 'resend' ? <Mail size={20} style={{ color: '#6366f1' }} />
                         : <ShoppingCart size={20} style={{ color: '#a78bfa' }} />}
                     </div>
                     <div>
                       <div style={{ fontSize: '15px', fontWeight: 600 }}>
-                        {i.type === 'zoho_crm' ? 'Zoho CRM' : i.type === 'pilot_crm' ? 'Pilot CRM' : i.type === 'mercadopago' ? 'Mercado Pago' : 'WooCommerce'}
+                        {i.type === 'zoho_crm' ? 'Zoho CRM' : i.type === 'pilot_crm' ? 'Pilot CRM' : i.type === 'mercadopago' ? 'Mercado Pago' : i.type === 'resend' ? 'Resend' : 'WooCommerce'}
                       </div>
                       <div style={{ fontSize: '12px', color: 'var(--color-text-muted)' }}>
                         {i.type === 'zoho_crm'
@@ -786,6 +861,8 @@ export default function IntegrationsPage() {
                             ? 'Credenciales en servidor Railway'
                             : i.type === 'mercadopago'
                               ? ((i.config as any)?.accessToken ? 'Token configurado' : 'Sin token')
+                            : i.type === 'resend'
+                              ? ((i.config as any)?.fromEmail || 'Sin remitente')
                             : ((i.config as any)?.baseUrl || 'Sin URL configurada')}
                       </div>
                     </div>
@@ -800,6 +877,8 @@ export default function IntegrationsPage() {
                         </>
                       ) : i.type === 'mercadopago' ? (
                         <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(0, 177, 234, 0.1)', color: '#00b1ea' }}>Turnera</span>
+                      ) : i.type === 'resend' ? (
+                        <span style={{ padding: '3px 8px', fontSize: '11px', borderRadius: 'var(--radius-sm)', background: 'rgba(99, 102, 241, 0.1)', color: '#6366f1' }}>Turnera</span>
                       ) : i.type === 'pilot_crm' ? null : (
                         <>
                           {(i.config as any)?.enableProductSearch !== false && (

@@ -52,6 +52,7 @@ enum IntegrationType {
   zoho_crm
   pilot_crm
   mercadopago
+  resend
 }
 
 enum AppointmentStatus {
@@ -308,6 +309,8 @@ model BotSettings {
   handoffTriggersJson     Json?    @map("handoff_triggers_json")
   guardrailsJson          Json?    @map("guardrails_json")
   promptBuilderJson       Json?    @map("prompt_builder_json")
+  bookingNotifyEnabled    Boolean  @default(false) @map("booking_notify_enabled")
+  bookingNotifyEmail      String?  @map("booking_notify_email")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 

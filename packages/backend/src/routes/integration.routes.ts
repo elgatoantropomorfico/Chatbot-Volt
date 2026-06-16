@@ -30,14 +30,20 @@ const mercadoPagoConfigSchema = z.object({
   publicKey: z.string().optional(),
 });
 
+const resendConfigSchema = z.object({
+  apiKey: z.string().min(1),
+  fromEmail: z.string().email(),
+  fromName: z.string().optional(),
+});
+
 const createIntegrationSchema = z.object({
   tenantId: z.string(),
-  type: z.enum(['woocommerce', 'zoho_crm', 'pilot_crm', 'mercadopago']),
-  config: z.union([wooConfigSchema, zohoConfigSchema, mercadoPagoConfigSchema]),
+  type: z.enum(['woocommerce', 'zoho_crm', 'pilot_crm', 'mercadopago', 'resend']),
+  config: z.union([wooConfigSchema, zohoConfigSchema, mercadoPagoConfigSchema, resendConfigSchema]),
 });
 
 const updateIntegrationSchema = z.object({
-  config: z.union([wooConfigSchema, zohoConfigSchema, mercadoPagoConfigSchema]).optional(),
+  config: z.union([wooConfigSchema, zohoConfigSchema, mercadoPagoConfigSchema, resendConfigSchema]).optional(),
   status: z.enum(['active', 'inactive']).optional(),
 });
 
