@@ -38,22 +38,27 @@ export class ResendService {
 
     const to = Array.isArray(params.to) ? params.to : [params.to];
 
-    await axios.post(
-      'https://api.resend.com/emails',
-      {
-        from,
-        to,
-        subject: params.subject,
-        html: params.html,
-        ...(params.replyTo ? { reply_to: params.replyTo } : {}),
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${config.apiKey}`,
-          'Content-Type': 'application/json',
+    try {
+      await axios.post(
+        'https://api.resend.com/emails',
+        {
+          from,
+          to,
+          subject: params.subject,
+          html: params.html,
+          ...(params.replyTo ? { reply_to: params.replyTo } : {}),
         },
-        timeout: 15000,
-      },
-    );
+        {
+          headers: {
+            Authorization: `Bearer ${config.apiKey}`,
+            'Content-Type': 'application/json',
+          },
+          timeout: 15000,
+        },
+      );
+    } catch (err: any) {
+      const detail = err.response?.data?.message || err.response?.data?.error || err.message;
+      throw new Error(`Resend API: ${detail}`);
+    }
   }
 }

@@ -193,6 +193,7 @@ export class MercadoPagoService {
 
     if (confirmed.count === 0) return;
 
+    console.log(`✅ Turno ${appointment.id} confirmado por MP — disparando notificaciones`);
     await BookingNotificationService.sendPaymentConfirmation(appointment.id);
   }
 }

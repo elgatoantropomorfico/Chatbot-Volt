@@ -956,7 +956,15 @@ export function TurneraConfigPanel({
               <input
                 type="checkbox"
                 checked={!!settings.confirmNotifyEnabled}
-                onChange={(e) => saveSettings({ confirmNotifyEnabled: e.target.checked })}
+                onChange={(e) => {
+                  const enabled = e.target.checked;
+                  const email = notifyEmail.trim() || null;
+                  if (enabled && !email) {
+                    flash('Ingresá el email del equipo antes de activar');
+                    return;
+                  }
+                  saveSettings({ confirmNotifyEnabled: enabled, confirmNotifyEmail: email });
+                }}
                 style={{ accentColor: '#8b5cf6', width: 18, height: 18 }}
               />
             </div>
@@ -967,7 +975,14 @@ export function TurneraConfigPanel({
                 type="email"
                 value={notifyEmail}
                 onChange={(e) => setNotifyEmail(e.target.value)}
-                onBlur={() => saveSettings({ confirmNotifyEmail: notifyEmail.trim() || null })}
+                onBlur={() => {
+                  const email = notifyEmail.trim() || null;
+                  if (settings.confirmNotifyEnabled && !email) {
+                    flash('El email es obligatorio si los avisos están activos');
+                    return;
+                  }
+                  saveSettings({ confirmNotifyEmail: email });
+                }}
                 placeholder="admin@tunegocio.com"
                 disabled={!settings.confirmNotifyEnabled}
               />

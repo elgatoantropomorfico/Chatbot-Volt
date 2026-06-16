@@ -35,59 +35,63 @@ export class BookingNotificationService {
         lead: true,
       },
     });
-    if (!appointment?.conversation?.channel) return;
+    if (!appointment) {
+      console.warn(`📧 Booking notify: turno ${appointmentId} no encontrado`);
+      return;
+    }
 
     const settings = await prisma.bookingSettings.findUnique({
       where: { tenantId: appointment.tenantId },
     });
-    const messages = (settings?.messagesJson || {}) as Record<string, string>;
-    const template = messages.confirmation || 'Listo, tu turno quedó confirmado 🌿';
 
-    const text = `${template}
+    if (appointment.conversation?.channel) {
+      const messages = (settings?.messagesJson || {}) as Record<string, string>;
+      const template = messages.confirmation || 'Listo, tu turno quedó confirmado 🌿';
+      const text = `${template}
 
 Camino: ${appointment.service.name}
 Día y horario: ${appointment.appointmentDate.toISOString().slice(0, 10)} — ${appointment.appointmentTime}
 Seña abonada: $${Number(appointment.amountPaid).toLocaleString('es-AR')}
 Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
 
-    const phoneNumberId = appointment.conversation.channel.phoneNumberId;
-    const to = appointment.customerPhone;
-
-    try {
-      const providerMessageId = await WhatsAppService.sendTextMessage({
-        phoneNumberId,
-        to,
-        text,
-      });
-      await ConversationService.saveOutgoingMessage(
-        appointment.conversationId!,
-        text,
-        providerMessageId,
-      );
-
-      if (appointment.conversationId) {
-        const existing = (appointment.conversation?.bookingFlowJson as Record<string, unknown>) || {};
-        const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
-        await prisma.conversation.update({
-          where: { id: appointment.conversationId },
-          data: {
-            bookingFlowJson: {
-              ...existing,
-              state: 'confirmed',
-              appointmentId: appointment.id,
-              serviceId: appointment.serviceId,
-              serviceName: appointment.service.name,
-              slotDate: dateStr,
-              slotTime: appointment.appointmentTime,
-              slotLabel: `${dateStr} — ${appointment.appointmentTime}`,
-              customerName: appointment.customerName ?? (existing as any).customerName,
-              customerNotes: appointment.customerNotes ?? (existing as any).customerNotes,
-            },
-          },
+      try {
+        const providerMessageId = await WhatsAppService.sendTextMessage({
+          phoneNumberId: appointment.conversation.channel.phoneNumberId,
+          to: appointment.customerPhone,
+          text,
         });
+        await ConversationService.saveOutgoingMessage(
+          appointment.conversationId!,
+          text,
+          providerMessageId,
+        );
+      } catch (err: any) {
+        console.error('⚠️ Failed to send booking confirmation WhatsApp:', err.message);
       }
-    } catch (err: any) {
-      console.error('⚠️ Failed to send booking confirmation WhatsApp:', err.message);
+    } else {
+      console.warn(`📱 Booking WA skip: sin canal para turno ${appointmentId}`);
+    }
+
+    if (appointment.conversationId) {
+      const existing = (appointment.conversation?.bookingFlowJson as Record<string, unknown>) || {};
+      const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
+      await prisma.conversation.update({
+        where: { id: appointment.conversationId },
+        data: {
+          bookingFlowJson: {
+            ...existing,
+            state: 'confirmed',
+            appointmentId: appointment.id,
+            serviceId: appointment.serviceId,
+            serviceName: appointment.service.name,
+            slotDate: dateStr,
+            slotTime: appointment.appointmentTime,
+            slotLabel: `${dateStr} — ${appointment.appointmentTime}`,
+            customerName: appointment.customerName ?? (existing as any).customerName,
+            customerNotes: appointment.customerNotes ?? (existing as any).customerNotes,
+          },
+        },
+      });
     }
 
     await this.sendStaffConfirmationEmail(appointmentId);
@@ -102,12 +106,32 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
         tenant: { select: { name: true } },
       },
     });
-    if (!appointment?.conversationId) return;
+    if (!appointment) {
+      console.warn(`📧 Booking email skip: turno ${appointmentId} no encontrado`);
+      return;
+    }
+    if (!appointment.conversationId) {
+      console.log(`📧 Booking email skip: turno ${appointmentId} sin conversationId (carga manual)`);
+      return;
+    }
 
     const booking = await prisma.bookingSettings.findUnique({
       where: { tenantId: appointment.tenantId },
     });
-    if (!booking?.confirmNotifyEnabled || !booking.confirmNotifyEmail?.trim()) return;
+    if (!booking?.confirmNotifyEnabled) {
+      console.log(`📧 Booking email skip: avisos desactivados (tenant ${appointment.tenantId})`);
+      return;
+    }
+    if (!booking.confirmNotifyEmail?.trim()) {
+      console.log(`📧 Booking email skip: sin confirmNotifyEmail (tenant ${appointment.tenantId})`);
+      return;
+    }
+
+    const resendOk = await ResendService.getConfig(appointment.tenantId);
+    if (!resendOk) {
+      console.warn(`📧 Booking email skip: Resend no configurado/activo (tenant ${appointment.tenantId})`);
+      return;
+    }
 
     const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
     const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
@@ -153,15 +177,17 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
 </body>
 </html>`;
 
+    const to = booking.confirmNotifyEmail.trim();
     try {
       await ResendService.sendEmail({
         tenantId: appointment.tenantId,
-        to: booking.confirmNotifyEmail.trim(),
+        to,
         subject: `Turno confirmado — ${appointment.customerName || appointment.customerPhone} — ${dateStr}`,
         html,
       });
+      console.log(`📧 Booking email enviado a ${to} (turno ${appointmentId})`);
     } catch (err: any) {
-      console.error('⚠️ Failed to send booking staff email:', err.message);
+      console.error(`⚠️ Failed to send booking staff email to ${to}:`, err.message);
     }
   }
 }
