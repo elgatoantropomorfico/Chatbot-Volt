@@ -152,6 +152,18 @@ function looksLikePersonName(raw: string): boolean {
   return true;
 }
 
+function isNotesSkip(input: string): boolean {
+  return /^(no|nada|ninguno|ninguna|nop|na|sin notas|no hay nada|nope)$/i.test(input.trim());
+}
+
+/** Pregunta real en el paso de notas — no confundir con un aviso del cliente */
+function looksLikeNotesQuestion(rawText: string): boolean {
+  const t = rawText.trim();
+  if (!t || isNotesSkip(t)) return false;
+  if (t.includes('?')) return true;
+  return /^(qué|que|cómo|como|cuánto|cuanto|cuál|cual|dónde|donde|hay |tienen |puedo |me pod[eé]s|quisiera saber|para qué|para que|cuánto|cuanto)/i.test(t);
+}
+
 type FlowPickResult =
   | { kind: 'home' }
   | { kind: 'option'; index: number }
@@ -1151,7 +1163,7 @@ export class BookingFlowService {
       return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
     }
 
-    if (input !== 'no' && isFreeTextOffFlow(rawText, input)) {
+    if (!isNotesSkip(input) && looksLikeNotesQuestion(rawText)) {
       const answer = await BookingAiService.answerOffFlow(tenantId, rawText, settings, this.flowAiContext(flow));
       if (answer) {
         return {
@@ -1161,7 +1173,7 @@ export class BookingFlowService {
       }
     }
 
-    const notes = input === 'no' ? null : input;
+    const notes = isNotesSkip(input) ? null : rawText.trim();
     flow = { ...flow, state: 'payment_choice', customerNotes: notes || undefined };
     await this.saveFlow(conversationId, flow);
 
