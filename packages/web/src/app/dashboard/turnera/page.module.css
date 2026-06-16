@@ -45,6 +45,19 @@
   font-weight: 600;
 }
 
+.sidebarGroupTitle {
+  padding: 16px 16px 6px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-faint);
+  font-weight: 700;
+}
+
+.sidebarGroupTitle:first-child {
+  padding-top: 8px;
+}
+
 .tabBtn {
   display: flex;
   align-items: center;
@@ -127,6 +140,30 @@
   color: var(--color-text-muted);
   margin-bottom: 20px;
   line-height: 1.5;
+}
+
+.generalMessage {
+  padding: 12px 16px;
+  margin-bottom: 20px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.generalMessageSuccess {
+  background: rgba(61, 214, 140, 0.08);
+  border: 1px solid rgba(61, 214, 140, 0.25);
+  color: var(--color-success);
+}
+
+.generalMessageError {
+  background: rgba(251, 113, 133, 0.08);
+  border: 1px solid rgba(251, 113, 133, 0.25);
+  color: var(--color-danger);
+}
+
+.generalPanelBlock {
+  margin-bottom: 8px;
 }
 
 .card {

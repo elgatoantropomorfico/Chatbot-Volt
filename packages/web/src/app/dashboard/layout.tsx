@@ -19,7 +19,6 @@ import {
   X,
   DollarSign,
   Calendar,
-  CalendarClock,
   Cloud,
 } from 'lucide-react';
 import { api } from '@/lib/api';
@@ -107,9 +106,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }[user.role];
 
   const isInbox = pathname === '/dashboard/inbox';
-  const isTurnera = pathname === '/dashboard/turnera';
+  const isSettings = pathname === '/dashboard/settings' || pathname === '/dashboard/turnera';
   const isBotSettings = pathname === '/dashboard/bot-settings';
-  const isConfigPanel = isTurnera || isBotSettings;
+  const isConfigPanel = isSettings || isBotSettings;
   const isFixedPanel = isInbox || isConfigPanel;
 
   return (
@@ -208,22 +207,13 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               )}
 
               {showBooking && (
-                <>
-                  <Link
-                    href="/dashboard/turnos"
-                    className={`${styles.navItem} ${pathname === '/dashboard/turnos' ? styles.navItemActive : ''}`}
-                  >
-                    <Calendar size={18} />
-                    Turnos
-                  </Link>
-                  <Link
-                    href="/dashboard/turnera"
-                    className={`${styles.navItem} ${pathname === '/dashboard/turnera' ? styles.navItemActive : ''}`}
-                  >
-                    <CalendarClock size={18} />
-                    Configuración de turnera
-                  </Link>
-                </>
+                <Link
+                  href="/dashboard/turnos"
+                  className={`${styles.navItem} ${pathname === '/dashboard/turnos' ? styles.navItemActive : ''}`}
+                >
+                  <Calendar size={18} />
+                  Turnos
+                </Link>
               )}
 
               {filterByRole(adminItems).length > 0 && (
@@ -249,7 +239,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`${styles.navItem} ${pathname === item.href ? styles.navItemActive : ''}`}
+                      className={`${styles.navItem} ${pathname === item.href || (item.href === '/dashboard/settings' && pathname === '/dashboard/turnera') ? styles.navItemActive : ''}`}
                     >
                       <item.icon size={18} />
                       {item.label}

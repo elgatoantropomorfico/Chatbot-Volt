@@ -1,15 +1,64 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
 import { api } from '@/lib/api';
 import { getTenantDisplayName } from '@/lib/tenant';
-import { Moon, Pencil, Sun } from 'lucide-react';
+import {
+  Settings,
+  UserCircle,
+  Building2,
+  Sun,
+  Moon,
+  Info,
+  Pencil,
+} from 'lucide-react';
+import {
+  TurneraConfigPanel,
+  TURNERA_TABS,
+  type TurneraTab,
+} from '../turnera/TurneraConfigPanel';
+import styles from '../turnera/page.module.css';
+
+type GeneralTab = 'cuenta' | 'negocio' | 'apariencia' | 'plataforma';
+type ConfigTab = GeneralTab | TurneraTab;
+
+const GENERAL_TABS: { id: GeneralTab; label: string; icon: typeof UserCircle }[] = [
+  { id: 'cuenta', label: 'Tu cuenta', icon: UserCircle },
+  { id: 'negocio', label: 'Negocio', icon: Building2 },
+  { id: 'apariencia', label: 'Apariencia', icon: Sun },
+  { id: 'plataforma', label: 'Plataforma', icon: Info },
+];
+
+const TURNERA_TAB_IDS = new Set<string>(TURNERA_TABS.map((t) => t.id));
+
+function isTurneraTab(tab: string): tab is TurneraTab {
+  return TURNERA_TAB_IDS.has(tab);
+}
+
+function isGeneralTab(tab: string): tab is GeneralTab {
+  return GENERAL_TABS.some((t) => t.id === tab);
+}
 
 export default function SettingsPage() {
+  return (
+    <Suspense fallback={<div className={styles.wrapper}><div className={styles.emptyState}>Cargando...</div></div>}>
+      <SettingsPageContent />
+    </Suspense>
+  );
+}
+
+function SettingsPageContent() {
   const { user, isSuperAdmin, isTenantAdmin, refreshUser } = useAuth();
   const { theme, setTheme } = useTheme();
+  const searchParams = useSearchParams();
+
+  const [tab, setTab] = useState<ConfigTab>('cuenta');
+  const [showBooking, setShowBooking] = useState(false);
+  const [turneraStatus, setTurneraStatus] = useState({ msg: '', saving: false });
+
   const [editingProfile, setEditingProfile] = useState(false);
   const [editingBusiness, setEditingBusiness] = useState(false);
   const [profileForm, setProfileForm] = useState({ name: '', password: '', confirmPassword: '' });
@@ -18,6 +67,46 @@ export default function SettingsPage() {
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   const tenantLabel = getTenantDisplayName(user?.tenant);
+
+  useEffect(() => {
+    const requested = searchParams.get('tab');
+    if (!requested) return;
+    if (isGeneralTab(requested)) {
+      setTab(requested);
+      return;
+    }
+    if (isTurneraTab(requested)) {
+      setTab(requested);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (!user || user.role === 'superadmin') return;
+    api.getBookingSettings()
+      .then(({ settings }) => {
+        if (settings?.bookingEnabled) setShowBooking(true);
+      })
+      .catch(() => {});
+  }, [user]);
+
+  useEffect(() => {
+    if (!showBooking && isTurneraTab(tab)) setTab('cuenta');
+  }, [showBooking, tab]);
+
+  const handleTurneraStatus = useCallback((status: { msg: string; saving: boolean }) => {
+    setTurneraStatus(status);
+  }, []);
+
+  const activeMeta = useMemo(() => {
+    const general = GENERAL_TABS.find((t) => t.id === tab);
+    if (general) return { label: general.label, icon: general.icon, group: 'General' };
+    const turnera = TURNERA_TABS.find((t) => t.id === tab);
+    if (turnera) return { label: turnera.label, icon: turnera.icon, group: 'Turnera' };
+    return { label: 'Configuración', icon: Settings, group: 'General' };
+  }, [tab]);
+
+  const ActiveIcon = activeMeta.icon;
+  const isTurneraActive = isTurneraTab(tab);
 
   function startEditProfile() {
     setEditingProfile(true);
@@ -94,56 +183,113 @@ export default function SettingsPage() {
     }
   }
 
-  return (
-    <div className="volt-config-wrapper-stack">
-      <div className="volt-page-header">
-        <div>
-          <h1 className="volt-page-title">Configuración</h1>
-          <p className="volt-page-sub">Administrá tu cuenta y el nombre visible de tu negocio.</p>
-        </div>
-      </div>
+  function renderGeneralContent() {
+    if (message && !isTurneraActive) {
+      // shown above content
+    }
 
-      {message && (
-        <div
-          className="volt-panel"
-          style={{
-            padding: '12px 18px',
-            fontSize: '13px',
-            fontWeight: 500,
-            background: message.type === 'success' ? 'rgba(61, 214, 140, 0.08)' : 'rgba(251, 113, 133, 0.08)',
-            borderColor: message.type === 'success' ? 'rgba(61, 214, 140, 0.25)' : 'rgba(251, 113, 133, 0.25)',
-            color: message.type === 'success' ? 'var(--color-success)' : 'var(--color-danger)',
-          }}
-        >
-          {message.text}
-        </div>
-      )}
-
-      {!isSuperAdmin && user?.tenant && (
-        <div className="volt-panel volt-panel-accent-violet">
-          <div className="volt-panel-body volt-config-page">
-            <div className="volt-page-header" style={{ marginBottom: 0 }}>
-              <div>
-                <h3 className="volt-panel-title">Nombre del negocio</h3>
-                <p className="volt-panel-desc">
-                  Es el nombre que ves en el dashboard, sidebar y saludos. Solo afecta a tu tenant.
-                </p>
-              </div>
-              {isTenantAdmin && !editingBusiness && (
-                <button type="button" className="volt-btn-ghost" onClick={startEditBusiness}>
-                  <Pencil size={13} /> Editar
-                </button>
+    switch (tab) {
+      case 'cuenta':
+        return (
+          <>
+            <h2 className={styles.sectionTitle}>Tu cuenta</h2>
+            <p className={styles.sectionHint}>
+              Tu nombre personal como usuario del panel (no es el nombre del negocio).
+            </p>
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Tu nombre</span>
+              {editingProfile ? (
+                <input
+                  className={styles.formInput}
+                  type="text"
+                  value={profileForm.name}
+                  onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
+                  placeholder="Tu nombre"
+                  style={{ maxWidth: 280 }}
+                />
+              ) : (
+                <span style={{ fontWeight: 500, fontSize: '13px' }}>
+                  {user?.name || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin nombre</span>}
+                </span>
               )}
             </div>
-            <div className="volt-toggle-row">
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Email</span>
+              <span style={{ fontWeight: 500, fontSize: '13px' }}>{user?.email}</span>
+            </div>
+            {editingProfile && (
+              <>
+                <div className={styles.toggleRow}>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nueva contraseña</span>
+                  <input
+                    className={styles.formInput}
+                    type="password"
+                    value={profileForm.password}
+                    onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
+                    placeholder="Dejar vacío para no cambiar"
+                    style={{ maxWidth: 280 }}
+                  />
+                </div>
+                <div className={styles.toggleRow}>
+                  <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Confirmar contraseña</span>
+                  <input
+                    className={styles.formInput}
+                    type="password"
+                    value={profileForm.confirmPassword}
+                    onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })}
+                    placeholder="Repetir contraseña"
+                    style={{ maxWidth: 280 }}
+                  />
+                </div>
+              </>
+            )}
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Rol</span>
+              <span style={{ textTransform: 'capitalize', fontWeight: 500, fontSize: '13px' }}>
+                {user?.role?.replace('_', ' ')}
+              </span>
+            </div>
+            <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+              {!editingProfile ? (
+                <button type="button" className={styles.addBtn} onClick={startEditProfile}>
+                  <Pencil size={14} /> Editar cuenta
+                </button>
+              ) : (
+                <>
+                  <button type="button" className={styles.cancelBtn} onClick={cancelEditProfile}>Cancelar</button>
+                  <button type="button" className={styles.saveBtn} onClick={saveProfile} disabled={saving}>
+                    {saving ? 'Guardando...' : 'Guardar cuenta'}
+                  </button>
+                </>
+              )}
+            </div>
+          </>
+        );
+
+      case 'negocio':
+        if (isSuperAdmin || !user?.tenant) {
+          return (
+            <div className={styles.emptyState}>
+              <p>La configuración del negocio aplica a tenants operativos.</p>
+            </div>
+          );
+        }
+        return (
+          <>
+            <h2 className={styles.sectionTitle}>Nombre del negocio</h2>
+            <p className={styles.sectionHint}>
+              Es el nombre que ves en el dashboard, sidebar y saludos. Solo afecta a tu tenant.
+            </p>
+            <div className={styles.toggleRow}>
               <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nombre visible</span>
               {editingBusiness ? (
                 <input
+                  className={styles.formInput}
                   type="text"
                   value={businessName}
                   onChange={(e) => setBusinessName(e.target.value)}
                   placeholder="Ej: Le Rocher"
-                  style={{ maxWidth: 260 }}
+                  style={{ maxWidth: 280 }}
                 />
               ) : (
                 <span style={{ fontWeight: 600, fontSize: '13px' }}>
@@ -151,136 +297,155 @@ export default function SettingsPage() {
                 </span>
               )}
             </div>
-            {editingBusiness && (
-              <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-                <button type="button" className="volt-btn-ghost" onClick={cancelEditBusiness}>Cancelar</button>
-                <button type="button" className="volt-btn-primary" onClick={saveBusinessName} disabled={saving}>
-                  {saving ? 'Guardando...' : 'Guardar negocio'}
+            {isTenantAdmin && (
+              <div style={{ display: 'flex', gap: 8, marginTop: 16, justifyContent: 'flex-end' }}>
+                {!editingBusiness ? (
+                  <button type="button" className={styles.addBtn} onClick={startEditBusiness}>
+                    <Pencil size={14} /> Editar negocio
+                  </button>
+                ) : (
+                  <>
+                    <button type="button" className={styles.cancelBtn} onClick={cancelEditBusiness}>Cancelar</button>
+                    <button type="button" className={styles.saveBtn} onClick={saveBusinessName} disabled={saving}>
+                      {saving ? 'Guardando...' : 'Guardar negocio'}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </>
+        );
+
+      case 'apariencia':
+        return (
+          <>
+            <h2 className={styles.sectionTitle}>Apariencia</h2>
+            <p className={styles.sectionHint}>
+              Elegí cómo se ve el panel. El modo claro mantiene la misma línea visual con fondos claros.
+            </p>
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Tema del panel</span>
+              <div className="volt-theme-switch" role="group" aria-label="Tema del panel">
+                <button
+                  type="button"
+                  className={`volt-theme-option ${theme === 'dark' ? 'volt-theme-option-active' : ''}`}
+                  onClick={() => setTheme('dark')}
+                >
+                  <Moon size={14} /> Oscuro
+                </button>
+                <button
+                  type="button"
+                  className={`volt-theme-option ${theme === 'light' ? 'volt-theme-option-active' : ''}`}
+                  onClick={() => setTheme('light')}
+                >
+                  <Sun size={14} /> Claro
                 </button>
               </div>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div className="volt-panel volt-panel-accent-violet">
-        <div className="volt-panel-body volt-config-page">
-          <div className="volt-page-header" style={{ marginBottom: 0 }}>
-            <div>
-              <h3 className="volt-panel-title">Tu cuenta</h3>
-              <p className="volt-panel-desc">
-                Tu nombre personal como usuario del panel (no es el nombre del negocio).
-              </p>
             </div>
-            {!editingProfile && (
-              <button type="button" className="volt-btn-ghost" onClick={startEditProfile}>
-                <Pencil size={13} /> Editar
+          </>
+        );
+
+      case 'plataforma':
+        return (
+          <>
+            <h2 className={styles.sectionTitle}>Plataforma</h2>
+            <p className={styles.sectionHint}>Información técnica del entorno Volt.</p>
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Versión</span>
+              <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>0.1.0 (MVP 1)</span>
+            </div>
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>WhatsApp API</span>
+              <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>v21.0</span>
+            </div>
+            <div className={styles.toggleRow}>
+              <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Motor IA</span>
+              <span style={{ fontWeight: 500, fontSize: '13px' }}>OpenAI</span>
+            </div>
+          </>
+        );
+
+      default:
+        return null;
+    }
+  }
+
+  return (
+    <div className={styles.wrapper}>
+      <div className={styles.mobileHeader}>
+        <h1>Configuración</h1>
+      </div>
+
+      <div className={styles.shell}>
+        <aside className={styles.sidebar}>
+          <div className={styles.sidebarGroupTitle}>General</div>
+          {GENERAL_TABS.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                type="button"
+                className={`${styles.tabBtn} ${tab === t.id ? styles.tabBtnActive : ''}`}
+                onClick={() => setTab(t.id)}
+              >
+                <Icon size={15} />
+                {t.label}
               </button>
-            )}
-          </div>
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Tu nombre</span>
-            {editingProfile ? (
-              <input
-                type="text"
-                value={profileForm.name}
-                onChange={(e) => setProfileForm({ ...profileForm, name: e.target.value })}
-                placeholder="Tu nombre"
-                style={{ maxWidth: 260 }}
-              />
-            ) : (
-              <span style={{ fontWeight: 500, fontSize: '13px' }}>
-                {user?.name || <span style={{ color: 'var(--color-text-muted)', fontStyle: 'italic' }}>Sin nombre</span>}
-              </span>
-            )}
-          </div>
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Email</span>
-            <span style={{ fontWeight: 500, fontSize: '13px' }}>{user?.email}</span>
-          </div>
-          {editingProfile && (
+            );
+          })}
+
+          {showBooking && (
             <>
-              <div className="volt-toggle-row">
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Nueva contraseña</span>
-                <input
-                  type="password"
-                  value={profileForm.password}
-                  onChange={(e) => setProfileForm({ ...profileForm, password: e.target.value })}
-                  placeholder="Dejar vacío para no cambiar"
-                  style={{ maxWidth: 260 }}
-                />
-              </div>
-              <div className="volt-toggle-row">
-                <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Confirmar contraseña</span>
-                <input
-                  type="password"
-                  value={profileForm.confirmPassword}
-                  onChange={(e) => setProfileForm({ ...profileForm, confirmPassword: e.target.value })}
-                  placeholder="Repetir contraseña"
-                  style={{ maxWidth: 260 }}
-                />
-              </div>
+              <div className={styles.sidebarGroupTitle}>Turnera</div>
+              {TURNERA_TABS.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className={`${styles.tabBtn} ${tab === t.id ? styles.tabBtnActive : ''}`}
+                    onClick={() => setTab(t.id)}
+                  >
+                    <Icon size={15} />
+                    {t.label}
+                  </button>
+                );
+              })}
             </>
           )}
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Rol</span>
-            <span style={{ textTransform: 'capitalize', fontWeight: 500, fontSize: '13px' }}>
-              {user?.role?.replace('_', ' ')}
-            </span>
-          </div>
-          {editingProfile && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px', justifyContent: 'flex-end' }}>
-              <button type="button" className="volt-btn-ghost" onClick={cancelEditProfile}>Cancelar</button>
-              <button type="button" className="volt-btn-primary" onClick={saveProfile} disabled={saving}>
-                {saving ? 'Guardando...' : 'Guardar cuenta'}
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
+        </aside>
 
-      <div className="volt-panel volt-panel-accent-violet">
-        <div className="volt-panel-body volt-config-page">
-          <h3 className="volt-panel-title">Apariencia</h3>
-          <p className="volt-panel-desc" style={{ marginBottom: 14 }}>
-            Elegí cómo se ve el panel. El modo claro mantiene la misma línea visual con fondos claros.
-          </p>
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Tema del panel</span>
-            <div className="volt-theme-switch" role="group" aria-label="Tema del panel">
-              <button
-                type="button"
-                className={`volt-theme-option ${theme === 'dark' ? 'volt-theme-option-active' : ''}`}
-                onClick={() => setTheme('dark')}
-              >
-                <Moon size={14} /> Oscuro
-              </button>
-              <button
-                type="button"
-                className={`volt-theme-option ${theme === 'light' ? 'volt-theme-option-active' : ''}`}
-                onClick={() => setTheme('light')}
-              >
-                <Sun size={14} /> Claro
-              </button>
+        <div className={styles.content}>
+          <div className={styles.contentHeader}>
+            <h1>
+              <ActiveIcon size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8, color: '#a78bfa' }} />
+              {activeMeta.label}
+              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 10 }}>
+                {activeMeta.group}
+              </span>
+            </h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {isTurneraActive ? (
+                <>
+                  {turneraStatus.msg && <span className={styles.saveMsg}>{turneraStatus.msg}</span>}
+                  {turneraStatus.saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>}
+                </>
+              ) : (
+                saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>
+              )}
             </div>
           </div>
-        </div>
-      </div>
-
-      <div className="volt-panel volt-panel-accent-cyan">
-        <div className="volt-panel-body volt-config-page">
-          <h3 className="volt-panel-title">Plataforma</h3>
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Versión</span>
-            <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>0.1.0 (MVP 1)</span>
-          </div>
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>WhatsApp API</span>
-            <span style={{ fontWeight: 500, fontFamily: 'var(--font-mono)', fontSize: '12px' }}>v21.0</span>
-          </div>
-          <div className="volt-toggle-row">
-            <span style={{ color: 'var(--color-text-muted)', fontSize: '13px' }}>Motor IA</span>
-            <span style={{ fontWeight: 500, fontSize: '13px' }}>OpenAI</span>
+          <div className={styles.contentBody}>
+            {message && !isTurneraActive && (
+              <div className={`${styles.generalMessage} ${message.type === 'success' ? styles.generalMessageSuccess : styles.generalMessageError}`}>
+                {message.text}
+              </div>
+            )}
+            {isTurneraActive ? (
+              <TurneraConfigPanel tab={tab} onStatusChange={handleTurneraStatus} />
+            ) : (
+              renderGeneralContent()
+            )}
           </div>
         </div>
       </div>
