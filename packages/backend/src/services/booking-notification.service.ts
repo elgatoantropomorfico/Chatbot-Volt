@@ -66,9 +66,24 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
       );
 
       if (appointment.conversationId) {
+        const existing = (appointment.conversation?.bookingFlowJson as Record<string, unknown>) || {};
+        const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
         await prisma.conversation.update({
           where: { id: appointment.conversationId },
-          data: { bookingFlowJson: { state: 'confirmed' } as any },
+          data: {
+            bookingFlowJson: {
+              ...existing,
+              state: 'confirmed',
+              appointmentId: appointment.id,
+              serviceId: appointment.serviceId,
+              serviceName: appointment.service.name,
+              slotDate: dateStr,
+              slotTime: appointment.appointmentTime,
+              slotLabel: `${dateStr} — ${appointment.appointmentTime}`,
+              customerName: appointment.customerName ?? (existing as any).customerName,
+              customerNotes: appointment.customerNotes ?? (existing as any).customerNotes,
+            },
+          },
         });
       }
     } catch (err: any) {

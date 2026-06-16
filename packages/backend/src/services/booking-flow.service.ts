@@ -333,11 +333,64 @@ export class BookingFlowService {
         return this.handlePaymentChoice(tenantId, conversationId, leadId, phone, settings, flow, input, text);
       case 'waiting_payment':
         return this.handleWaitingPayment(tenantId, conversationId, leadId, phone, settings, flow, input, text);
+      case 'confirmed':
+        return this.handlePostBooking(tenantId, conversationId, settings, flow, input, text);
       default:
         flow = { state: 'booking_start' };
         await this.saveFlow(conversationId, flow);
-        return this.mainMenuReply(tenantId, settings);
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, text);
     }
+  }
+
+  private static async enrichConfirmedFlow(flow: BookingFlowContext): Promise<BookingFlowContext> {
+    if (flow.serviceName && flow.slotLabel) return flow;
+    if (!flow.appointmentId) return flow;
+    const apt = await prisma.appointment.findUnique({
+      where: { id: flow.appointmentId },
+      include: { service: true },
+    });
+    if (!apt) return flow;
+    const dateStr = apt.appointmentDate.toISOString().slice(0, 10);
+    return {
+      ...flow,
+      serviceId: apt.serviceId,
+      serviceName: apt.service.name,
+      slotDate: dateStr,
+      slotTime: apt.appointmentTime,
+      slotLabel: `${dateStr} — ${apt.appointmentTime}`,
+      customerName: apt.customerName || flow.customerName,
+    };
+  }
+
+  /** Post-confirmación: IA responde consultas sin repetir la bienvenida inicial */
+  private static async handlePostBooking(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult> {
+    const enriched = await this.enrichConfirmedFlow(flow);
+    const prevFlow = { ...enriched, state: 'confirmed' as const };
+    let body: string | null = null;
+
+    if (isFreeTextOffFlow(rawText, input)) {
+      body = await BookingAiService.answerOffFlow(tenantId, rawText, settings, this.flowAiContext(prevFlow));
+    }
+
+    const bridge = await BookingAiService.generateFlowBridge(
+      tenantId, settings, this.flowAiContext(prevFlow), 'post_booking',
+    );
+
+    const merged = body && bridge
+      ? `${body}\n\n${bridge}`
+      : body || bridge || 'Si querés reservar otro turno o consultar algo más, decime y te ayudo 🌿';
+
+    const nextFlow: BookingFlowContext = { ...prevFlow, state: 'booking_start' };
+    await this.saveFlow(conversationId, nextFlow);
+
+    return this.mainMenuOptionsReply(merged);
   }
 
   private static flowAiContext(flow: BookingFlowContext) {
@@ -481,6 +534,8 @@ export class BookingFlowService {
           text: msg(settings, 'payment_pending',
             'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación. Si necesitás el link de nuevo, escribí *humano*.'),
         });
+      case 'confirmed':
+        return this.handlePostBooking(tenantId, conversationId, settings, flow, '', '');
       default:
         flow = { state: 'booking_start' };
         await this.saveFlow(conversationId, flow);

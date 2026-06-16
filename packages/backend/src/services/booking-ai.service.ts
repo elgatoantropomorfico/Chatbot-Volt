@@ -80,13 +80,21 @@ ${serviceLines.join('\n')}`;
     tenantId: string,
     settings: any,
     flow: BookingFlowAiContext,
-    intent: 'resume_step' | 'go_home',
+    intent: 'resume_step' | 'go_home' | 'post_booking',
   ): Promise<string | null> {
     const context = await this.buildContext(tenantId, settings);
     const flowHint = this.flowContextHint(flow);
     const instruction = intent === 'go_home'
       ? 'El usuario quiere volver al menú principal. Saludalo brevemente y ofrecé ayuda para elegir o reservar, sin repetir el menú completo ni listar opciones.'
-      : 'El usuario quiere retomar la reserva donde la dejó. Una frase cálida que conecte con el paso actual, sin repetir botones ni menús.';
+      : intent === 'post_booking'
+        ? 'El usuario ya confirmó su turno. Una frase cálida de cierre; ofrecé ayuda para otra consulta o nueva reserva. No repitas la bienvenida inicial ni listes opciones.'
+        : 'El usuario quiere retomar la reserva donde la dejó. Una frase cálida que conecte con el paso actual, sin repetir botones ni menús.';
+
+    const userMsg = intent === 'go_home'
+      ? 'Volvamos al inicio.'
+      : intent === 'post_booking'
+        ? 'Mi turno ya está confirmado.'
+        : 'Sigamos con la reserva.';
 
     const messages = [
       {
@@ -97,7 +105,7 @@ Español argentino, máximo 2 oraciones. Usá SOLO el contexto provisto.
 
 ${context}`,
       },
-      { role: 'user' as const, content: intent === 'go_home' ? 'Volvamos al inicio.' : 'Sigamos con la reserva.' },
+      { role: 'user' as const, content: userMsg },
     ];
 
     return this.completeChat(messages, 100);
