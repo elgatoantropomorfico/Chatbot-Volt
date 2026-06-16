@@ -326,21 +326,6 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // 6. Missing WooCommerce integration (if no integration at all)
-      const integration = await prisma.integration.findFirst({
-        where: { tenantId, type: 'woocommerce', status: 'active' },
-      });
-      if (!integration) {
-        actions.push({
-          id: 'missing_woo',
-          type: 'info',
-          title: 'Tienda online no conectada',
-          description: 'Conectá WooCommerce para habilitar la venta de productos por WhatsApp.',
-          link: '/dashboard/integrations',
-          linkLabel: 'Ir a Integraciones',
-        });
-      }
-
       reply.send({ actions });
     } catch (error) {
       console.error('Dashboard actions error:', error);

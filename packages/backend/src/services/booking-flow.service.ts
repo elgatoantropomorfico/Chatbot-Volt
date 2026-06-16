@@ -78,6 +78,11 @@ export interface BookingFlowContext {
 }
 
 const MAIN_MENU_COMMANDS = ['menú', 'menu', 'empezar de nuevo', 'inicio'];
+const GO_HOME_LABEL = 'Volver al inicio';
+const GO_HOME_COMMANDS = ['volver al inicio', 'volver al menu', 'volver al menú', ...MAIN_MENU_COMMANDS];
+const HOME_HINT = '\n\n_(También podés escribir *menu* para volver al inicio)_';
+
+const NON_NAME_WORDS = /^(quisiera|me|gustaría|gustaria|más|mas|información|informacion|sobre|los|las|el|la|qué|que|cómo|como|tratamiento|tratamientos|camino|caminos|turno|reserva|precio|horario|cuánto|cuanto|hay|tienen|puedo|contame|explicame|para|muy|mucho|tengo|necesito|quiero|saber|decime|hola|buenas|leí|lei|algún|algun|alguna|y|o|un|una|de|en|con|por|si|no)$/i;
 
 function normalizeInput(text: string): string {
   return text.trim().toLowerCase();
@@ -123,21 +128,42 @@ function pickOption(text: string, max: number): number | null {
 
 /** Texto libre que claramente no es elección de menú */
 function isFreeTextOffFlow(rawText: string, input: string, maxOptions?: number): boolean {
-  if (looksLikePersonName(rawText)) return false;
   if (BookingAiService.looksLikeGreeting(rawText)) return false;
   if (maxOptions != null && pickOption(input, maxOptions) !== null) return false;
   if (isMoreOptionsInput(input, maxOptions || 99)) return false;
+  if (isGoHomeIntent(input)) return false;
   return BookingAiService.looksLikeQuestion(rawText) || rawText.trim().length >= 12;
+}
+
+function isGoHomeIntent(input: string): boolean {
+  return GO_HOME_COMMANDS.some((c) => isExactCommand(input, c) || input === c.replace('ó', 'o'));
 }
 
 function looksLikePersonName(raw: string): boolean {
   const t = raw.trim();
   if (!t || t.length < 2 || t.includes('?')) return false;
   if (BookingAiService.looksLikeQuestion(t)) return false;
+  if (BookingAiService.looksLikeInfoRequest(t)) return false;
   if (!/^[\p{L}\s'.-]{2,80}$/u.test(t)) return false;
   const words = t.split(/\s+/).filter(Boolean);
-  if (words.length >= 2) return true;
-  return words.length === 1 && words[0].length >= 3;
+  if (words.length < 2 || words.length > 5) return false;
+  if (words.some((w) => NON_NAME_WORDS.test(w))) return false;
+  if (words.some((w) => w.length > 20)) return false;
+  return true;
+}
+
+type FlowPickResult =
+  | { kind: 'home' }
+  | { kind: 'option'; index: number }
+  | { kind: 'invalid' };
+
+function pickFlowOption(input: string, baseCount: number, withHome: boolean): FlowPickResult {
+  const total = withHome ? baseCount + 1 : baseCount;
+  const opt = pickOption(input, total);
+  if (!opt) return { kind: 'invalid' };
+  if (withHome && opt === total) return { kind: 'home' };
+  if (opt > baseCount) return { kind: 'invalid' };
+  return { kind: 'option', index: opt };
 }
 
 function isMoreOptionsInput(input: string, totalOptions: number): boolean {
@@ -151,18 +177,19 @@ function msg(settings: any, key: string, fallback: string): string {
 }
 
 /** Build WhatsApp interactive reply with numbered fallback in text */
-function flowReply(body: string, options: string[]): FlowHandleResult {
-  const numbered = options.map((o, i) => `${i + 1}️⃣ ${o}`).join('\n');
+function flowReply(body: string, options: string[], includeHome = false): FlowHandleResult {
+  const opts = includeHome ? [...options, GO_HOME_LABEL] : options;
+  const numbered = opts.map((o, i) => `${i + 1}️⃣ ${o}`).join('\n');
   const fullText = `${body}\n\n${numbered}`;
 
-  if (options.length <= 3) {
+  if (opts.length <= 3) {
     return {
       handled: true,
       text: fullText,
       interactive: {
         type: 'button',
         body,
-        buttons: options.map((title, i) => ({
+        buttons: opts.map((title, i) => ({
           id: `opt_${i + 1}`,
           title: title.length > 20 ? `${i + 1}. ${title}`.slice(0, 20) : title,
         })),
@@ -178,13 +205,27 @@ function flowReply(body: string, options: string[]): FlowHandleResult {
       body,
       listButtonText: 'Ver opciones',
       listSectionTitle: 'Elegí una opción',
-      listRows: options.map((title, i) => ({
+      listRows: opts.map((title, i) => ({
         id: `opt_${i + 1}`,
         title: title.slice(0, 24),
         description: '',
       })),
     },
   };
+}
+
+function prependToReply(result: FlowHandleResult, prefix: string): FlowHandleResult {
+  if (result.interactive) {
+    return {
+      ...result,
+      text: `${prefix}\n\n${result.text}`,
+      interactive: {
+        ...result.interactive,
+        body: `${prefix}\n\n${result.interactive.body}`.slice(0, 1020),
+      },
+    };
+  }
+  return { ...result, text: `${prefix}\n\n${result.text}` };
 }
 
 export class BookingFlowService {
@@ -232,9 +273,7 @@ export class BookingFlowService {
     }
 
     if (MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))) {
-      flow = { state: 'booking_start' };
-      await this.saveFlow(conversationId, flow);
-      return this.mainMenuReply(tenantId, settings);
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, text);
     }
 
     if (looksLikeCancelIntent(input)) {
@@ -253,16 +292,9 @@ export class BookingFlowService {
       await this.saveFlow(conversationId, flow);
       const menu = this.mainMenuReply(tenantId, settings);
       if (isFreeTextOffFlow(text, input, 3)) {
-        const answer = await BookingAiService.answerOffFlow(tenantId, text, settings, flow.state);
+        const answer = await BookingAiService.answerOffFlow(tenantId, text, settings, this.flowAiContext(flow));
         if (answer) {
-          return {
-            handled: true,
-            text: `${answer}\n\n${menu.text}`,
-            interactive: {
-              ...menu.interactive!,
-              body: `${answer}\n\n${menu.interactive!.body}`.slice(0, 1020),
-            },
-          };
+          return prependToReply(menu, answer);
         }
         console.warn('📅 Booking IA sin respuesta en idle — revisar OPENAI_API_KEY');
       }
@@ -284,7 +316,7 @@ export class BookingFlowService {
       case 'customer_name':
         return this.handleCustomerName(tenantId, conversationId, leadId, settings, flow, input, text, params.profileName);
       case 'customer_notes':
-        return this.handleNotes(tenantId, conversationId, leadId, phone, settings, flow, input);
+        return this.handleNotes(tenantId, conversationId, leadId, phone, settings, flow, input, text);
       case 'payment_choice':
         return this.handlePaymentChoice(tenantId, conversationId, leadId, phone, settings, flow, input, text);
       case 'waiting_payment':
@@ -296,54 +328,86 @@ export class BookingFlowService {
     }
   }
 
+  private static flowAiContext(flow: BookingFlowContext) {
+    return {
+      state: flow.state,
+      serviceName: flow.serviceName,
+      slotLabel: flow.slotLabel,
+    };
+  }
+
   private static async offFlowThen(
     tenantId: string,
+    conversationId: string,
     userText: string,
     settings: any,
     flow: BookingFlowContext,
     resume: () => Promise<FlowHandleResult>,
     maxOptions?: number,
+    includeHome = false,
   ): Promise<FlowHandleResult> {
+    const baseCount = maxOptions ?? 0;
+    const homePick = includeHome ? pickFlowOption(normalizeInput(userText), baseCount, true) : { kind: 'invalid' as const };
+    if (homePick.kind === 'home' || isGoHomeIntent(normalizeInput(userText))) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, userText);
+    }
+
     const next = await resume();
     if (!isFreeTextOffFlow(userText, normalizeInput(userText), maxOptions)) {
       return next;
     }
 
-    const answer = await BookingAiService.answerOffFlow(tenantId, userText, settings, flow.state);
+    const answer = await BookingAiService.answerOffFlow(tenantId, userText, settings, this.flowAiContext(flow));
     if (!answer) {
       console.warn(`📅 Booking IA sin respuesta (state=${flow.state}) — revisar OPENAI_API_KEY`);
       return next;
     }
 
-    const text = `${answer}\n\n${next.text}`;
-    if (next.interactive) {
-      return {
-        handled: true,
-        text,
-        interactive: {
-          ...next.interactive,
-          body: `${answer}\n\n${next.interactive.body}`.slice(0, 1020),
-        },
-      };
-    }
-    return { handled: true, text };
+    return prependToReply(next, answer);
   }
 
-  private static wrapWithResumeBridge(settings: any, result: FlowHandleResult): FlowHandleResult {
-    const bridge = msg(settings, 'welcome_resume', '').trim();
-    if (!bridge) return result;
-    if (result.interactive) {
-      const body = `${bridge}\n\n${result.interactive.body}`.slice(0, 1020);
-      return {
-        ...result,
-        text: `${bridge}\n\n${result.text}`,
-        interactive: { ...result.interactive, body },
-      };
-    }
-    return { ...result, text: `${bridge}\n\n${result.text}` };
+  private static mainMenuOptionsReply(body: string): FlowHandleResult {
+    return flowReply(body, ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios']);
   }
 
-  /** Retoma el paso actual sin volver al menú madre ni repetir la bienvenida principal */
+  private static async goToMainMenu(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    userText?: string,
+  ): Promise<FlowHandleResult> {
+    const prevFlow = { ...flow };
+    const nextFlow: BookingFlowContext = { state: 'booking_start' };
+    if (conversationId) {
+      await this.saveFlow(conversationId, nextFlow);
+    }
+
+    const input = userText ? normalizeInput(userText) : '';
+    let body: string | null = null;
+
+    if (userText && isFreeTextOffFlow(userText, input)) {
+      body = await BookingAiService.answerOffFlow(tenantId, userText, settings, this.flowAiContext(prevFlow));
+    }
+    if (!body) {
+      body = await BookingAiService.generateFlowBridge(tenantId, settings, this.flowAiContext(prevFlow), 'go_home');
+    }
+
+    return this.mainMenuOptionsReply(body || 'Contame en qué te puedo ayudar 🌿');
+  }
+
+  private static async resumeWithBridge(
+    tenantId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    stepReply: FlowHandleResult,
+  ): Promise<FlowHandleResult> {
+    const bridge = await BookingAiService.generateFlowBridge(tenantId, settings, this.flowAiContext(flow), 'resume_step');
+    if (!bridge) return stepReply;
+    return prependToReply(stepReply, bridge);
+  }
+
+  /** Retoma el paso actual con puente dinámico por IA */
   private static async resumeCurrentStep(
     tenantId: string,
     conversationId: string,
@@ -352,53 +416,55 @@ export class BookingFlowService {
   ): Promise<FlowHandleResult> {
     switch (flow.state) {
       case 'booking_start':
-        return this.wrapWithResumeBridge(settings, this.mainMenuReply(tenantId, settings));
+        return this.goToMainMenu(tenantId, conversationId, settings, flow);
       case 'choosing_service_mode':
-        return this.wrapWithResumeBridge(settings, await this.serviceListReply(tenantId));
+        return this.resumeWithBridge(tenantId, settings, flow, await this.serviceListReply(tenantId));
       case 'recommender_q1':
-        return this.wrapWithResumeBridge(settings, flowReply('¿Qué sentís que necesitás hoy?', [
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply('¿Qué sentís que necesitás hoy?', [
           'Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez',
-        ]));
+        ], true));
       case 'recommender_q2':
-        return this.wrapWithResumeBridge(settings, flowReply('¿Cómo te gustaría vivir la sesión?', [
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply('¿Cómo te gustaría vivir la sesión?', [
           'Suave y relajante', 'Profunda y envolvente', 'Con calor', 'Con aromas/herbales', 'Más corporal',
-        ]));
+        ], true));
       case 'service_selected':
-        return this.wrapWithResumeBridge(settings, flowReply(
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply(
           flow.serviceName ? `¿Reservamos ${flow.serviceName}?` : '¿Seguimos con la reserva?',
           ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'],
+          true,
         ));
       case 'slot_selection':
         if (flow.slotBrowse === 'more_menu') {
-          return this.wrapWithResumeBridge(settings, this.moreSlotsMenuReply());
+          return this.resumeWithBridge(tenantId, settings, flow, this.moreSlotsMenuReply());
         }
         if (flow.slotBrowse === 'pick_day') {
-          return this.wrapWithResumeBridge(settings, {
+          return this.resumeWithBridge(tenantId, settings, flow, {
             handled: true,
-            text: '¿Qué día te queda bien? Podés decir *jueves*, *mañana* o una fecha como *20/06*.',
+            text: `¿Qué día te queda bien? Podés decir *jueves*, *mañana* o una fecha como *20/06*.${HOME_HINT}`,
           });
         }
         if (flow.tempSlots?.length) {
-          return this.wrapWithResumeBridge(settings, this.slotsListReply('Elegí un horario:', flow.tempSlots));
+          return this.resumeWithBridge(tenantId, settings, flow, this.slotsListReply('Elegí un horario:', flow.tempSlots));
         }
-        return this.wrapWithResumeBridge(settings, await this.slotReply(tenantId, flow.serviceName || ''));
+        return this.resumeWithBridge(tenantId, settings, flow, await this.slotReply(tenantId, flow.serviceName || ''));
       case 'customer_name':
-        return this.wrapWithResumeBridge(settings, {
+        return this.resumeWithBridge(tenantId, settings, flow, {
           handled: true,
-          text: 'Pasame tu *nombre y apellido* para dejar el turno preparado.',
+          text: `Pasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
         });
       case 'customer_notes':
-        return this.wrapWithResumeBridge(settings, {
+        return this.resumeWithBridge(tenantId, settings, flow, {
           handled: true,
-          text: '¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.',
+          text: `¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
         });
       case 'payment_choice':
-        return this.wrapWithResumeBridge(settings, flowReply(
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply(
           'Elegí cómo querés pagar:',
           [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'],
+          true,
         ));
       case 'waiting_payment':
-        return this.wrapWithResumeBridge(settings, {
+        return this.resumeWithBridge(tenantId, settings, flow, {
           handled: true,
           text: msg(settings, 'payment_pending',
             'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación. Si necesitás el link de nuevo, escribí *humano*.'),
@@ -406,7 +472,7 @@ export class BookingFlowService {
       default:
         flow = { state: 'booking_start' };
         await this.saveFlow(conversationId, flow);
-        return this.mainMenuReply(tenantId, settings);
+        return this.goToMainMenu(tenantId, conversationId, settings, flow);
     }
   }
 
@@ -511,18 +577,21 @@ export class BookingFlowService {
     rawText: string,
   ): Promise<FlowHandleResult> {
     const options = flow.cancelOptions || [];
-    const opt = pickOption(input, options.length);
+    const pick = pickFlowOption(input, options.length, true);
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
 
-    if (!opt) {
+    if (pick.kind === 'invalid') {
       if (looksLikeCancelIntent(input)) {
         return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
       }
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => {
-        return flowReply(CANCEL_MSG.select, options.map((o) => o.listTitle));
-      }, options.length);
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => {
+        return flowReply(CANCEL_MSG.select, options.map((o) => o.listTitle), true);
+      }, options.length, true);
     }
 
-    const selected = options[opt - 1];
+    const selected = options[pick.index - 1];
     const apt = await prisma.appointment.findFirst({
       where: { id: selected.id, tenantId, status: { in: ['confirmado', 'pendiente_pago'] } },
       include: { service: true },
@@ -551,9 +620,7 @@ export class BookingFlowService {
     const opt = pickOption(input, 2);
 
     if (opt === 2 || isExactCommand(input, 'volver') || isExactCommand(input, 'menu') || isExactCommand(input, 'menú')) {
-      const restored: BookingFlowContext = { ...flow, state: 'booking_start', cancelAppointmentId: undefined, cancelOptions: undefined };
-      await this.saveFlow(conversationId, restored);
-      return this.mainMenuReply(tenantId, settings);
+      return this.goToMainMenu(tenantId, conversationId, settings, flow);
     }
 
     if (opt !== 1 && !/^(sí|si|confirmo|confirmar)/.test(input)) {
@@ -620,7 +687,7 @@ export class BookingFlowService {
       }
       return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
     }
-    return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
+    return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => ({
       handled: true,
       text: msg(settings, 'payment_pending',
         'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación.'),
@@ -655,7 +722,7 @@ export class BookingFlowService {
   }
 
   private static moreSlotsMenuReply(): FlowHandleResult {
-    return flowReply('¿Cómo querés ver los horarios?', ['Esta semana', 'Elegir un día', 'Próximos horarios']);
+    return flowReply('¿Cómo querés ver los horarios?', ['Esta semana', 'Elegir un día', 'Próximos horarios'], true);
   }
 
   private static mainMenuReply(tenantId: string, settings: any): FlowHandleResult {
@@ -683,7 +750,7 @@ export class BookingFlowService {
         'Calor profundo',
         'Experiencia sensorial',
         'Aflojar rigidez',
-      ]);
+      ], true);
     }
     if (opt === 2) {
       flow = { state: 'choosing_service_mode' };
@@ -701,7 +768,7 @@ export class BookingFlowService {
         text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
       };
     }
-    return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.mainMenuReply(tenantId, settings), 3);
+    return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => this.mainMenuReply(tenantId, settings), 3);
   }
 
   private static async serviceListReply(tenantId: string): Promise<FlowHandleResult> {
@@ -709,7 +776,7 @@ export class BookingFlowService {
       where: { tenantId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
-    return flowReply('Estos son nuestros caminos:', services.map((s) => s.name));
+    return flowReply('Estos son nuestros caminos:', services.map((s) => s.name), true);
   }
 
   private static async renderServiceList(tenantId: string): Promise<string> {
@@ -728,14 +795,17 @@ export class BookingFlowService {
       where: { tenantId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
-    const opt = pickOption(input, services.length);
-    if (!opt) {
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
+    const pick = pickFlowOption(input, services.length, true);
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+    if (pick.kind === 'invalid') {
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => ({
         handled: true,
         text: `${await this.renderServiceList(tenantId)}\n\n(Elegí el número del camino)`,
-      }), services.length);
+      }), services.length, true);
     }
-    const service = services[opt - 1];
+    const service = services[pick.index - 1];
     flow = {
       state: 'slot_selection',
       serviceId: service.id,
@@ -749,13 +819,16 @@ export class BookingFlowService {
   private static async handleRecommenderQ1(
     tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
-    const opt = pickOption(input, 5);
-    if (!opt) {
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply('¿Qué sentís que necesitás hoy?', [
-        'Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez',
-      ]), 5);
+    const pick = pickFlowOption(input, 5, true);
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
     }
-    flow = { ...flow, state: 'recommender_q2', recommenderQ1: String(opt) };
+    if (pick.kind === 'invalid') {
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => flowReply('¿Qué sentís que necesitás hoy?', [
+        'Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez',
+      ], true), 5, true);
+    }
+    flow = { ...flow, state: 'recommender_q2', recommenderQ1: String(pick.index) };
     await this.saveFlow(conversationId, flow);
     return flowReply('¿Cómo te gustaría vivir la sesión?', [
       'Suave y relajante',
@@ -763,7 +836,7 @@ export class BookingFlowService {
       'Con calor',
       'Con aromas/herbales',
       'Más corporal',
-    ]);
+    ], true);
   }
 
   private static scoreService(service: any, q1: number, q2: number): number {
@@ -792,11 +865,14 @@ export class BookingFlowService {
   private static async handleRecommenderQ2(
     tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
-    const opt = pickOption(input, 5);
-    if (!opt) {
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply('¿Cómo te gustaría vivir la sesión?', [
+    const pick = pickFlowOption(input, 5, true);
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+    if (pick.kind === 'invalid') {
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => flowReply('¿Cómo te gustaría vivir la sesión?', [
         'Suave y relajante', 'Profunda y envolvente', 'Con calor', 'Con aromas/herbales', 'Más corporal',
-      ]), 5);
+      ], true), 5, true);
     }
 
     const q1 = parseInt(flow.recommenderQ1 || '1', 10);
@@ -804,7 +880,7 @@ export class BookingFlowService {
       where: { tenantId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
-    const ranked = [...services].sort((a, b) => this.scoreService(b, q1, opt) - this.scoreService(a, q1, opt));
+    const ranked = [...services].sort((a, b) => this.scoreService(b, q1, pick.index) - this.scoreService(a, q1, pick.index));
     const best = ranked[0];
     if (!best) return { handled: true, text: 'No encontramos caminos disponibles. Escribí *humano*.' };
 
@@ -813,11 +889,11 @@ export class BookingFlowService {
       state: 'service_selected',
       serviceId: best.id,
       serviceName: best.name,
-      recommenderQ2: String(opt),
+      recommenderQ2: String(pick.index),
       slotPage: 0,
     };
     await this.saveFlow(conversationId, flow);
-    return flowReply(recText, ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona']);
+    return flowReply(recText, ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'], true);
   }
 
   private static async slotReply(tenantId: string, serviceName: string): Promise<FlowHandleResult> {
@@ -828,41 +904,50 @@ export class BookingFlowService {
     if (labels.length === 0) {
       return { handled: true, text: `No hay horarios disponibles por ahora para ${serviceName}. Escribí *humano* si querés ayuda.` };
     }
-    return flowReply(`Próximos horarios para ${serviceName}:`, labels);
+    return flowReply(`Próximos horarios para ${serviceName}:`, labels, true);
   }
 
   private static slotsListReply(title: string, slots: Array<{ label: string }>): FlowHandleResult {
     if (!slots.length) {
-      return { handled: true, text: 'No encontré horarios para esa búsqueda. Probá otro día o escribí *humano*.' };
+      return { handled: true, text: `No encontré horarios para esa búsqueda. Probá otro día o escribí *humano*.${HOME_HINT}` };
     }
-    return flowReply(title, slots.map((s) => s.label));
+    return flowReply(title, slots.map((s) => s.label), true);
   }
 
   private static async handleSlotSelection(
     tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
     if (flow.state === 'service_selected') {
-      const opt = pickOption(input, 3);
-      if (opt === 1 && flow.serviceId) {
+      const pick = pickFlowOption(input, 3, true);
+      if (pick.kind === 'home' || isGoHomeIntent(input)) {
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+      }
+      if (pick.kind === 'option' && pick.index === 1 && flow.serviceId) {
         flow = { ...flow, state: 'slot_selection', slotPage: 0, slotBrowse: undefined, tempSlots: undefined };
         await this.saveFlow(conversationId, flow);
         return this.slotReply(tenantId, flow.serviceName || '');
       }
-      if (opt === 2) {
+      if (pick.kind === 'option' && pick.index === 2) {
         flow = { state: 'choosing_service_mode' };
         await this.saveFlow(conversationId, flow);
         return this.serviceListReply(tenantId);
       }
-      if (opt === 3) return { handled: true, handoff: true, text: msg(settings, 'human_handoff', 'Te comunico con una persona.') };
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply(
+      if (pick.kind === 'option' && pick.index === 3) {
+        return { handled: true, handoff: true, text: msg(settings, 'human_handoff', 'Te comunico con una persona.') };
+      }
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => flowReply(
         flow.serviceName ? `¿Reservamos ${flow.serviceName}?` : '¿Seguimos con la reserva?',
         ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'],
-      ), 3);
+        true,
+      ), 3, true);
     }
 
     if (flow.slotBrowse === 'more_menu') {
-      const opt = pickOption(input, 3);
-      if (opt === 1) {
+      const pick = pickFlowOption(input, 3, true);
+      if (pick.kind === 'home' || isGoHomeIntent(input)) {
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+      }
+      if (pick.kind === 'option' && pick.index === 1) {
         const week = await BookingAvailabilityService.getSlotsThisWeek(tenantId, { serviceId: flow.serviceId });
         flow = {
           ...flow,
@@ -873,23 +958,26 @@ export class BookingFlowService {
         await this.saveFlow(conversationId, flow);
         return this.slotsListReply('Horarios disponibles esta semana:', week);
       }
-      if (opt === 2) {
+      if (pick.kind === 'option' && pick.index === 2) {
         flow = { ...flow, slotBrowse: 'pick_day' };
         await this.saveFlow(conversationId, flow);
         return {
           handled: true,
-          text: '¿Qué día te queda bien? Podés decir *jueves*, *mañana* o una fecha como *20/06*.',
+          text: `¿Qué día te queda bien? Podés decir *jueves*, *mañana* o una fecha como *20/06*.${HOME_HINT}`,
         };
       }
-      if (opt === 3) {
+      if (pick.kind === 'option' && pick.index === 3) {
         flow = { ...flow, slotBrowse: undefined, tempSlots: undefined, slotPage: 0 };
         await this.saveFlow(conversationId, flow);
         return this.slotReply(tenantId, flow.serviceName || '');
       }
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => this.moreSlotsMenuReply(), 3);
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => this.moreSlotsMenuReply(), 3, true);
     }
 
     if (flow.slotBrowse === 'pick_day') {
+      if (isGoHomeIntent(input)) {
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+      }
       const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
       if (filtered.length > 0) {
         flow = {
@@ -900,16 +988,43 @@ export class BookingFlowService {
         await this.saveFlow(conversationId, flow);
         return this.slotsListReply('Estos horarios tengo para ese día:', filtered);
       }
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => ({
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => ({
         handled: true,
-        text: 'No encontré turnos para ese día. ¿Probamos otro? Decime *jueves*, *mañana* o una fecha como *20/06*.',
+        text: `No encontré turnos para ese día. ¿Probamos otro? Decime *jueves*, *mañana* o una fecha como *20/06*.${HOME_HINT}`,
       }));
     }
 
-    const { slots: pageSlots, hasMoreOption } = await this.getDisplaySlots(tenantId, flow);
-    const totalOptions = pageSlots.length + (hasMoreOption ? 1 : 0);
+    if (flow.tempSlots?.length) {
+      const pick = pickFlowOption(input, flow.tempSlots.length, true);
+      if (pick.kind === 'home' || isGoHomeIntent(input)) {
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+      }
+      if (pick.kind === 'option') {
+        const slot = flow.tempSlots[pick.index - 1];
+        flow = {
+          ...flow,
+          state: 'customer_name',
+          slotDate: slot.date,
+          slotTime: slot.time,
+          slotLabel: slot.label,
+          tempSlots: undefined,
+          slotBrowse: undefined,
+        };
+        await this.saveFlow(conversationId, flow);
+        return {
+          handled: true,
+          text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
+        };
+      }
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
+        this.slotsListReply('Elegí un horario:', flow.tempSlots!)
+      ), flow.tempSlots.length, true);
+    }
 
-    if (hasMoreOption && isMoreOptionsInput(input, totalOptions)) {
+    const { slots: pageSlots, hasMoreOption } = await this.getDisplaySlots(tenantId, flow);
+    const baseCount = pageSlots.length + (hasMoreOption ? 1 : 0);
+
+    if (hasMoreOption && isMoreOptionsInput(input, baseCount)) {
       flow = { ...flow, slotBrowse: 'more_menu' };
       await this.saveFlow(conversationId, flow);
       return this.moreSlotsMenuReply();
@@ -924,23 +1039,23 @@ export class BookingFlowService {
       }
     }
 
-    let opt = pickOption(input, totalOptions);
-    if (hasMoreOption && opt === totalOptions) {
+    let pick = pickFlowOption(input, baseCount, true);
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+    if (pick.kind === 'option' && hasMoreOption && pick.index === baseCount) {
       flow = { ...flow, slotBrowse: 'more_menu' };
       await this.saveFlow(conversationId, flow);
       return this.moreSlotsMenuReply();
     }
 
-    if (!opt || opt > pageSlots.length) {
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => {
-        if (flow.tempSlots?.length) {
-          return this.slotsListReply('Elegí un horario:', flow.tempSlots);
-        }
-        return this.slotReply(tenantId, flow.serviceName || '');
-      }, totalOptions);
+    if (pick.kind === 'invalid') {
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
+        this.slotReply(tenantId, flow.serviceName || '')
+      ), baseCount, true);
     }
 
-    const slot = pageSlots[opt - 1];
+    const slot = pageSlots[pick.index - 1];
     flow = {
       ...flow,
       state: 'customer_name',
@@ -954,7 +1069,7 @@ export class BookingFlowService {
 
     return {
       handled: true,
-      text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.`,
+      text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
     };
   }
 
@@ -979,7 +1094,7 @@ export class BookingFlowService {
     await this.saveFlow(conversationId, flow);
     return {
       handled: true,
-      text: `Gracias, ${name.split(' ')[0]}. ¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
+      text: `Gracias, ${name.split(' ')[0]}. ¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
     };
   }
 
@@ -993,6 +1108,10 @@ export class BookingFlowService {
     rawText: string,
     profileName?: string | null,
   ): Promise<FlowHandleResult> {
+    if (isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+
     if (looksLikePersonName(rawText)) {
       const name = textCapitalize(rawText.trim());
       try {
@@ -1003,12 +1122,12 @@ export class BookingFlowService {
       return this.advanceToNotes(conversationId, leadId, flow, name);
     }
 
-    if (BookingAiService.looksLikeQuestion(rawText)) {
-      const answer = await BookingAiService.answerOffFlow(tenantId, rawText, settings, flow.state);
+    if (BookingAiService.looksLikeQuestion(rawText) || isFreeTextOffFlow(rawText, input)) {
+      const answer = await BookingAiService.answerOffFlow(tenantId, rawText, settings, this.flowAiContext(flow));
       if (answer) {
         return {
           handled: true,
-          text: `${answer}\n\nPasame tu *nombre y apellido* para dejar el turno preparado.`,
+          text: `${answer}\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
         };
       }
     }
@@ -1021,13 +1140,27 @@ export class BookingFlowService {
       return this.advanceToNotes(conversationId, leadId, flow, name);
     }
 
-    return { handled: true, text: 'Necesito tu *nombre y apellido* para continuar con la reserva.' };
+    return { handled: true, text: `Necesito tu *nombre y apellido* para continuar con la reserva.${HOME_HINT}` };
   }
 
   private static async handleNotes(
     tenantId: string, conversationId: string, leadId: string, phone: string,
-    settings: any, flow: BookingFlowContext, input: string,
+    settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
+    if (isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+
+    if (input !== 'no' && isFreeTextOffFlow(rawText, input)) {
+      const answer = await BookingAiService.answerOffFlow(tenantId, rawText, settings, this.flowAiContext(flow));
+      if (answer) {
+        return {
+          handled: true,
+          text: `${answer}\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
+        };
+      }
+    }
+
     const notes = input === 'no' ? null : input;
     flow = { ...flow, state: 'payment_choice', customerNotes: notes || undefined };
     await this.saveFlow(conversationId, flow);
@@ -1063,7 +1196,7 @@ Importante: ${policyShort}
       .replace(/\{\{price\}\}/g, pricing.finalPrice.toLocaleString('es-AR'))
       .replace(/\{\{deposit\}\}/g, String(settings.depositPercentage));
 
-    return flowReply(text, [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario']);
+    return flowReply(text, [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'], true);
   }
 
   private static async handlePaymentChoice(
@@ -1076,20 +1209,24 @@ Importante: ${policyShort}
     input: string,
     rawText: string,
   ): Promise<FlowHandleResult> {
-    const opt = pickOption(input, 3);
-    if (opt === 3) {
+    const pick = pickFlowOption(input, 3, true);
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+    if (pick.kind === 'option' && pick.index === 3) {
       flow = { ...flow, state: 'slot_selection', slotPage: 0, slotBrowse: undefined, tempSlots: undefined };
       await this.saveFlow(conversationId, flow);
       return this.slotReply(tenantId, flow.serviceName || '');
     }
-    if (opt !== 1 && opt !== 2) {
-      return this.offFlowThen(tenantId, rawText, settings, flow, async () => flowReply(
+    if (pick.kind !== 'option' || (pick.index !== 1 && pick.index !== 2)) {
+      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => flowReply(
         'Elegí cómo querés pagar:',
         [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'],
-      ), 3);
+        true,
+      ), 3, true);
     }
 
-    const paymentType = opt === 1 ? 'sena' : 'total';
+    const paymentType = pick.index === 1 ? 'sena' : 'total';
     if (!flow.serviceId || !flow.slotDate || !flow.slotTime) {
       return { handled: true, text: 'Hubo un error. Escribí *menu* para empezar de nuevo.' };
     }

@@ -33,7 +33,6 @@ export const TURNERA_TABS: { id: TurneraTab; label: string; icon: typeof Sparkle
 
 const MESSAGE_LABELS: Record<string, string> = {
   welcome: 'Bienvenida (menú principal)',
-  welcome_resume: 'Retomar flujo (volver sin repetir bienvenida)',
   payment_summary: 'Resumen de pago',
   payment_pending: 'Link de pago enviado',
   confirmation: 'Confirmación post-pago',
@@ -60,7 +59,6 @@ const EMPTY_SERVICE = {
   durationMinutes: 80,
   isActive: true,
   sortOrder: 0,
-  botSummary: '',
   botRecommendationText: '',
   recommendedWhen: '',
 };
@@ -227,11 +225,10 @@ export function TurneraConfigPanel({
         name: service.name,
         serviceType: service.serviceType || '',
         shortDescription: service.shortDescription || '',
-        longDescription: service.longDescription || '',
+        longDescription: service.longDescription || service.botSummary || '',
         durationMinutes: service.durationMinutes || 80,
         isActive: service.isActive,
         sortOrder: service.sortOrder || 0,
-        botSummary: service.botSummary || '',
         botRecommendationText: service.botRecommendationText || '',
         recommendedWhen: arrayToLines(service.recommendedWhen),
       });
@@ -255,7 +252,7 @@ export function TurneraConfigPanel({
         durationMinutes: serviceForm.durationMinutes,
         isActive: serviceForm.isActive,
         sortOrder: serviceForm.sortOrder,
-        botSummary: serviceForm.botSummary || null,
+        botSummary: null,
         botRecommendationText: serviceForm.botRecommendationText || null,
         recommendedWhen: linesToArray(serviceForm.recommendedWhen),
         usesBasePrice: true,
@@ -456,12 +453,18 @@ export function TurneraConfigPanel({
             </div>
             <div className={styles.formGroup}>
               <label>Descripción corta</label>
+              <p className={styles.sectionHint} style={{ marginTop: 0, marginBottom: 8 }}>
+                Una línea para la lista de caminos en WhatsApp.
+              </p>
               <textarea className={styles.formTextarea} rows={2} value={serviceForm.shortDescription}
                 onChange={(e) => setServiceForm((f) => ({ ...f, shortDescription: e.target.value }))} />
             </div>
             <div className={styles.formGroup}>
-              <label>Descripción larga (opcional)</label>
-              <textarea className={styles.formTextarea} rows={3} value={serviceForm.longDescription}
+              <label>Información del camino</label>
+              <p className={styles.sectionHint} style={{ marginTop: 0, marginBottom: 8 }}>
+                La IA de turnera usa solo este texto para responder consultas (técnicas, bambú, beneficios, etc.).
+              </p>
+              <textarea className={styles.formTextarea} rows={5} value={serviceForm.longDescription}
                 onChange={(e) => setServiceForm((f) => ({ ...f, longDescription: e.target.value }))} />
             </div>
             <div className={styles.formRow}>
@@ -475,11 +478,6 @@ export function TurneraConfigPanel({
                 <input className={styles.formInput} type="number" value={serviceForm.sortOrder}
                   onChange={(e) => setServiceForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))} />
               </div>
-            </div>
-            <div className={styles.formGroup}>
-              <label>Resumen para el bot</label>
-              <textarea className={styles.formTextarea} rows={2} value={serviceForm.botSummary}
-                onChange={(e) => setServiceForm((f) => ({ ...f, botSummary: e.target.value }))} />
             </div>
             <div className={styles.formGroup}>
               <label>Texto de recomendación</label>
@@ -986,7 +984,7 @@ export function TurneraConfigPanel({
             <h2 className={styles.sectionTitle}>Mensajes del bot</h2>
             <p className={styles.sectionHint}>
               Plantillas del flujo de turnera. Variables: {'{{service}}'}, {'{{slot}}'}, {'{{price}}'}, {'{{deposit}}'}, {'{{duration}}'}.
-              La bienvenida principal se usa solo en el menú madre; &quot;Retomar flujo&quot; se usa con *volver*.
+              La bienvenida principal se usa solo en el primer contacto; al volver al inicio el mensaje lo genera la IA.
             </p>
             {Object.keys(MESSAGE_LABELS).map((key) => (
               <div key={key} className={styles.formGroup}>
