@@ -15,19 +15,24 @@ function toNumber(v: unknown): number {
 }
 
 export class BookingPricingService {
-  /** Active price rule for tenant at a given instant (default: now). */
-  static async getActivePriceRule(tenantId: string, at: Date = new Date()) {
+  /** All active price rules valid at a given instant (default: now). */
+  static async getActivePriceRules(tenantId: string, at: Date = new Date()) {
     const rules = await prisma.bookingPriceRule.findMany({
       where: { tenantId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
 
-    for (const rule of rules) {
-      if (rule.validFrom && at < rule.validFrom) continue;
-      if (rule.validUntil && at > rule.validUntil) continue;
-      return rule;
-    }
-    return null;
+    return rules.filter((rule) => {
+      if (rule.validFrom && at < rule.validFrom) return false;
+      if (rule.validUntil && at > rule.validUntil) return false;
+      return true;
+    });
+  }
+
+  /** Active price rule for tenant at a given instant (default: now). */
+  static async getActivePriceRule(tenantId: string, at: Date = new Date()) {
+    const rules = await this.getActivePriceRules(tenantId, at);
+    return rules[0] ?? null;
   }
 
   static resolveServiceListPrice(
@@ -99,5 +104,30 @@ export class BookingPricingService {
   ): number {
     if (paymentType === 'total') return finalPrice;
     return Math.round(finalPrice * (depositPercentage / 100));
+  }
+
+  /** Texto breve para mostrar promos activas (menú "Ver precios", etc.). */
+  static async formatActivePromosSummary(tenantId: string, basePrice?: number | null): Promise<string | null> {
+    const rules = await this.getActivePriceRules(tenantId);
+    if (!rules.length) return null;
+
+    const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
+    const fmtDate = (d: Date) => d.toLocaleDateString('es-AR');
+    const lines = rules.map((rule) => {
+      const until = rule.validUntil ? ` (hasta ${fmtDate(rule.validUntil)})` : '';
+      if (basePrice) {
+        const resolved = this.applyRule(basePrice, rule);
+        if (rule.ruleType === 'percentage_discount') {
+          return `• ${rule.label}: ${Number(rule.value)}% off → ${fmt(resolved.finalPrice)}${until}`;
+        }
+        return `• ${rule.label}: ${fmt(resolved.finalPrice)}${until}`;
+      }
+      if (rule.ruleType === 'percentage_discount') {
+        return `• ${rule.label}: ${Number(rule.value)}% de descuento${until}`;
+      }
+      return `• ${rule.label}: ${fmt(Number(rule.value))}${until}`;
+    });
+
+    return `Promos vigentes:\n${lines.join('\n')}`;
   }
 }

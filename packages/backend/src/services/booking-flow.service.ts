@@ -824,14 +824,17 @@ export class BookingFlowService {
       return this.serviceListReply(tenantId);
     }
     if (opt === 3) {
-      const price = settings.basePrice ? `$${Number(settings.basePrice).toLocaleString('es-AR')}` : 'consultá en sala';
+      const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
+      const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
+      const promoBlock = await BookingPricingService.formatActivePromosSummary(tenantId, basePrice);
       const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 3 });
       const slotLines = slots.length
         ? slots.map((s, i) => `${i + 1}️⃣ ${s.label}`).join('\n')
         : 'Consultanos por WhatsApp para ver próximos horarios.';
+      const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
       return {
         handled: true,
-        text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
+        text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}${promoSection}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
       };
     }
     return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (

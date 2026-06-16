@@ -1,6 +1,7 @@
 import OpenAI from 'openai';
 import { env } from '../config/env';
 import { BookingAvailabilityService, AvailableSlot } from './booking-availability.service';
+import { BookingPricingService } from './booking-pricing.service';
 import { prisma } from '../config/database';
 
 export interface BookingFlowAiContext {
@@ -30,6 +31,11 @@ export class BookingAiService {
     return t.includes('?')
       || this.looksLikeInfoRequest(t)
       || /(cuánto|cuanto|dónde|donde|qué|que|cómo|como|cuál|cual|duración|duracion|precio|horario|ubicación|ubicacion|tienen|hay|ofrecen|hacen|sirve|incluye|aceptan|puedo|duración|duracion|camino|caminos|bambú|bambu|caña|cañas|modelador|edema)/.test(t);
+  }
+
+  static looksLikePriceQuestion(text: string): boolean {
+    const t = text.toLowerCase();
+    return /(precio|precios|cuánto cuesta|cuanto cuesta|cuánto sale|cuanto sale|cuánto está|cuanto esta|valor|tarifa|tarifas|costo|costos|cobran|sale la sesión|sale la sesion)/.test(t);
   }
 
   private static flowContextHint(flow?: BookingFlowAiContext): string {
@@ -72,6 +78,11 @@ export class BookingAiService {
       const parts = [c.phone && `Tel: ${c.phone}`, c.instagram && `IG: ${c.instagram}`, c.website && `Web: ${c.website}`].filter(Boolean);
       if (parts.length) sections.push(`[CONTACTO]\n${parts.join('\n')}`);
     }
+    if (pb.promotions) {
+      const pr = pb.promotions;
+      const parts = [pr.active, pr.conditions && `Condiciones: ${pr.conditions}`, pr.validUntil && `Válido hasta: ${pr.validUntil}`].filter(Boolean);
+      if (parts.length) sections.push(`[PROMOCIONES GENERALES]\n${parts.join('\n')}`);
+    }
 
     const workingDays = (settings.workingDaysJson as number[]) || [1, 2, 3, 4, 5];
     const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
@@ -93,6 +104,27 @@ export class BookingAiService {
     });
     const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
     const duration = settings.sessionDurationMinutes || 80;
+
+    const activeRules = await BookingPricingService.getActivePriceRules(tenantId);
+    if (activeRules.length > 0) {
+      const fmt = (n: number) => `$${n.toLocaleString('es-AR')} ARS`;
+      const fmtDate = (d: Date) => d.toLocaleDateString('es-AR');
+      const promoLines = activeRules.map((rule) => {
+        const until = rule.validUntil ? ` (hasta ${fmtDate(rule.validUntil)})` : '';
+        if (basePrice) {
+          const resolved = BookingPricingService.applyRule(basePrice, rule);
+          if (rule.ruleType === 'percentage_discount') {
+            return `- ${rule.label}: ${Number(rule.value)}% de descuento → ${fmt(resolved.finalPrice)} (precio lista ${fmt(basePrice)})${until}`;
+          }
+          return `- ${rule.label}: precio promo ${fmt(resolved.finalPrice)}${until}`;
+        }
+        if (rule.ruleType === 'percentage_discount') {
+          return `- ${rule.label}: ${Number(rule.value)}% de descuento${until}`;
+        }
+        return `- ${rule.label}: precio fijo ${fmt(Number(rule.value))}${until}`;
+      });
+      sections.push(`[PROMOCIONES VIGENTES — TURNERA]\n${promoLines.join('\n')}`);
+    }
 
     const serviceLines = services.map((s) => {
       const info = s.longDescription || s.shortDescription || s.serviceType || '';
@@ -161,13 +193,16 @@ ${context}`,
 
     const context = await this.buildContext(tenantId, settings);
     const flowHint = this.flowContextHint(flow);
+    const priceHint = this.looksLikePriceQuestion(question)
+      ? ' El usuario pregunta por precio: indicá el precio base del contexto y, si hay promos en [PROMOCIONES VIGENTES — TURNERA] o [PROMOCIONES GENERALES], mencionalas brevemente con el precio promocional. Si no hay promos vigentes, decilo en una frase.'
+      : '';
 
     const messages = [
       {
         role: 'system' as const,
         content: `Sos la asistente de un spa/masajes en Argentina. ${flowHint}
-Respondé en español argentino, cálido y breve (máximo 3 oraciones).
-Usá el contexto provisto: horarios de atención en [HORARIOS DE ATENCIÓN]; ubicación y contacto en sus secciones; caminos/tratamientos SOLO en la lista de servicios de [TURNERA].
+Respondé en español argentino, cálido y breve (máximo 3 oraciones).${priceHint}
+Usá el contexto provisto: horarios de atención en [HORARIOS DE ATENCIÓN]; ubicación y contacto en sus secciones; caminos/tratamientos SOLO en la lista de servicios de [TURNERA]; promociones en [PROMOCIONES VIGENTES — TURNERA] y [PROMOCIONES GENERALES].
 No inventes precios, horarios ni direcciones.
 Si el usuario pregunta por un camino o técnica (bambú, cañas, piedras, etc.), basate en la lista de caminos del contexto.
 Si no tenés el dato, decí que podés ayudar a reservar un turno o derivar a una persona.

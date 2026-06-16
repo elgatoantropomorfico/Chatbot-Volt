@@ -14,6 +14,7 @@ const updateLeadSchema = z.object({
   lastName: z.string().nullable().optional(),
   email: z.string().nullable().optional(),
   dni: z.string().nullable().optional(),
+  birthday: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).nullable().optional(),
   offerInterest: z.string().nullable().optional(),
   modalityInterest: z.string().nullable().optional(),
   periodInterest: z.string().nullable().optional(),
@@ -109,8 +110,11 @@ export async function leadRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    const { customData, ...rest } = body.data;
+    const { customData, birthday, ...rest } = body.data;
     const data: any = { ...rest };
+    if (birthday !== undefined) {
+      data.birthday = birthday ? new Date(`${birthday}T12:00:00`) : null;
+    }
     if (customData) {
       const prev = (existing.customData as Record<string, any>) || {};
       data.customData = { ...prev, ...customData };
@@ -138,6 +142,24 @@ export async function leadRoutes(app: FastifyInstance) {
       },
     });
     return reply.status(201).send({ note });
+  });
+
+  // Delete note from lead
+  app.delete('/:id/notes/:noteId', async (request: FastifyRequest<{ Params: { id: string; noteId: string } }>, reply: FastifyReply) => {
+    const { id, noteId } = request.params;
+    const lead = await prisma.lead.findUnique({ where: { id } });
+    if (!lead) return reply.status(404).send({ error: 'Lead not found' });
+
+    const user = request.user;
+    if (user.role !== 'superadmin' && lead.tenantId !== user.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const note = await prisma.leadNote.findFirst({ where: { id: noteId, leadId: id } });
+    if (!note) return reply.status(404).send({ error: 'Note not found' });
+
+    await prisma.leadNote.delete({ where: { id: noteId } });
+    return reply.send({ message: 'Note deleted' });
   });
 
   // Delete lead (cascade: conversations, messages, notes)

@@ -200,6 +200,7 @@ model Lead {
 
   email               String?
   dni                 String?
+  birthday            DateTime?       @db.Date @map("birthday")
 
   offerInterest       String?         @map("offer_interest")
   modalityInterest    String?         @map("modality_interest")

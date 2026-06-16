@@ -165,6 +165,33 @@ export default function LeadsPage() {
     }
   }
 
+  async function deleteNote(noteId: string) {
+    if (!selectedLead) return;
+    if (!confirm('¿Eliminar esta nota?')) return;
+    try {
+      await api.deleteLeadNote(selectedLead.id, noteId);
+      setSelectedLead({
+        ...selectedLead,
+        notes: (selectedLead.notes || []).filter((n: any) => n.id !== noteId),
+      });
+    } catch (err) {
+      console.error('Error deleting note:', err);
+    }
+  }
+
+  async function saveBirthday(value: string) {
+    if (!selectedLead) return;
+    const birthday = value || null;
+    const current = selectedLead.birthday ? String(selectedLead.birthday).slice(0, 10) : '';
+    if (birthday === current || (!birthday && !current)) return;
+    try {
+      await api.updateLead(selectedLead.id, { birthday });
+      setSelectedLead({ ...selectedLead, birthday });
+    } catch (err) {
+      console.error('Error saving birthday:', err);
+    }
+  }
+
   async function syncToZoho() {
     if (!selectedLead) return;
     setSyncing(true);
@@ -359,6 +386,22 @@ export default function LeadsPage() {
             <div className={styles.detailField}>
               <span>Creado</span>
               <span>{new Date(selectedLead.createdAt).toLocaleDateString('es-AR')}</span>
+            </div>
+            <div className={styles.detailField}>
+              <span>Cumpleaños</span>
+              <input
+                type="date"
+                value={selectedLead.birthday ? String(selectedLead.birthday).slice(0, 10) : ''}
+                onChange={(e) => saveBirthday(e.target.value)}
+                style={{
+                  background: 'var(--color-bg-secondary)',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: 'var(--radius-sm)',
+                  color: 'var(--color-text)',
+                  padding: '2px 8px',
+                  fontSize: '12px',
+                }}
+              />
             </div>
           </div>
 
@@ -698,7 +741,17 @@ export default function LeadsPage() {
 
             {selectedLead.notes?.map((note: any) => (
               <div key={note.id} className={styles.noteItem}>
-                <p>{note.content}</p>
+                <div className={styles.noteItemHeader}>
+                  <p>{note.content}</p>
+                  <button
+                    type="button"
+                    className={styles.noteDeleteBtn}
+                    onClick={() => deleteNote(note.id)}
+                    title="Eliminar nota"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
                 <span>{new Date(note.createdAt).toLocaleString('es-AR')}</span>
               </div>
             ))}

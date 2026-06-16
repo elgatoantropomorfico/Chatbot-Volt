@@ -3,6 +3,12 @@ import { WhatsAppService } from './whatsapp.service';
 import { ConversationService } from './conversation.service';
 import { ResendService } from './resend.service';
 
+function toWaMeUrl(phone: string): string | null {
+  const digits = phone.replace(/\D/g, '');
+  if (!digits) return null;
+  return `https://wa.me/${digits}`;
+}
+
 export class BookingExpiryService {
   /** Mark expired pending-payment appointments and release slots */
   static async expireStaleHolds(tenantId?: string) {
@@ -144,9 +150,14 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
       ? '—'
       : appointment.isFirstTime ? 'Sí (primera vez)' : 'No (ya vino antes)';
 
-    const rows = [
+    const waUrl = toWaMeUrl(appointment.customerPhone);
+    const whatsAppCell = waUrl
+      ? `<a href="${waUrl}" style="color:#128C7E;text-decoration:none;font-weight:600;">${appointment.customerPhone}</a>`
+      : appointment.customerPhone;
+
+    const rows: Array<[string, string]> = [
       ['Cliente', appointment.customerName || '—'],
-      ['WhatsApp', appointment.customerPhone],
+      ['WhatsApp', whatsAppCell],
       ['Camino', appointment.service.name],
       ['Fecha', dateStr],
       ['Horario', appointment.appointmentTime],
@@ -169,6 +180,10 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
         <td style="padding:8px 12px;border-bottom:1px solid #eee;font-size:14px;">${value}</td>
       </tr>`).join('');
 
+    const waCta = waUrl
+      ? `<a href="${waUrl}" style="display:inline-block;margin-top:20px;padding:12px 20px;background:#25D366;color:#fff;text-decoration:none;border-radius:8px;font-weight:600;font-size:14px;">Escribirle por WhatsApp</a>`
+      : '';
+
     const html = `<!DOCTYPE html>
 <html lang="es">
 <body style="font-family:system-ui,sans-serif;background:#f5f5f7;margin:0;padding:24px;">
@@ -176,6 +191,7 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
     <p style="margin:0 0 4px;font-size:12px;color:#888;text-transform:uppercase;letter-spacing:0.5px;">Nuevo turno por chatbot</p>
     <h1 style="margin:0 0 20px;font-size:20px;color:#1a1a1a;">${appointment.tenant.name}</h1>
     <table style="width:100%;border-collapse:collapse;">${tableRows}</table>
+    ${waCta}
     <p style="margin:20px 0 0;font-size:12px;color:#999;">Confirmado automáticamente vía WhatsApp + Mercado Pago.</p>
   </div>
 </body>
