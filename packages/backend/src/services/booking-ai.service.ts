@@ -45,8 +45,42 @@ export class BookingAiService {
     return /(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo|mañana|manana|tarde|noche|hoy|semana|esta semana|\d{1,2}\/\d{1,2})/.test(t);
   }
 
-  /** Build context solo desde turnera (servicios + ajustes de reserva) */
+  /** Contexto: operativo (Bot/IA) + turnera (servicios y slots). Tratamientos solo desde servicios. */
   private static async buildContext(tenantId: string, settings: any): Promise<string> {
+    const sections: string[] = [];
+
+    const botSettings = await prisma.botSettings.findUnique({ where: { tenantId } });
+    const pb = (botSettings?.promptBuilderJson || {}) as Record<string, any>;
+
+    if (pb.business) {
+      const b = pb.business;
+      const parts = [b.name && `Nombre: ${b.name}`, b.tone && `Tono: ${b.tone}`].filter(Boolean);
+      if (parts.length) sections.push(`[NEGOCIO]\n${parts.join('\n')}`);
+    }
+    if (pb.location) {
+      const l = pb.location;
+      const parts = [l.address, l.city, l.province, l.zone, l.notes].filter(Boolean);
+      if (parts.length) sections.push(`[UBICACIÓN]\n${parts.join(', ')}`);
+    }
+    if (pb.hours) {
+      const h = pb.hours;
+      const parts = [h.schedule, h.holidays && `Feriados: ${h.holidays}`, h.notes && `Notas: ${h.notes}`].filter(Boolean);
+      if (parts.length) sections.push(`[HORARIOS DE ATENCIÓN]\n${parts.join('\n')}`);
+    }
+    if (pb.contact) {
+      const c = pb.contact;
+      const parts = [c.phone && `Tel: ${c.phone}`, c.instagram && `IG: ${c.instagram}`, c.website && `Web: ${c.website}`].filter(Boolean);
+      if (parts.length) sections.push(`[CONTACTO]\n${parts.join('\n')}`);
+    }
+
+    const workingDays = (settings.workingDaysJson as number[]) || [1, 2, 3, 4, 5];
+    const dayNames = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+    const slots = await prisma.bookingSlot.findMany({
+      where: { tenantId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+      select: { time: true },
+    });
+
     const services = await prisma.bookingService.findMany({
       where: { tenantId, isActive: true },
       select: {
@@ -66,13 +100,18 @@ export class BookingAiService {
       return `- ${s.name}${type}: ${info}`;
     });
 
-    return `[TURNERA]
+    sections.push(`[TURNERA — RESERVAS]
 Sesiones de ${duration} min.
 Precio base: ${basePrice ? `$${basePrice.toLocaleString('es-AR')} ARS` : 'consultar en reserva'}.
 Seña: ${settings.depositPercentage || 50}%. ${settings.depositRefundable ? 'Reembolsable' : 'No reembolsable'}.
 Política cancelación: ${(settings.cancellationPolicyJson as any)?.policy_short_text || 'consultar'}.
-Caminos/servicios (usá SOLO esta info para responder sobre tratamientos, técnicas, bambú, cañas, etc.):
-${serviceLines.join('\n')}`;
+Días con turnos online: ${workingDays.map((d) => dayNames[d] ?? d).join(', ')}.
+Horarios de sesión ofrecidos en la turnera: ${slots.map((s) => s.time).join(', ') || 'consultar'}.
+
+Caminos/servicios (usá SOLO esta info para tratamientos, técnicas, bambú, cañas, etc.):
+${serviceLines.join('\n')}`);
+
+    return sections.join('\n\n');
   }
 
   /** Breve puente dinámico al retomar un paso o volver al menú */
@@ -128,7 +167,8 @@ ${context}`,
         role: 'system' as const,
         content: `Sos la asistente de un spa/masajes en Argentina. ${flowHint}
 Respondé en español argentino, cálido y breve (máximo 3 oraciones).
-Usá SOLO el contexto provisto sobre caminos/servicios. No inventes precios, horarios ni direcciones.
+Usá el contexto provisto: horarios de atención en [HORARIOS DE ATENCIÓN]; ubicación y contacto en sus secciones; caminos/tratamientos SOLO en la lista de servicios de [TURNERA].
+No inventes precios, horarios ni direcciones.
 Si el usuario pregunta por un camino o técnica (bambú, cañas, piedras, etc.), basate en la lista de caminos del contexto.
 Si no tenés el dato, decí que podés ayudar a reservar un turno o derivar a una persona.
 No hagas listas largas ni repetís menús.
