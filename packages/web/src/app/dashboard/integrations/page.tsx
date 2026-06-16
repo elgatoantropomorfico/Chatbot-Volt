@@ -279,7 +279,7 @@ export default function IntegrationsPage() {
           <a href="https://resend.com/domains" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--color-primary)' }}>
             Resend
           </a>
-          . El destinatario de avisos de turnos se configura en Bot/IA → Turnos.
+          . El destinatario de avisos de turnos se configura en Turnera → Avisos.
         </p>
       </div>
     );

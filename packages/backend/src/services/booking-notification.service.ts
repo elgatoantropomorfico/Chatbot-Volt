@@ -89,10 +89,10 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
     });
     if (!appointment?.conversationId) return;
 
-    const bot = await prisma.botSettings.findUnique({
+    const booking = await prisma.bookingSettings.findUnique({
       where: { tenantId: appointment.tenantId },
     });
-    if (!bot?.bookingNotifyEnabled || !bot.bookingNotifyEmail?.trim()) return;
+    if (!booking?.confirmNotifyEnabled || !booking.confirmNotifyEmail?.trim()) return;
 
     const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
     const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
@@ -141,7 +141,7 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
     try {
       await ResendService.sendEmail({
         tenantId: appointment.tenantId,
-        to: bot.bookingNotifyEmail.trim(),
+        to: booking.confirmNotifyEmail.trim(),
         subject: `Turno confirmado — ${appointment.customerName || appointment.customerPhone} — ${dateStr}`,
         html,
       });

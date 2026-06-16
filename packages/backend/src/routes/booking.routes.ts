@@ -32,6 +32,8 @@ const settingsUpdateSchema = z.object({
   allowCustomSlots: z.boolean().optional(),
   allowCustomServices: z.boolean().optional(),
   cancelEnabled: z.boolean().optional(),
+  confirmNotifyEnabled: z.boolean().optional(),
+  confirmNotifyEmail: z.string().email().nullable().optional(),
 });
 
 const serviceSchema = z.object({

@@ -309,8 +309,6 @@ model BotSettings {
   handoffTriggersJson     Json?    @map("handoff_triggers_json")
   guardrailsJson          Json?    @map("guardrails_json")
   promptBuilderJson       Json?    @map("prompt_builder_json")
-  bookingNotifyEnabled    Boolean  @default(false) @map("booking_notify_enabled")
-  bookingNotifyEmail      String?  @map("booking_notify_email")
   createdAt               DateTime @default(now()) @map("created_at")
   updatedAt               DateTime @updatedAt @map("updated_at")
 
@@ -530,6 +528,8 @@ model BookingSettings {
   allowCustomSlots             Boolean  @default(true) @map("allow_custom_slots")
   allowCustomServices          Boolean  @default(true) @map("allow_custom_services")
   cancelEnabled                Boolean  @default(true) @map("cancel_enabled")
+  confirmNotifyEnabled         Boolean  @default(false) @map("confirm_notify_enabled")
+  confirmNotifyEmail           String?  @map("confirm_notify_email")
   createdAt                    DateTime @default(now()) @map("created_at")
   updatedAt                    DateTime @updatedAt @map("updated_at")
 

@@ -15,10 +15,11 @@ import {
   Trash2,
   Save,
   Power,
+  Mail,
 } from 'lucide-react';
 import styles from './page.module.css';
 
-type Tab = 'servicios' | 'horarios' | 'bloqueos' | 'pagos' | 'mensajes';
+type Tab = 'servicios' | 'horarios' | 'bloqueos' | 'pagos' | 'avisos' | 'mensajes';
 type ModalType = 'service' | 'slot' | 'rule' | null;
 
 const TABS: { id: Tab; label: string; icon: typeof Sparkles }[] = [
@@ -26,6 +27,7 @@ const TABS: { id: Tab; label: string; icon: typeof Sparkles }[] = [
   { id: 'horarios', label: 'Horarios', icon: Clock },
   { id: 'bloqueos', label: 'Bloqueos', icon: CalendarX },
   { id: 'pagos', label: 'Pagos', icon: CreditCard },
+  { id: 'avisos', label: 'Avisos', icon: Mail },
   { id: 'mensajes', label: 'Mensajes', icon: MessageSquare },
 ];
 
@@ -129,6 +131,8 @@ export default function TurneraConfigPage() {
     workingDays: [1, 2, 3, 4, 5] as number[],
   });
   const [policyText, setPolicyText] = useState('');
+  const [hasResend, setHasResend] = useState(false);
+  const [notifyEmail, setNotifyEmail] = useState('');
 
   useEffect(() => { loadAll(); }, []);
 
@@ -140,12 +144,13 @@ export default function TurneraConfigPage() {
   async function loadAll() {
     setLoading(true);
     try {
-      const [s, sv, sl, bl, rl] = await Promise.all([
+      const [s, sv, sl, bl, rl, integrationsRes] = await Promise.all([
         api.getBookingSettings(),
         api.getBookingServices(),
         api.getBookingSlots(),
         api.getBookingBlocks(),
         api.getBookingPriceRules(),
+        api.getIntegrations().catch(() => ({ integrations: [] })),
       ]);
       const st = s.settings;
       setSettings(st);
@@ -153,7 +158,10 @@ export default function TurneraConfigPage() {
       setSlots(sl.slots || []);
       setBlocks(bl.blocks || []);
       setRules(rl.rules || []);
+      const resend = integrationsRes.integrations?.find((i: any) => i.type === 'resend' && i.status === 'active');
+      setHasResend(!!resend);
       if (st) {
+        setNotifyEmail(st.confirmNotifyEmail || '');
         setScheduleForm({
           sessionDurationMinutes: st.sessionDurationMinutes,
           bufferMinutes: st.bufferMinutes,
@@ -918,6 +926,49 @@ export default function TurneraConfigPage() {
                 Base ${Number(settings.basePrice || 0).toLocaleString('es-AR')}
                 {effectivePrice < Number(settings.basePrice || 0) && ' · promo aplicada'}
               </div>
+            </div>
+          </>
+        );
+
+      case 'avisos':
+        return (
+          <>
+            <h2 className={styles.sectionTitle}>Avisos de turnos confirmados</h2>
+            <p className={styles.sectionHint}>
+              Cuando un cliente confirma un turno por el chatbot (WhatsApp + Mercado Pago), se envía un email al equipo.
+              Los turnos cargados manualmente desde el panel no disparan este aviso.
+            </p>
+            {!hasResend && (
+              <div className={styles.infoBanner}>
+                Primero configurá la integración <strong>Resend</strong> en Integraciones (API key y email remitente con dominio verificado).
+              </div>
+            )}
+            <div className={styles.toggleRow}>
+              <div>
+                <div className={styles.toggleLabel}>Enviar email al confirmar turno por chatbot</div>
+                <div className={styles.toggleHint}>Requiere Resend activo en Integraciones</div>
+              </div>
+              <input
+                type="checkbox"
+                checked={!!settings.confirmNotifyEnabled}
+                onChange={(e) => saveSettings({ confirmNotifyEnabled: e.target.checked })}
+                style={{ accentColor: '#8b5cf6', width: 18, height: 18 }}
+              />
+            </div>
+            <div className={styles.formGroup}>
+              <label>Email del equipo (destinatario)</label>
+              <input
+                className={styles.formInput}
+                type="email"
+                value={notifyEmail}
+                onChange={(e) => setNotifyEmail(e.target.value)}
+                onBlur={() => saveSettings({ confirmNotifyEmail: notifyEmail.trim() || null })}
+                placeholder="admin@tunegocio.com"
+                disabled={!settings.confirmNotifyEnabled}
+              />
+              <p className={styles.sectionHint} style={{ marginTop: 8, marginBottom: 0 }}>
+                Incluye nombre, WhatsApp, camino, fecha, horario, pago, notas del cliente y si es primera vez.
+              </p>
             </div>
           </>
         );
