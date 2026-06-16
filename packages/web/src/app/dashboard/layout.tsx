@@ -108,7 +108,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   const isInbox = pathname === '/dashboard/inbox';
   const isTurnera = pathname === '/dashboard/turnera';
-  const isFixedPanel = isInbox || isTurnera;
+  const isBotSettings = pathname === '/dashboard/bot-settings';
+  const isConfigPanel = isTurnera || isBotSettings;
+  const isFixedPanel = isInbox || isConfigPanel;
 
   return (
     <div className={styles.wrapper}>
@@ -275,8 +277,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         </div>
       </aside>
 
-      <main className={`${styles.main} dashboard-main${isFixedPanel ? ` ${styles.mainFixedPanel}` : ''}${isInbox ? ` ${styles.mainInbox}` : ''}`}>
-        <div className={`${styles.contentArea}${isInbox ? ` ${styles.contentAreaInbox}` : ''}${isTurnera ? ` ${styles.contentAreaTurnera}` : ''}`}>
+      <main className={`${styles.main} dashboard-main${isFixedPanel ? ` ${styles.mainFixedPanel}` : ''}${isInbox ? ` ${styles.mainInbox}` : ''}${isConfigPanel ? ` ${styles.mainConfigPanel}` : ''}`}>
+        <div className={`${styles.contentArea}${isInbox ? ` ${styles.contentAreaInbox}` : ''}${isConfigPanel ? ` ${styles.contentAreaConfigPanel}` : ''}`}>
           {children}
         </div>
       </main>
