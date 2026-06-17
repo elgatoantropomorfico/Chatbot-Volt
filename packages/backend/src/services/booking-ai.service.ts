@@ -2,6 +2,16 @@ import OpenAI from 'openai';
 import { env } from '../config/env';
 import { BookingAvailabilityService, AvailableSlot } from './booking-availability.service';
 import { BookingPricingService } from './booking-pricing.service';
+import {
+  calendarDateInTz,
+  filterSlotsByQuery,
+  findMatchingSlot,
+  looksLikeDateQuery as datetimeLooksLikeDateQuery,
+  looksLikeSlotPickQuery,
+  optionsLookLikeSlots,
+  parseTargetTime,
+  resolveTargetDateStr,
+} from './booking-datetime.service';
 import { prisma } from '../config/database';
 
 export interface BookingFlowAiContext {
@@ -47,8 +57,35 @@ export class BookingAiService {
   }
 
   static looksLikeDateQuery(text: string): boolean {
-    const t = text.toLowerCase();
-    return /(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo|mañana|manana|tarde|noche|hoy|semana|esta semana|\d{1,2}\/\d{1,2})/.test(t);
+    return datetimeLooksLikeDateQuery(text);
+  }
+
+  static looksLikeSlotPickQuery(text: string): boolean {
+    return looksLikeSlotPickQuery(text);
+  }
+
+  static optionsLookLikeSlots(options: string[]): boolean {
+    return optionsLookLikeSlots(options);
+  }
+
+  static calendarDateInTz(timezone: string, offsetDays = 0): string {
+    return calendarDateInTz(timezone, offsetDays);
+  }
+
+  static resolveTargetDateStr(query: string, timezone: string): string | null {
+    return resolveTargetDateStr(query, timezone);
+  }
+
+  static parseTargetTime(query: string): string | null {
+    return parseTargetTime(query);
+  }
+
+  static findMatchingSlot(
+    query: string,
+    timezone: string,
+    slots: Array<{ date: string; time: string; label: string }>,
+  ): { date: string; time: string; label: string } | null {
+    return findMatchingSlot(query, timezone, slots);
   }
 
   /** Contexto: operativo (Bot/IA) + turnera (servicios y slots). Tratamientos solo desde servicios. */
@@ -290,59 +327,6 @@ ${context}`,
       || /(turno|horario).*(para|el|mañana|manana|hoy|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado)/.test(t);
   }
 
-  private static resolveTargetDateStr(query: string, timezone: string): string | null {
-    const q = query.toLowerCase();
-    const now = new Date();
-
-    if (/\b(para\s+)?mañana\b/.test(q) || /\b(para\s+)?manana\b/.test(q)) {
-      const tomorrow = new Date(now);
-      tomorrow.setDate(tomorrow.getDate() + 1);
-      return tomorrow.toLocaleDateString('en-CA', { timeZone: timezone });
-    }
-    if (/\bhoy\b/.test(q)) {
-      return now.toLocaleDateString('en-CA', { timeZone: timezone });
-    }
-
-    const dm = q.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-    if (dm) {
-      const day = parseInt(dm[1], 10);
-      const month = parseInt(dm[2], 10);
-      const year = dm[3]
-        ? (dm[3].length === 2 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10))
-        : now.getFullYear();
-      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    }
-
-    const dayMap: Record<string, number> = {
-      domingo: 0, lunes: 1, martes: 2, miércoles: 3, miercoles: 3,
-      jueves: 4, viernes: 5, sábado: 6, sabado: 6,
-    };
-    for (const [name, dow] of Object.entries(dayMap)) {
-      if (q.includes(name)) {
-        for (let i = 0; i < 7; i++) {
-          const d = new Date(now);
-          d.setDate(d.getDate() + i);
-          const short = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
-          const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
-          if (dowMap[short] === dow) {
-            return d.toLocaleDateString('en-CA', { timeZone: timezone });
-          }
-        }
-        break;
-      }
-    }
-    return null;
-  }
-
-  private static parseTargetTime(query: string): string | null {
-    const m = query.match(/\b(?:a las\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:hs|h)?\b/i);
-    if (!m) return null;
-    const h = parseInt(m[1], 10);
-    const min = parseInt(m[2] || '0', 10);
-    if (h < 0 || h > 23 || min < 0 || min > 59) return null;
-    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
-  }
-
   /** Respuesta factual de disponibilidad — consulta la turnera real */
   static async answerAvailabilityQuestion(
     tenantId: string,
@@ -351,8 +335,8 @@ ${context}`,
     serviceId?: string,
   ): Promise<string> {
     const timezone = settings.timezone || 'America/Argentina/Cordoba';
-    const targetDate = this.resolveTargetDateStr(question, timezone);
-    const targetTime = this.parseTargetTime(question);
+    const targetDate = resolveTargetDateStr(question, timezone);
+    const targetTime = parseTargetTime(question);
 
     if (targetDate && targetTime) {
       const status = await BookingAvailabilityService.getSlotStatus(tenantId, targetDate, targetTime);
@@ -390,44 +374,10 @@ ${context}`,
     const all = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 40, serviceId });
     const q = query.toLowerCase();
 
-    if (q.includes('esta semana') || q.includes('semana')) {
+    if (q.includes('esta semana') || (q.includes('semana') && !q.includes('fin de semana'))) {
       return BookingAvailabilityService.getSlotsThisWeek(tenantId, { serviceId });
     }
 
-    let targetDateStr: string | null = this.resolveTargetDateStr(query, timezone);
-
-    const dayMap: Record<string, number> = {
-      domingo: 0, lunes: 1, martes: 2, miércoles: 3, miercoles: 3,
-      jueves: 4, viernes: 5, sábado: 6, sabado: 6,
-    };
-
-    let targetDow: number | null = null;
-    if (!targetDateStr) {
-      for (const [name, dow] of Object.entries(dayMap)) {
-        if (q.includes(name)) { targetDow = dow; break; }
-      }
-    }
-
-    if (!targetDateStr) {
-      const dm = q.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-      if (dm) {
-        const day = parseInt(dm[1], 10);
-        const month = parseInt(dm[2], 10);
-        const year = dm[3] ? (dm[3].length === 2 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date().getFullYear();
-        targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      }
-    }
-
-    const wantsAfternoon = /\b(por la tarde|a la tarde|en la tarde|noche)\b/.test(q);
-    const wantsMorning = /\b(por la mañana|a la mañana|en la mañana|temprano)\b/.test(q);
-
-    return all.filter((s) => {
-      if (targetDateStr && s.date !== targetDateStr) return false;
-      if (targetDow != null && s.dateObj.getDay() !== targetDow) return false;
-      const [h] = s.time.split(':').map(Number);
-      if (wantsAfternoon && h < 12) return false;
-      if (wantsMorning && h >= 14) return false;
-      return true;
-    }).slice(0, 8);
+    return filterSlotsByQuery(query, timezone, all).slice(0, 8);
   }
 }

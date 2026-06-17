@@ -196,6 +196,7 @@ async function resolveFlowMenuPick(
   baseCount: number,
   withHome: boolean,
   options: string[],
+  numericOnly = false,
 ): Promise<FlowPickResult> {
   const numeric = pickFlowOption(input, baseCount, withHome);
   if (numeric.kind !== 'invalid') return numeric;
@@ -204,12 +205,14 @@ async function resolveFlowMenuPick(
     return { kind: 'home' };
   }
 
+  if (numericOnly) return { kind: 'invalid' };
+
   const colloquial = BookingFlowIntentService.matchColloquialOption(rawText, options);
   if (colloquial != null && colloquial >= 1 && colloquial <= baseCount) {
     return { kind: 'option', index: colloquial };
   }
 
-  if (BookingFlowIntentService.shouldTryAiMenuMatch(rawText)) {
+  if (BookingFlowIntentService.shouldTryAiMenuMatch(rawText, options)) {
     const aiPick = await BookingFlowIntentService.classifyMenuOption(rawText, options);
     if (aiPick != null && aiPick >= 1 && aiPick <= baseCount) {
       return { kind: 'option', index: aiPick };
@@ -1110,6 +1113,72 @@ export class BookingFlowService {
     return flowReply(title, slots.map((s) => s.label), true);
   }
 
+  private static async confirmSlotSelection(
+    conversationId: string,
+    flow: BookingFlowContext,
+    slot: { date: string; time: string; label: string },
+  ): Promise<FlowHandleResult> {
+    const nextFlow: BookingFlowContext = {
+      ...flow,
+      state: 'customer_name',
+      slotDate: slot.date,
+      slotTime: slot.time,
+      slotLabel: slot.label,
+      tempSlots: undefined,
+      slotBrowse: undefined,
+    };
+    await this.saveFlow(conversationId, nextFlow);
+    return {
+      handled: true,
+      text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
+    };
+  }
+
+  private static tryMatchSlotInList(
+    rawText: string,
+    timezone: string,
+    slots: Array<{ date: string; time: string; label: string }>,
+  ): { date: string; time: string; label: string } | null {
+    return BookingAiService.findMatchingSlot(rawText, timezone, slots);
+  }
+
+  /** Lista de horarios abierta: parseo estructurado primero, número después, sin IA/coloquial en slots */
+  private static async handleSlotListPick(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+    slots: Array<{ date: string; time: string; label: string }>,
+    noMatchTitle: string,
+  ): Promise<FlowHandleResult> {
+    const timezone = settings.timezone || 'America/Argentina/Cordoba';
+    const structured = this.tryMatchSlotInList(rawText, timezone, slots);
+    if (structured) {
+      return this.confirmSlotSelection(conversationId, flow, structured);
+    }
+
+    if (BookingAiService.looksLikeSlotPickQuery(input)) {
+      return this.slotsListReply(noMatchTitle, slots);
+    }
+
+    const slotLabels = slots.map((s) => s.label);
+    const pick = await resolveFlowMenuPick(
+      tenantId, input, rawText, slots.length, true, slotLabels,
+      BookingAiService.optionsLookLikeSlots(slotLabels),
+    );
+    if (pick.kind === 'home' || isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+    if (pick.kind === 'option') {
+      return this.confirmSlotSelection(conversationId, flow, slots[pick.index - 1]);
+    }
+    return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
+      this.slotsListReply('Elegí un horario:', slots)
+    ), slots.length, true);
+  }
+
   private static async handleSlotSelection(
     tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
@@ -1174,7 +1243,15 @@ export class BookingFlowService {
       if (isGoHomeIntent(input)) {
         return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
       }
+      const timezone = settings.timezone || 'America/Argentina/Cordoba';
       const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
+      const exact = this.tryMatchSlotInList(rawText, timezone, filtered);
+      if (exact) {
+        return this.confirmSlotSelection(conversationId, flow, exact);
+      }
+      if (filtered.length === 1) {
+        return this.confirmSlotSelection(conversationId, flow, filtered[0]);
+      }
       if (filtered.length > 0) {
         flow = {
           ...flow,
@@ -1191,35 +1268,15 @@ export class BookingFlowService {
     }
 
     if (flow.tempSlots?.length) {
-      const slotLabels = flow.tempSlots.map((s) => s.label);
-      const pick = await resolveFlowMenuPick(tenantId, input, rawText, flow.tempSlots.length, true, slotLabels);
-      if (pick.kind === 'home' || isGoHomeIntent(input)) {
-        return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
-      }
-      if (pick.kind === 'option') {
-        const slot = flow.tempSlots[pick.index - 1];
-        flow = {
-          ...flow,
-          state: 'customer_name',
-          slotDate: slot.date,
-          slotTime: slot.time,
-          slotLabel: slot.label,
-          tempSlots: undefined,
-          slotBrowse: undefined,
-        };
-        await this.saveFlow(conversationId, flow);
-        return {
-          handled: true,
-          text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
-        };
-      }
-      return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
-        this.slotsListReply('Elegí un horario:', flow.tempSlots!)
-      ), flow.tempSlots.length, true);
+      return this.handleSlotListPick(
+        tenantId, conversationId, settings, flow, input, rawText, flow.tempSlots,
+        'No encontré ese horario exacto en la lista. Elegí el número o tocá una opción:',
+      );
     }
 
     const { slots: pageSlots, hasMoreOption } = await this.getDisplaySlots(tenantId, flow);
     const baseCount = pageSlots.length + (hasMoreOption ? 1 : 0);
+    const dateTimeIntent = BookingAiService.looksLikeDateQuery(input);
 
     if (hasMoreOption && isMoreOptionsInput(input, baseCount)) {
       flow = { ...flow, slotBrowse: 'more_menu' };
@@ -1227,12 +1284,32 @@ export class BookingFlowService {
       return this.moreSlotsMenuReply();
     }
 
-    if (BookingAiService.looksLikeDateQuery(input) && !flow.tempSlots?.length) {
+    if (dateTimeIntent) {
+      const timezone = settings.timezone || 'America/Argentina/Cordoba';
+      const structured = this.tryMatchSlotInList(rawText, timezone, pageSlots);
+      if (structured) {
+        return this.confirmSlotSelection(conversationId, flow, structured);
+      }
+
       const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
-      if (filtered.length > 0) {
+      const exactInFiltered = this.tryMatchSlotInList(rawText, timezone, filtered);
+      if (exactInFiltered) {
+        return this.confirmSlotSelection(conversationId, flow, exactInFiltered);
+      }
+      if (filtered.length === 1) {
+        return this.confirmSlotSelection(conversationId, flow, filtered[0]);
+      }
+      if (filtered.length > 1) {
         flow = { ...flow, tempSlots: filtered.map((s) => ({ date: s.date, time: s.time, label: s.label })) };
         await this.saveFlow(conversationId, flow);
         return this.slotsListReply('Estos horarios tengo para esa fecha:', filtered);
+      }
+
+      if (BookingAiService.looksLikeSlotPickQuery(input)) {
+        return this.slotsListReply(
+          'No encontré ese horario. Elegí uno de la lista o probá con otra fecha:',
+          pageSlots,
+        );
       }
     }
 
@@ -1255,21 +1332,7 @@ export class BookingFlowService {
     }
 
     const slot = pageSlots[pick.index - 1];
-    flow = {
-      ...flow,
-      state: 'customer_name',
-      slotDate: slot.date,
-      slotTime: slot.time,
-      slotLabel: slot.label,
-      tempSlots: undefined,
-      slotBrowse: undefined,
-    };
-    await this.saveFlow(conversationId, flow);
-
-    return {
-      handled: true,
-      text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
-    };
+    return this.confirmSlotSelection(conversationId, flow, slot);
   }
 
   private static async resolveIsFirstTime(leadId: string): Promise<boolean> {

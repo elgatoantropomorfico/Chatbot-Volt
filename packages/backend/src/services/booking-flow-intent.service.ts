@@ -1,4 +1,5 @@
 import { BookingAiService } from './booking-ai.service';
+import { optionsLookLikeSlots } from './booking-datetime.service';
 
 /** Normaliza texto para comparar opciones de menú */
 function norm(s: string): string {
@@ -41,12 +42,19 @@ const OPTION_HINTS: Array<{ pattern: RegExp; needles: string[] }> = [
   { pattern: /no cancel|no quiero cancel|mejor no/i, needles: ['no'] },
 ];
 
+function isDateLikeToken(token: string): boolean {
+  return /^\d{1,2}$/.test(token) || /^\d{1,2}[:.]\d{2}$/.test(token);
+}
+
 export class BookingFlowIntentService {
   /**
    * Intenta mapear texto coloquial a índice de opción (1-based).
    * Reglas determinísticas — rápidas y sin alucinar.
+   * No aplica a listas de horarios (usan parseo fecha/hora estructurado).
    */
   static matchColloquialOption(rawText: string, options: string[]): number | null {
+    if (optionsLookLikeSlots(options)) return null;
+
     const text = norm(rawText);
     if (!text || !options.length) return null;
 
@@ -64,7 +72,7 @@ export class BookingFlowIntentService {
 
       const optTokens = significantTokens(options[i]);
       const textTokens = significantTokens(rawText);
-      const overlap = optTokens.filter((t) => textTokens.includes(t) || text.includes(t));
+      const overlap = optTokens.filter((t) => !isDateLikeToken(t) && (textTokens.includes(t) || text.includes(t)));
       score += overlap.length * 25;
 
       for (const hint of OPTION_HINTS) {
@@ -89,8 +97,10 @@ export class BookingFlowIntentService {
   }
 
   /** ¿Conviene intentar IA para clasificar menú? */
-  static shouldTryAiMenuMatch(rawText: string): boolean {
+  static shouldTryAiMenuMatch(rawText: string, options: string[] = []): boolean {
     const t = rawText.trim();
+    if (optionsLookLikeSlots(options)) return false;
+    if (BookingAiService.looksLikeSlotPickQuery(t)) return false;
     if (t.length < 3 || t.length > 140) return false;
     if (BookingAiService.looksLikeAvailabilityQuestion(t)) return false;
     if (t.includes('?') && t.length > 50) return false;
@@ -103,7 +113,8 @@ export class BookingFlowIntentService {
    * Solo se usa si las reglas no matchearon.
    */
   static async classifyMenuOption(userText: string, options: string[]): Promise<number | null> {
-    if (!this.shouldTryAiMenuMatch(userText) || options.length === 0) return null;
+    if (optionsLookLikeSlots(options)) return null;
+    if (!this.shouldTryAiMenuMatch(userText, options) || options.length === 0) return null;
 
     const numbered = options.map((o, i) => `${i + 1}. ${o}`).join('\n');
     const result = await BookingAiService.completeChatShort(

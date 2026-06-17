@@ -1,5 +1,6 @@
 import { prisma } from '../config/database';
 import { AppointmentStatus } from '@prisma/client';
+import { calendarDateInTz } from './booking-datetime.service';
 
 export interface AvailableSlot {
   date: string;
@@ -45,6 +46,7 @@ export class BookingAvailabilityService {
 
     const timezone = settings.timezone;
     const workingDays = (settings.workingDaysJson as number[]) || [1, 2, 3, 4, 5];
+    const weekdayMap: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
 
     const [slots, blocks, appointments] = await Promise.all([
       prisma.bookingSlot.findMany({
@@ -63,24 +65,21 @@ export class BookingAvailabilityService {
     if (slots.length === 0) return [];
 
     const now = opts.fromDate ?? new Date();
+    const todayStr = calendarDateInTz(timezone, 0);
     const results: AvailableSlot[] = [];
 
     for (let dayOffset = 0; dayOffset < 60 && results.length < limit; dayOffset++) {
-      const candidate = new Date(now);
-      candidate.setDate(candidate.getDate() + dayOffset);
-
-      const weekday = candidate.toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
-      const weekdayMap: Record<string, number> = { Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 0 };
-      const dow = weekdayMap[weekday] ?? candidate.getDay();
+      const dateStr = calendarDateInTz(timezone, dayOffset);
+      const dateObj = new Date(`${dateStr}T12:00:00`);
+      const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
+      const dow = weekdayMap[weekday] ?? dateObj.getDay();
       if (!workingDays.includes(dow)) continue;
-
-      const dateStr = candidate.toLocaleDateString('en-CA', { timeZone: timezone });
 
       for (const slot of slots) {
         if (results.length >= limit) break;
 
         const slotMinutes = parseTimeToMinutes(slot.time);
-        if (dayOffset === 0) {
+        if (dateStr === todayStr) {
           const nowMinutes = parseTimeToMinutes(
             now.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone }),
           );
@@ -107,7 +106,6 @@ export class BookingAvailabilityService {
         });
         if (occupied) continue;
 
-        const dateObj = new Date(`${dateStr}T12:00:00`);
         results.push({
           date: dateStr,
           time: slot.time,
