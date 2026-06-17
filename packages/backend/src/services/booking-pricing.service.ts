@@ -128,6 +128,6 @@ export class BookingPricingService {
       return `• ${rule.label}: ${fmt(Number(rule.value))}${until}`;
     });
 
-    return `Promos vigentes:\n${lines.join('\n')}`;
+    return `🎉 *Promos vigentes:*\n${lines.join('\n')}`;
   }
 }
