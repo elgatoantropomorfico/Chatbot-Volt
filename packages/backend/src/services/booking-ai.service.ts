@@ -191,6 +191,10 @@ ${context}`,
   ): Promise<string | null> {
     if (this.looksLikeGreeting(question)) return null;
 
+    if (this.looksLikeAvailabilityQuestion(question)) {
+      return this.answerAvailabilityQuestion(tenantId, question, settings, undefined);
+    }
+
     const context = await this.buildContext(tenantId, settings);
     const flowHint = this.flowContextHint(flow);
     const priceHint = this.looksLikePriceQuestion(question)
@@ -204,6 +208,7 @@ ${context}`,
 Respondé en español argentino, cálido y breve (máximo 3 oraciones).${priceHint}
 Usá el contexto provisto: horarios de atención en [HORARIOS DE ATENCIÓN]; ubicación y contacto en sus secciones; caminos/tratamientos SOLO en la lista de servicios de [TURNERA]; promociones en [PROMOCIONES VIGENTES — TURNERA] y [PROMOCIONES GENERALES].
 No inventes precios, horarios ni direcciones.
+NUNCA inventes horarios ni confirmes turnos: si preguntan disponibilidad, solo usá la información factual provista.
 Si el usuario pregunta por un camino o técnica (bambú, cañas, piedras, etc.), basate en la lista de caminos del contexto.
 Si no tenés el dato, decí que podés ayudar a reservar un turno o derivar a una persona.
 No hagas listas largas ni repetís menús.
@@ -268,8 +273,112 @@ ${context}`,
     return this.answerOffFlow(tenantId, question, settings);
   }
 
+  static looksLikeAvailabilityQuestion(text: string): boolean {
+    const t = text.toLowerCase();
+    if (this.looksLikeDateQuery(t) && /(turno|horario|disponib|hay|tienen|tenés|tenes|libre|ocupado|lugar)/.test(t)) {
+      return true;
+    }
+    return /(hay|tienen|tenés|tenes).*(turno|horario|lugar)/.test(t)
+      || /(turno|horario).*(para|el|mañana|manana|hoy|lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado)/.test(t);
+  }
+
+  private static resolveTargetDateStr(query: string, timezone: string): string | null {
+    const q = query.toLowerCase();
+    const now = new Date();
+
+    if (/\b(para\s+)?mañana\b/.test(q) || /\b(para\s+)?manana\b/.test(q)) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toLocaleDateString('en-CA', { timeZone: timezone });
+    }
+    if (/\bhoy\b/.test(q)) {
+      return now.toLocaleDateString('en-CA', { timeZone: timezone });
+    }
+
+    const dm = q.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+    if (dm) {
+      const day = parseInt(dm[1], 10);
+      const month = parseInt(dm[2], 10);
+      const year = dm[3]
+        ? (dm[3].length === 2 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10))
+        : now.getFullYear();
+      return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+
+    const dayMap: Record<string, number> = {
+      domingo: 0, lunes: 1, martes: 2, miércoles: 3, miercoles: 3,
+      jueves: 4, viernes: 5, sábado: 6, sabado: 6,
+    };
+    for (const [name, dow] of Object.entries(dayMap)) {
+      if (q.includes(name)) {
+        for (let i = 0; i < 7; i++) {
+          const d = new Date(now);
+          d.setDate(d.getDate() + i);
+          const short = d.toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
+          const dowMap: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+          if (dowMap[short] === dow) {
+            return d.toLocaleDateString('en-CA', { timeZone: timezone });
+          }
+        }
+        break;
+      }
+    }
+    return null;
+  }
+
+  private static parseTargetTime(query: string): string | null {
+    const m = query.match(/\b(?:a las\s+)?(\d{1,2})(?::(\d{2}))?\s*(?:hs|h)?\b/i);
+    if (!m) return null;
+    const h = parseInt(m[1], 10);
+    const min = parseInt(m[2] || '0', 10);
+    if (h < 0 || h > 23 || min < 0 || min > 59) return null;
+    return `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`;
+  }
+
+  /** Respuesta factual de disponibilidad — consulta la turnera real */
+  static async answerAvailabilityQuestion(
+    tenantId: string,
+    question: string,
+    settings: any,
+    serviceId?: string,
+  ): Promise<string> {
+    const timezone = settings.timezone || 'America/Argentina/Cordoba';
+    const targetDate = this.resolveTargetDateStr(question, timezone);
+    const targetTime = this.parseTargetTime(question);
+
+    if (targetDate && targetTime) {
+      const status = await BookingAvailabilityService.getSlotStatus(tenantId, targetDate, targetTime);
+      const dateLabel = new Date(`${targetDate}T12:00:00`).toLocaleDateString('es-AR', {
+        weekday: 'long',
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: timezone,
+      });
+      if (status === 'available') {
+        return `Sí, hay turno el ${dateLabel} a las ${targetTime}. Si querés reservarlo, escribí *menu* y seguimos.`;
+      }
+      if (status === 'occupied') {
+        const alts = await this.slotsForDateQuery(tenantId, question, serviceId);
+        const altText = alts.length
+          ? ` Horarios libres para esa fecha: ${alts.slice(0, 4).map((s) => s.label).join(', ')}.`
+          : ' No quedan otros horarios libres ese día.';
+        return `No, el ${dateLabel} a las ${targetTime} está ocupado.${altText}`;
+      }
+      return `Ese horario (${targetTime} el ${dateLabel}) no está disponible en la turnera. Escribí *menu* y te muestro opciones.`;
+    }
+
+    const slots = await this.slotsForDateQuery(tenantId, question, serviceId);
+    if (slots.length === 0) {
+      return 'No encuentro horarios libres para lo que pedís. Escribí *menu* y vemos otras fechas juntas.';
+    }
+    const lines = slots.slice(0, 5).map((s) => `• ${s.label}`).join('\n');
+    return `Estos son los horarios disponibles:\n${lines}\n\n¿Querés reservar? Escribí *menu* para empezar.`;
+  }
+
   /** Parse free-text date/time intent → filter available slots */
   static async slotsForDateQuery(tenantId: string, query: string, serviceId?: string): Promise<AvailableSlot[]> {
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
+    const timezone = settings?.timezone || 'America/Argentina/Cordoba';
     const all = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 40, serviceId });
     const q = query.toLowerCase();
 
@@ -277,27 +386,32 @@ ${context}`,
       return BookingAvailabilityService.getSlotsThisWeek(tenantId, { serviceId });
     }
 
+    let targetDateStr: string | null = this.resolveTargetDateStr(query, timezone);
+
     const dayMap: Record<string, number> = {
       domingo: 0, lunes: 1, martes: 2, miércoles: 3, miercoles: 3,
       jueves: 4, viernes: 5, sábado: 6, sabado: 6,
     };
 
     let targetDow: number | null = null;
-    for (const [name, dow] of Object.entries(dayMap)) {
-      if (q.includes(name)) { targetDow = dow; break; }
+    if (!targetDateStr) {
+      for (const [name, dow] of Object.entries(dayMap)) {
+        if (q.includes(name)) { targetDow = dow; break; }
+      }
     }
 
-    let targetDateStr: string | null = null;
-    const dm = q.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
-    if (dm) {
-      const day = parseInt(dm[1], 10);
-      const month = parseInt(dm[2], 10);
-      const year = dm[3] ? (dm[3].length === 2 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date().getFullYear();
-      targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    if (!targetDateStr) {
+      const dm = q.match(/(\d{1,2})\/(\d{1,2})(?:\/(\d{2,4}))?/);
+      if (dm) {
+        const day = parseInt(dm[1], 10);
+        const month = parseInt(dm[2], 10);
+        const year = dm[3] ? (dm[3].length === 2 ? 2000 + parseInt(dm[3], 10) : parseInt(dm[3], 10)) : new Date().getFullYear();
+        targetDateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      }
     }
 
-    const wantsAfternoon = q.includes('tarde') || q.includes('noche');
-    const wantsMorning = q.includes('mañana') || q.includes('manana');
+    const wantsAfternoon = /\b(por la tarde|a la tarde|en la tarde|noche)\b/.test(q);
+    const wantsMorning = /\b(por la mañana|a la mañana|en la mañana|temprano)\b/.test(q);
 
     return all.filter((s) => {
       if (targetDateStr && s.date !== targetDateStr) return false;

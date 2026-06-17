@@ -10,7 +10,7 @@ function toWaMeUrl(phone: string): string | null {
 }
 
 export class BookingExpiryService {
-  /** Mark expired pending-payment appointments and release slots */
+  /** Mark expired pending-payment appointments, release slots, reset stuck flows */
   static async expireStaleHolds(tenantId?: string) {
     const now = new Date();
     const where: any = {
@@ -19,14 +19,31 @@ export class BookingExpiryService {
     };
     if (tenantId) where.tenantId = tenantId;
 
-    const expired = await prisma.appointment.updateMany({
+    const stale = await prisma.appointment.findMany({
       where,
+      select: { id: true, conversationId: true },
+    });
+
+    if (stale.length === 0) return 0;
+
+    await prisma.appointment.updateMany({
+      where: { id: { in: stale.map((a) => a.id) } },
       data: { status: 'vencido' },
     });
-    if (expired.count > 0) {
-      console.log(`⏱️ Expired ${expired.count} pending-payment appointment(s)`);
+
+    const conversationIds = stale
+      .map((a) => a.conversationId)
+      .filter((id): id is string => !!id);
+
+    if (conversationIds.length > 0) {
+      await prisma.conversation.updateMany({
+        where: { id: { in: conversationIds } },
+        data: { bookingFlowJson: { state: 'booking_start' } },
+      });
     }
-    return expired.count;
+
+    console.log(`⏱️ Expired ${stale.length} pending-payment appointment(s), reset ${conversationIds.length} flow(s)`);
+    return stale.length;
   }
 }
 

@@ -73,7 +73,24 @@ export class ConversationService {
       });
     }
 
-    // 4. Save incoming message
+    // 4. Save incoming message (idempotente si el job se reintenta tras fallo en envío)
+    const existing = await prisma.message.findFirst({
+      where: { providerMessageId: data.messageId, direction: 'in' },
+      include: { conversation: true },
+    });
+    if (existing) {
+      const conversation = await prisma.conversation.findUniqueOrThrow({
+        where: { id: existing.conversationId },
+      });
+      return {
+        channel,
+        tenant: channel.tenant,
+        lead,
+        conversation,
+        message: existing,
+      };
+    }
+
     const message = await prisma.message.create({
       data: {
         conversationId: conversation.id,

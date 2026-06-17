@@ -271,6 +271,23 @@ export class BookingFlowService {
     await BookingExpiryService.expireStaleHolds(tenantId);
 
     let flow = await this.getFlow(conversationId);
+    const reconciled = await this.reconcileStaleFlow(conversationId, flow, settings);
+    flow = reconciled.flow;
+
+    if (reconciled.expiredNotice) {
+      const inputNorm = normalizeInput(text);
+      if (isFreeTextOffFlow(text, inputNorm, 3) || BookingAiService.looksLikeAvailabilityQuestion(text)) {
+        let answer: string | null = null;
+        if (BookingAiService.looksLikeAvailabilityQuestion(text)) {
+          answer = await BookingAiService.answerAvailabilityQuestion(tenantId, text, settings);
+        } else {
+          answer = await BookingAiService.answerOffFlow(tenantId, text, settings);
+        }
+        const body = [reconciled.expiredNotice, answer].filter(Boolean).join('\n\n');
+        return this.mainMenuOptionsReply(body);
+      }
+      return this.mainMenuOptionsReply(reconciled.expiredNotice);
+    }
 
     if (flow.state === 'cancel_pick') {
       return this.handleCancelPick(tenantId, conversationId, leadId, phone, settings, flow, input, text);
@@ -394,6 +411,59 @@ export class BookingFlowService {
       serviceName: flow.serviceName,
       slotLabel: flow.slotLabel,
     };
+  }
+
+  /** Limpia flujos colgados en pago cuando el turno venció o se canceló */
+  private static async reconcileStaleFlow(
+    conversationId: string,
+    flow: BookingFlowContext,
+    settings: any,
+  ): Promise<{ flow: BookingFlowContext; expiredNotice?: string }> {
+    const paymentStates: BookingFlowState[] = ['waiting_payment', 'payment_choice'];
+    if (!paymentStates.includes(flow.state)) return { flow };
+
+    const now = new Date();
+    let apt = flow.appointmentId
+      ? await prisma.appointment.findUnique({ where: { id: flow.appointmentId } })
+      : null;
+
+    const stale = flow.state === 'waiting_payment' && (
+      !apt
+      || apt.status === 'vencido'
+      || apt.status === 'cancelado'
+      || (apt.status === 'pendiente_pago' && apt.holdExpiresAt && apt.holdExpiresAt < now)
+    );
+
+    if (!stale) return { flow };
+
+    const reset: BookingFlowContext = { state: 'booking_start' };
+    await this.saveFlow(conversationId, reset);
+    const notice = msg(
+      settings,
+      'hold_expired',
+      'La reserva anterior venció (pasaron los 15 minutos sin pago) y el horario quedó liberado. ¿Querés reservar un turno nuevo?',
+    );
+    return { flow: reset, expiredNotice: notice };
+  }
+
+  private static async answerOffFlowQuestion(
+    tenantId: string,
+    rawText: string,
+    settings: any,
+    flow: BookingFlowContext,
+    tail = HOME_HINT,
+  ): Promise<string> {
+    let answer: string | null = null;
+    if (BookingAiService.looksLikeAvailabilityQuestion(rawText)) {
+      answer = await BookingAiService.answerAvailabilityQuestion(
+        tenantId, rawText, settings, flow.serviceId,
+      );
+    } else {
+      answer = await BookingAiService.answerOffFlow(
+        tenantId, rawText, settings, this.flowAiContext(flow),
+      );
+    }
+    return (answer || 'Contame en qué te ayudo.') + tail;
   }
 
   private static async offFlowThen(
@@ -749,11 +819,31 @@ export class BookingFlowService {
       }
       return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
     }
-    return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => ({
+    if (isGoHomeIntent(input) || MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+
+    if (isFreeTextOffFlow(rawText, input)) {
+      return {
+        handled: true,
+        text: await this.answerOffFlowQuestion(
+          tenantId,
+          rawText,
+          settings,
+          flow,
+          '\n\n_Si querés retomar el pago del turno reservado, escribí *volver*. Para empezar de cero, *menu_.',
+        ),
+      };
+    }
+
+    return {
       handled: true,
-      text: msg(settings, 'payment_pending',
-        'Tu turno está pendiente de pago. Si ya pagaste, en unos minutos te llega la confirmación.'),
-    }));
+      text: msg(
+        settings,
+        'payment_reminder',
+        'Tu turno sigue reservado unos minutos más. Completá el pago con el link que te envié, o escribí *menu* para liberar el horario y elegir otro.',
+      ),
+    };
   }
 
   private static async replyCancelDisabled(tenantId: string): Promise<FlowHandleResult> {
@@ -1290,6 +1380,12 @@ Importante: ${policyShort}
       return this.slotReply(tenantId, flow.serviceName || '');
     }
     if (pick.kind !== 'option' || (pick.index !== 1 && pick.index !== 2)) {
+      if (isFreeTextOffFlow(rawText, input, 3)) {
+        return {
+          handled: true,
+          text: await this.answerOffFlowQuestion(tenantId, rawText, settings, flow),
+        };
+      }
       return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => flowReply(
         'Elegí cómo querés pagar:',
         [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'],

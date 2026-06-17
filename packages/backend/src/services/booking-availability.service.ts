@@ -139,4 +139,44 @@ export class BookingAvailabilityService {
     const all = await this.getAvailableSlots(tenantId, { limit: 80, serviceId: opts.serviceId });
     return all.filter((s) => s.date <= endStr).slice(0, 12);
   }
+
+  /** Si el horario existe en la grilla pero está tomado/bloqueado, o no se ofrece ese día. */
+  static async getSlotStatus(
+    tenantId: string,
+    dateStr: string,
+    time: string,
+  ): Promise<'available' | 'occupied' | 'not_offered'> {
+    const open = await this.getAvailableSlots(tenantId, { limit: 120 });
+    if (open.some((s) => s.date === dateStr && s.time === time)) return 'available';
+
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
+    if (!settings) return 'not_offered';
+
+    const configured = await prisma.bookingSlot.findFirst({
+      where: { tenantId, isActive: true, time },
+    });
+    if (!configured) return 'not_offered';
+
+    const now = new Date();
+    const occupying = await prisma.appointment.findFirst({
+      where: {
+        tenantId,
+        appointmentDate: new Date(`${dateStr}T12:00:00`),
+        appointmentTime: time,
+        status: { in: OCCUPYING_STATUSES },
+      },
+    });
+    if (occupying) {
+      if (
+        occupying.status === 'pendiente_pago'
+        && occupying.holdExpiresAt
+        && occupying.holdExpiresAt < now
+      ) {
+        return 'available';
+      }
+      return 'occupied';
+    }
+
+    return 'not_offered';
+  }
 }
