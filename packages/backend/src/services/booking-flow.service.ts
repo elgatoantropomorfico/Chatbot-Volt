@@ -372,6 +372,9 @@ export class BookingFlowService {
     }
 
     if (looksLikeCancelIntent(input)) {
+      if (flow.state === 'waiting_payment' && flow.appointmentId) {
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, text);
+      }
       if (!settings.cancelEnabled) {
         return this.replyCancelDisabled(tenantId);
       }
@@ -572,6 +575,15 @@ export class BookingFlowService {
     return flowReply(body, MAIN_MENU_OPTIONS);
   }
 
+  /** Libera un hold de pago pendiente cuando el usuario abandona el checkout */
+  private static async abortPendingPaymentHold(tenantId: string, appointmentId: string): Promise<boolean> {
+    const result = await prisma.appointment.updateMany({
+      where: { id: appointmentId, tenantId, status: 'pendiente_pago' },
+      data: { status: 'cancelado', cancelledAt: new Date() },
+    });
+    return result.count > 0;
+  }
+
   private static async goToMainMenu(
     tenantId: string,
     conversationId: string,
@@ -585,14 +597,24 @@ export class BookingFlowService {
       await this.saveFlow(conversationId, nextFlow);
     }
 
+    let releaseNote: string | null = null;
+    if (prevFlow.state === 'waiting_payment' && prevFlow.appointmentId) {
+      const released = await this.abortPendingPaymentHold(tenantId, prevFlow.appointmentId);
+      if (released) {
+        releaseNote = 'Liberamos el horario que tenías reservado.';
+      }
+    }
+
     const input = userText ? normalizeInput(userText) : '';
-    let body: string | null = null;
+    let body: string | null = releaseNote;
 
     if (userText && isFreeTextOffFlow(userText, input)) {
-      body = await BookingAiService.answerOffFlow(tenantId, userText, settings, this.flowAiContext(prevFlow));
+      const answer = await BookingAiService.answerOffFlow(tenantId, userText, settings, this.flowAiContext(prevFlow));
+      body = [body, answer].filter(Boolean).join('\n\n');
     }
-    if (!body) {
-      body = await BookingAiService.generateFlowBridge(tenantId, settings, this.flowAiContext(prevFlow), 'go_home');
+    if (!body || body === releaseNote) {
+      const bridge = await BookingAiService.generateFlowBridge(tenantId, settings, this.flowAiContext(prevFlow), 'go_home');
+      body = [body, bridge].filter(Boolean).join('\n\n');
     }
 
     return this.mainMenuOptionsReply(body || 'Contame en qué te puedo ayudar 🌿');
@@ -914,13 +936,7 @@ export class BookingFlowService {
     input: string,
     rawText: string,
   ): Promise<FlowHandleResult> {
-    if (looksLikeCancelIntent(input)) {
-      if (!settings.cancelEnabled) {
-        return this.replyCancelDisabled(tenantId);
-      }
-      return this.startCancelFlow(tenantId, conversationId, leadId, phone, settings, flow);
-    }
-    if (isGoHomeIntent(input) || MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))) {
+    if (looksLikeCancelIntent(input) || isGoHomeIntent(input) || MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))) {
       return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
     }
 
