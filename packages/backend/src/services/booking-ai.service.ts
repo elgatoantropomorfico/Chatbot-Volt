@@ -268,6 +268,14 @@ ${context}`,
     return null;
   }
 
+  /** Clasificador liviano (menú, intención corta) — temperatura baja */
+  static async completeChatShort(
+    messages: Array<{ role: 'system' | 'user'; content: string }>,
+    maxTokens: number,
+  ): Promise<string | null> {
+    return this.completeChat(messages, maxTokens);
+  }
+
   /** @deprecated use answerOffFlow */
   static async answerFaq(tenantId: string, question: string, settings: any): Promise<string | null> {
     return this.answerOffFlow(tenantId, question, settings);
