@@ -8,6 +8,18 @@ import { BookingPricingService } from './booking-pricing.service';
 import { MercadoPagoService } from './mercadopago.service';
 import { BookingAiService } from './booking-ai.service';
 import { BookingFlowIntentService } from './booking-flow-intent.service';
+import {
+  CONFIRM_PAYMENT_SENA_OPTIONS,
+  CONFIRM_PAYMENT_TOTAL_OPTIONS,
+  CONFIRM_SERVICE_OPTIONS,
+  CONFIRM_SLOT_OPTIONS,
+  isConfirmModify,
+  isConfirmYes,
+  matchServiceFromText,
+  nextStepAfterConfirm,
+  parsePaymentPreview,
+  type SlotPick,
+} from './booking-flow-nav.service';
 import { BookingExpiryService } from './booking-notification.service';
 import { HandoffService } from './handoff.service';
 import crypto from 'crypto';
@@ -48,6 +60,9 @@ export type BookingFlowState =
   | 'recommender_q2'
   | 'service_selected'
   | 'slot_selection'
+  | 'confirm_slot_preview'
+  | 'confirm_service_preview'
+  | 'confirm_payment_preview'
   | 'customer_name'
   | 'customer_notes'
   | 'payment_choice'
@@ -76,6 +91,13 @@ export interface BookingFlowContext {
   tempSlots?: Array<{ date: string; time: string; label: string }>;
   cancelAppointmentId?: string;
   cancelOptions?: Array<{ id: string; label: string; listTitle: string }>;
+  previewSlots?: SlotPick[];
+  previewSlot?: SlotPick;
+  previewServiceId?: string;
+  previewServiceName?: string;
+  previewPaymentType?: 'sena' | 'total';
+  pricePreviewActive?: boolean;
+  notesStepDone?: boolean;
 }
 
 const MAIN_MENU_COMMANDS = ['menú', 'menu', 'empezar de nuevo', 'inicio'];
@@ -381,6 +403,12 @@ export class BookingFlowService {
       case 'service_selected':
       case 'slot_selection':
         return this.handleSlotSelection(tenantId, conversationId, settings, flow, input, text);
+      case 'confirm_slot_preview':
+        return this.handleConfirmSlotPreview(tenantId, conversationId, settings, flow, input, text);
+      case 'confirm_service_preview':
+        return this.handleConfirmServicePreview(tenantId, conversationId, settings, flow, input, text);
+      case 'confirm_payment_preview':
+        return this.handleConfirmPaymentPreview(tenantId, conversationId, leadId, phone, settings, flow, input, text);
       case 'customer_name':
         return this.handleCustomerName(tenantId, conversationId, leadId, settings, flow, input, text, params.profileName);
       case 'customer_notes':
@@ -621,6 +649,32 @@ export class BookingFlowService {
           return this.resumeWithBridge(tenantId, settings, flow, this.slotsListReply('Elegí un horario:', flow.tempSlots));
         }
         return this.resumeWithBridge(tenantId, settings, flow, await this.slotReply(tenantId, flow.serviceName || ''));
+      case 'confirm_slot_preview':
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply(
+          `¿Confirmás este horario?\n\n📅 *${flow.previewSlot?.label}*`,
+          CONFIRM_SLOT_OPTIONS,
+          true,
+        ));
+      case 'confirm_service_preview': {
+        const svc = flow.previewServiceId
+          ? await prisma.bookingService.findUnique({ where: { id: flow.previewServiceId } })
+          : null;
+        const desc = svc?.shortDescription || '';
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply(
+          `¿Confirmás este camino?\n\n*${flow.previewServiceName}*${desc ? `\n${desc}` : ''}`,
+          CONFIRM_SERVICE_OPTIONS,
+          true,
+        ));
+      }
+      case 'confirm_payment_preview': {
+        const label = flow.previewPaymentType === 'total' ? 'Pago 100%' : `Seña ${settings.depositPercentage}%`;
+        const opts = flow.previewPaymentType === 'total' ? CONFIRM_PAYMENT_TOTAL_OPTIONS : CONFIRM_PAYMENT_SENA_OPTIONS;
+        return this.resumeWithBridge(tenantId, settings, flow, flowReply(
+          `¿Confirmás esta forma de pago?\n\n💳 *${label}*`,
+          opts,
+          true,
+        ));
+      }
       case 'customer_name':
         return this.resumeWithBridge(tenantId, settings, flow, {
           handled: true,
@@ -940,34 +994,363 @@ export class BookingFlowService {
     return `${welcome}\n\n1️⃣ Ayudame a elegir\n2️⃣ Ya sé cuál quiero\n3️⃣ Ver precios y disponibilidad`;
   }
 
+  private static async advanceFlowToStep(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    nextState: BookingFlowState,
+  ): Promise<FlowHandleResult> {
+    const nextFlow: BookingFlowContext = { ...flow, state: nextState };
+    await this.saveFlow(conversationId, nextFlow);
+    return this.renderStepPrompt(tenantId, conversationId, settings, nextFlow);
+  }
+
+  private static async renderStepPrompt(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+  ): Promise<FlowHandleResult> {
+    switch (flow.state) {
+      case 'booking_start':
+        return this.mainMenuOptionsReply('¿Querés reservar un turno?');
+      case 'choosing_service_mode':
+        return this.serviceListReply(tenantId);
+      case 'confirm_slot_preview':
+        return flowReply(
+          `¿Confirmás este horario?\n\n📅 *${flow.previewSlot?.label || flow.slotLabel}*`,
+          CONFIRM_SLOT_OPTIONS,
+          true,
+        );
+      case 'confirm_service_preview': {
+        const svc = flow.previewServiceId
+          ? await prisma.bookingService.findUnique({ where: { id: flow.previewServiceId } })
+          : null;
+        const desc = svc?.shortDescription || svc?.botRecommendationText || '';
+        const body = `¿Confirmás este camino?\n\n*${flow.previewServiceName || svc?.name}*${desc ? `\n${desc}` : ''}`;
+        return flowReply(body, CONFIRM_SERVICE_OPTIONS, true);
+      }
+      case 'confirm_payment_preview': {
+        const label = flow.previewPaymentType === 'total' ? 'Pago 100%' : `Seña ${settings.depositPercentage}%`;
+        const opts = flow.previewPaymentType === 'total' ? CONFIRM_PAYMENT_TOTAL_OPTIONS : CONFIRM_PAYMENT_SENA_OPTIONS;
+        return flowReply(`¿Confirmás esta forma de pago?\n\n💳 *${label}*`, opts, true);
+      }
+      case 'slot_selection':
+        return this.slotReply(tenantId, flow.serviceName || '');
+      case 'customer_name':
+        return {
+          handled: true,
+          text: `Pasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
+        };
+      case 'customer_notes':
+        return {
+          handled: true,
+          text: `¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
+        };
+      case 'payment_choice':
+        return this.paymentChoiceReply(tenantId, settings, flow);
+      default:
+        return this.mainMenuOptionsReply('¿Seguimos con la reserva?');
+    }
+  }
+
+  private static paymentChoiceReply(tenantId: string, settings: any, flow: BookingFlowContext): FlowHandleResult {
+    const payOptions = [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'];
+    return flowReply('Elegí cómo querés pagar:', payOptions, true);
+  }
+
+  private static async assignPreviewSlot(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    slot: SlotPick,
+  ): Promise<FlowHandleResult> {
+    const nextFlow: BookingFlowContext = {
+      ...flow,
+      previewSlot: slot,
+      pricePreviewActive: false,
+      state: 'confirm_slot_preview',
+    };
+    await this.saveFlow(conversationId, nextFlow);
+    return this.renderStepPrompt(tenantId, conversationId, settings, nextFlow);
+  }
+
+  private static async assignPreviewService(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    service: { id: string; name: string },
+  ): Promise<FlowHandleResult> {
+    const nextFlow: BookingFlowContext = {
+      ...flow,
+      previewServiceId: service.id,
+      previewServiceName: service.name,
+      state: 'confirm_service_preview',
+    };
+    await this.saveFlow(conversationId, nextFlow);
+    return this.renderStepPrompt(tenantId, conversationId, settings, nextFlow);
+  }
+
+  private static async showPricePreview(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+  ): Promise<FlowHandleResult> {
+    const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
+    const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
+    const promoBlock = await BookingPricingService.formatActivePromosSummary(tenantId, basePrice);
+    const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 5 });
+    const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
+
+    if (!slots.length) {
+      return {
+        handled: true,
+        text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}${promoSection}\n\nNo hay horarios disponibles por ahora. Escribí *1* o *2* para reservar cuando haya turnos.${HOME_HINT}`,
+      };
+    }
+
+    const previewSlots = slots.map((s) => ({ date: s.date, time: s.time, label: s.label }));
+    const nextFlow: BookingFlowContext = {
+      ...flow,
+      state: 'booking_start',
+      previewSlots,
+      pricePreviewActive: true,
+      previewSlot: undefined,
+    };
+    await this.saveFlow(conversationId, nextFlow);
+
+    const body = `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}${promoSection}\n\nSi alguno te sirve, elegilo abajo para reservar. También podés escribir el día y la hora (ej: *mañana a las 18*).`;
+    return flowReply(body, previewSlots.map((s) => s.label), true);
+  }
+
+  private static async tryCapturePreviewAtMainMenu(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult | null> {
+    const timezone = settings.timezone || 'America/Argentina/Cordoba';
+
+    if (flow.previewSlots?.length) {
+      if (flow.pricePreviewActive) {
+        const numPick = pickOption(input, flow.previewSlots.length);
+        if (numPick) {
+          return this.assignPreviewSlot(tenantId, conversationId, settings, flow, flow.previewSlots[numPick - 1]);
+        }
+      }
+      const matched = BookingAiService.findMatchingSlot(rawText, timezone, flow.previewSlots);
+      if (matched) {
+        return this.assignPreviewSlot(tenantId, conversationId, settings, flow, matched);
+      }
+    }
+
+    if (!flow.serviceId && !flow.previewServiceId) {
+      const services = await prisma.bookingService.findMany({
+        where: { tenantId, isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      });
+      const service = matchServiceFromText(rawText, services);
+      if (service) {
+        return this.assignPreviewService(tenantId, conversationId, settings, flow, service);
+      }
+    }
+
+    const paymentPreview = parsePaymentPreview(rawText);
+    if (paymentPreview && flow.serviceId && flow.slotDate && flow.customerName && flow.notesStepDone) {
+      const nextFlow: BookingFlowContext = {
+        ...flow,
+        previewPaymentType: paymentPreview,
+        state: 'confirm_payment_preview',
+      };
+      await this.saveFlow(conversationId, nextFlow);
+      return this.renderStepPrompt(tenantId, conversationId, settings, nextFlow);
+    }
+
+    return null;
+  }
+
+  private static async handleConfirmSlotPreview(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult> {
+    if (isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+
+    const pick = await resolveFlowMenuPick(tenantId, input, rawText, 2, true, CONFIRM_SLOT_OPTIONS, true);
+    const yes = pick.kind === 'option' && pick.index === 1 || isConfirmYes(input);
+    const modify = pick.kind === 'option' && pick.index === 2 || isConfirmModify(input);
+
+    if (modify) {
+      const nextFlow: BookingFlowContext = {
+        ...flow,
+        previewSlot: undefined,
+        state: 'slot_selection',
+        tempSlots: flow.previewSlots,
+      };
+      await this.saveFlow(conversationId, nextFlow);
+      if (nextFlow.tempSlots?.length) {
+        return this.slotsListReply('Elegí un horario:', nextFlow.tempSlots);
+      }
+      return this.slotReply(tenantId, flow.serviceName || '');
+    }
+
+    if (!yes || !flow.previewSlot) {
+      return this.renderStepPrompt(tenantId, conversationId, settings, flow);
+    }
+
+    const slot = flow.previewSlot;
+    const status = await BookingAvailabilityService.getSlotStatus(tenantId, slot.date, slot.time);
+    if (status !== 'available') {
+      const nextFlow: BookingFlowContext = { ...flow, previewSlot: undefined };
+      await this.saveFlow(conversationId, nextFlow);
+      return this.slotsListReply(
+        'Ese horario ya no está disponible. Elegí otro:',
+        flow.previewSlots || [],
+      );
+    }
+
+    const confirmed: BookingFlowContext = {
+      ...flow,
+      slotDate: slot.date,
+      slotTime: slot.time,
+      slotLabel: slot.label,
+      previewSlot: undefined,
+      pricePreviewActive: false,
+    };
+    const nextState = nextStepAfterConfirm(confirmed);
+    return this.advanceFlowToStep(tenantId, conversationId, settings, confirmed, nextState);
+  }
+
+  private static async handleConfirmServicePreview(
+    tenantId: string,
+    conversationId: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult> {
+    if (isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+
+    const pick = await resolveFlowMenuPick(tenantId, input, rawText, 2, true, CONFIRM_SERVICE_OPTIONS, true);
+    const yes = pick.kind === 'option' && pick.index === 1 || isConfirmYes(input);
+    const modify = pick.kind === 'option' && pick.index === 2 || isConfirmModify(input);
+
+    if (modify) {
+      const nextFlow: BookingFlowContext = {
+        ...flow,
+        previewServiceId: undefined,
+        previewServiceName: undefined,
+        state: 'choosing_service_mode',
+      };
+      await this.saveFlow(conversationId, nextFlow);
+      return this.serviceListReply(tenantId);
+    }
+
+    if (!yes || !flow.previewServiceId) {
+      return this.renderStepPrompt(tenantId, conversationId, settings, flow);
+    }
+
+    const confirmed: BookingFlowContext = {
+      ...flow,
+      serviceId: flow.previewServiceId,
+      serviceName: flow.previewServiceName,
+      previewServiceId: undefined,
+      previewServiceName: undefined,
+      slotPage: 0,
+    };
+    const nextState = nextStepAfterConfirm(confirmed);
+    return this.advanceFlowToStep(tenantId, conversationId, settings, confirmed, nextState);
+  }
+
+  private static async handleConfirmPaymentPreview(
+    tenantId: string,
+    conversationId: string,
+    leadId: string,
+    phone: string,
+    settings: any,
+    flow: BookingFlowContext,
+    input: string,
+    rawText: string,
+  ): Promise<FlowHandleResult> {
+    if (isGoHomeIntent(input)) {
+      return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+    }
+
+    const opts = flow.previewPaymentType === 'total' ? CONFIRM_PAYMENT_TOTAL_OPTIONS : CONFIRM_PAYMENT_SENA_OPTIONS;
+    const pick = await resolveFlowMenuPick(tenantId, input, rawText, 2, true, opts, true);
+    const yes = pick.kind === 'option' && pick.index === 1 || isConfirmYes(input);
+    const modify = pick.kind === 'option' && pick.index === 2 || isConfirmModify(input);
+
+    if (modify || !flow.previewPaymentType) {
+      const nextFlow: BookingFlowContext = {
+        ...flow,
+        previewPaymentType: undefined,
+        state: 'payment_choice',
+      };
+      await this.saveFlow(conversationId, nextFlow);
+      return this.paymentChoiceReply(tenantId, settings, nextFlow);
+    }
+
+    if (!yes) {
+      return this.renderStepPrompt(tenantId, conversationId, settings, flow);
+    }
+
+    const paymentType = flow.previewPaymentType;
+    return this.handlePaymentChoice(
+      tenantId,
+      conversationId,
+      leadId,
+      phone,
+      settings,
+      { ...flow, previewPaymentType: undefined, state: 'payment_choice' },
+      paymentType === 'sena' ? '1' : '2',
+      paymentType === 'sena' ? 'señar' : 'pagar 100%',
+    );
+  }
+
   private static async handleMainMenu(
     tenantId: string, conversationId: string, settings: any, flow: BookingFlowContext, input: string, rawText: string,
   ): Promise<FlowHandleResult> {
+    const captured = await this.tryCapturePreviewAtMainMenu(tenantId, conversationId, settings, flow, input, rawText);
+    if (captured) return captured;
+
+    if (flow.pricePreviewActive && flow.previewSlots?.length) {
+      if (isGoHomeIntent(input)) {
+        return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
+      }
+      return this.slotsListReply(
+        'No entendí ese horario. Elegí uno de la lista o escribí día y hora (ej: *mañana a las 18*):',
+        flow.previewSlots,
+      );
+    }
+
     const pick = await resolveFlowMenuPick(tenantId, input, rawText, 3, false, MAIN_MENU_OPTIONS);
     const opt = pick.kind === 'option' ? pick.index : null;
     if (opt === 1) {
-      flow = { state: 'recommender_q1' };
+      flow = { state: 'recommender_q1', pricePreviewActive: false, previewSlots: undefined };
       await this.saveFlow(conversationId, flow);
       return flowReply('¿Qué sentís que necesitás hoy?', RECOMMENDER_Q1_OPTIONS, true);
     }
     if (opt === 2) {
-      flow = { state: 'choosing_service_mode' };
+      flow = { state: 'choosing_service_mode', pricePreviewActive: false, previewSlots: undefined };
       await this.saveFlow(conversationId, flow);
       return this.serviceListReply(tenantId);
     }
     if (opt === 3) {
-      const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
-      const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
-      const promoBlock = await BookingPricingService.formatActivePromosSummary(tenantId, basePrice);
-      const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 3 });
-      const slotLines = slots.length
-        ? slots.map((s, i) => `${i + 1}️⃣ ${s.label}`).join('\n')
-        : 'Consultanos por WhatsApp para ver próximos horarios.';
-      const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
-      return {
-        handled: true,
-        text: `Valor de sesión (${settings.sessionDurationMinutes || 80} min): ${price}${promoSection}\n\nPróximos horarios:\n${slotLines}\n\nPara reservar, elegí *1* (ayudame a elegir) o *2* (ya sé cuál quiero).`,
-      };
+      return this.showPricePreview(tenantId, conversationId, settings, flow);
     }
     return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
       this.mainMenuResumeReply('¿Querés reservar un turno?')
@@ -998,6 +1381,12 @@ export class BookingFlowService {
       where: { tenantId, isActive: true },
       orderBy: { sortOrder: 'asc' },
     });
+
+    const serviceMatch = matchServiceFromText(rawText, services);
+    if (serviceMatch && !flow.serviceId) {
+      return this.assignPreviewService(tenantId, conversationId, settings, flow, serviceMatch);
+    }
+
     const pick = await resolveFlowMenuPick(tenantId, input, rawText, services.length, true, services.map((s) => s.name));
     if (pick.kind === 'home' || isGoHomeIntent(input)) {
       return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
@@ -1009,14 +1398,14 @@ export class BookingFlowService {
       }), services.length, true);
     }
     const service = services[pick.index - 1];
-    flow = {
-      state: 'slot_selection',
+    const nextFlow: BookingFlowContext = {
+      ...flow,
       serviceId: service.id,
       serviceName: service.name,
       slotPage: 0,
     };
-    await this.saveFlow(conversationId, flow);
-    return this.slotReply(tenantId, service.name);
+    const nextState = nextStepAfterConfirm(nextFlow);
+    return this.advanceFlowToStep(tenantId, conversationId, settings, nextFlow, nextState);
   }
 
   private static async handleRecommenderQ1(
@@ -1114,24 +1503,25 @@ export class BookingFlowService {
   }
 
   private static async confirmSlotSelection(
+    tenantId: string,
     conversationId: string,
+    settings: any,
     flow: BookingFlowContext,
     slot: { date: string; time: string; label: string },
   ): Promise<FlowHandleResult> {
     const nextFlow: BookingFlowContext = {
       ...flow,
-      state: 'customer_name',
       slotDate: slot.date,
       slotTime: slot.time,
       slotLabel: slot.label,
       tempSlots: undefined,
       slotBrowse: undefined,
+      previewSlot: undefined,
+      pricePreviewActive: false,
     };
-    await this.saveFlow(conversationId, nextFlow);
-    return {
-      handled: true,
-      text: `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.${HOME_HINT}`,
-    };
+    const nextState = nextStepAfterConfirm(nextFlow);
+    const result = await this.advanceFlowToStep(tenantId, conversationId, settings, nextFlow, nextState);
+    return prependToReply(result, `Perfecto. Te reservo temporalmente *${slot.label}* mientras completamos la confirmación.`);
   }
 
   private static tryMatchSlotInList(
@@ -1156,7 +1546,7 @@ export class BookingFlowService {
     const timezone = settings.timezone || 'America/Argentina/Cordoba';
     const structured = this.tryMatchSlotInList(rawText, timezone, slots);
     if (structured) {
-      return this.confirmSlotSelection(conversationId, flow, structured);
+      return this.confirmSlotSelection(tenantId, conversationId, settings, flow, structured);
     }
 
     if (BookingAiService.looksLikeSlotPickQuery(input)) {
@@ -1172,7 +1562,7 @@ export class BookingFlowService {
       return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
     }
     if (pick.kind === 'option') {
-      return this.confirmSlotSelection(conversationId, flow, slots[pick.index - 1]);
+      return this.confirmSlotSelection(tenantId, conversationId, settings, flow, slots[pick.index - 1]);
     }
     return this.offFlowThen(tenantId, conversationId, rawText, settings, flow, async () => (
       this.slotsListReply('Elegí un horario:', slots)
@@ -1247,10 +1637,10 @@ export class BookingFlowService {
       const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
       const exact = this.tryMatchSlotInList(rawText, timezone, filtered);
       if (exact) {
-        return this.confirmSlotSelection(conversationId, flow, exact);
+        return this.confirmSlotSelection(tenantId, conversationId, settings, flow, exact);
       }
       if (filtered.length === 1) {
-        return this.confirmSlotSelection(conversationId, flow, filtered[0]);
+        return this.confirmSlotSelection(tenantId, conversationId, settings, flow, filtered[0]);
       }
       if (filtered.length > 0) {
         flow = {
@@ -1288,16 +1678,16 @@ export class BookingFlowService {
       const timezone = settings.timezone || 'America/Argentina/Cordoba';
       const structured = this.tryMatchSlotInList(rawText, timezone, pageSlots);
       if (structured) {
-        return this.confirmSlotSelection(conversationId, flow, structured);
+        return this.confirmSlotSelection(tenantId, conversationId, settings, flow, structured);
       }
 
       const filtered = await BookingAiService.slotsForDateQuery(tenantId, rawText, flow.serviceId);
       const exactInFiltered = this.tryMatchSlotInList(rawText, timezone, filtered);
       if (exactInFiltered) {
-        return this.confirmSlotSelection(conversationId, flow, exactInFiltered);
+        return this.confirmSlotSelection(tenantId, conversationId, settings, flow, exactInFiltered);
       }
       if (filtered.length === 1) {
-        return this.confirmSlotSelection(conversationId, flow, filtered[0]);
+        return this.confirmSlotSelection(tenantId, conversationId, settings, flow, filtered[0]);
       }
       if (filtered.length > 1) {
         flow = { ...flow, tempSlots: filtered.map((s) => ({ date: s.date, time: s.time, label: s.label })) };
@@ -1332,7 +1722,7 @@ export class BookingFlowService {
     }
 
     const slot = pageSlots[pick.index - 1];
-    return this.confirmSlotSelection(conversationId, flow, slot);
+    return this.confirmSlotSelection(tenantId, conversationId, settings, flow, slot);
   }
 
   private static async resolveIsFirstTime(leadId: string): Promise<boolean> {
@@ -1424,7 +1814,21 @@ export class BookingFlowService {
     }
 
     const notes = isNotesSkip(input) ? null : rawText.trim();
-    flow = { ...flow, state: 'payment_choice', customerNotes: notes || undefined };
+    const paymentPreview = parsePaymentPreview(rawText);
+    flow = {
+      ...flow,
+      customerNotes: notes || undefined,
+      notesStepDone: true,
+      ...(paymentPreview ? { previewPaymentType: paymentPreview } : {}),
+    };
+
+    if (flow.previewPaymentType) {
+      flow.state = 'confirm_payment_preview';
+      await this.saveFlow(conversationId, flow);
+      return this.renderStepPrompt(tenantId, conversationId, settings, flow);
+    }
+
+    flow = { ...flow, state: 'payment_choice' };
     await this.saveFlow(conversationId, flow);
 
     if (!flow.serviceId || !flow.slotDate || !flow.slotTime) {
