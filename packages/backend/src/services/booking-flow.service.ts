@@ -140,6 +140,21 @@ function isExactCommand(input: string, command: string): boolean {
   return input === command || input === command.replace('ó', 'o');
 }
 
+/** Versión laxa para detectar intención de cancelar en cualquier contexto (pago, etc.) */
+function looksLikeLooseCancel(input: string): boolean {
+  const t = input.trim().toLowerCase();
+  if (!t) return false;
+  if (t === 'cancelar' || t === 'cancelalo' || t === 'lo cancelo') return true;
+  if (t.startsWith('cancelo ')) return true;
+  if (t.includes(' quiero cancelar')) return true;
+  if (t.includes(' quiero cancelarlo')) return true;
+  if (t.includes(' quiero cancelarla')) return true;
+  if (t.includes(' mejor cancel')) return true;
+  if (t.includes(' cancelamos')) return true;
+  if (/\bcancel(a|ar|alo|amos|emos|en|ado)\b/.test(t)) return true;
+  return false;
+}
+
 function pickOption(text: string, max: number): number | null {
   const t = text.trim().toLowerCase();
   if (!t) return null;
@@ -937,7 +952,12 @@ export class BookingFlowService {
     input: string,
     rawText: string,
   ): Promise<FlowHandleResult> {
-    if (looksLikeCancelIntent(input) || isGoHomeIntent(input) || MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))) {
+    if (
+      looksLikeCancelIntent(input)
+      || looksLikeLooseCancel(input)
+      || isGoHomeIntent(input)
+      || MAIN_MENU_COMMANDS.some((c) => isExactCommand(input, c))
+    ) {
       return this.goToMainMenu(tenantId, conversationId, settings, flow, rawText);
     }
 
