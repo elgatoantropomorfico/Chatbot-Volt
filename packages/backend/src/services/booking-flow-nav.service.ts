@@ -45,9 +45,71 @@ export interface BookingNavContext {
 }
 
 export const CONFIRM_SLOT_OPTIONS = ['Sí, ese horario', 'Elegir otro horario'];
-export const CONFIRM_SERVICE_OPTIONS = ['Sí, este camino', 'Ver otros caminos'];
+export const CONFIRM_SERVICE_OPTIONS = ['Sí, reservar este camino', 'Ver otros caminos'];
 export const CONFIRM_PAYMENT_TOTAL_OPTIONS = ['Sí, pagar 100%', 'Ver opciones de pago'];
 export const CONFIRM_PAYMENT_SENA_OPTIONS = ['Sí, señar', 'Ver opciones de pago'];
+
+export type ServicePreviewFields = {
+  name: string;
+  serviceType?: string | null;
+  shortDescription?: string | null;
+  longDescription?: string | null;
+  botRecommendationText?: string | null;
+  recommendedWhen?: unknown;
+};
+
+function normalizeMatchText(text: string): string {
+  return text.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+}
+
+function formatRecommendedWhen(recommendedWhen: unknown): string | null {
+  const items = Array.isArray(recommendedWhen)
+    ? recommendedWhen.filter((x): x is string => typeof x === 'string' && x.trim().length > 0)
+    : [];
+  if (!items.length) return null;
+  return `✨ *Ideal para:* ${items.join(' · ')}`;
+}
+
+function buildServiceDetailText(service: ServicePreviewFields): string {
+  const long = service.longDescription?.trim();
+  const short = service.shortDescription?.trim();
+  if (long && short && long !== short) return `${long}\n\n${short}`;
+  return long || short || service.botRecommendationText?.trim() || '';
+}
+
+/** Info del camino primero; la confirmación de reserva va al final */
+export function formatServicePreviewBody(
+  service: ServicePreviewFields,
+  serviceName?: string,
+): string {
+  const name = serviceName || service.name;
+  const parts: string[] = [`🌿 *${name}*`];
+
+  if (service.serviceType?.trim()) {
+    parts.push(`_${service.serviceType.trim()}_`);
+  }
+
+  const detail = buildServiceDetailText(service);
+  if (detail) parts.push('', detail);
+
+  const when = formatRecommendedWhen(service.recommendedWhen);
+  if (when) parts.push('', when);
+
+  parts.push('', '¿Querés reservar este camino?');
+  return parts.join('\n');
+}
+
+function looksLikeServiceInfoQuery(q: string): boolean {
+  return /\b(info|informaci[oó]n|contame|cu[eé]ntame|saber m[aá]s|qu[eé] es|c[oó]mo es|detalle|detalles)\b/.test(q);
+}
+
+function scoreServiceTextMatch(q: string, text: string | null | undefined, tokenWeight: number): number {
+  if (!text) return 0;
+  const normalized = normalizeMatchText(text);
+  if (q.includes(normalized)) return tokenWeight * 3;
+  const tokens = normalized.split(/\s+/).filter((t) => t.length > 4);
+  return tokens.filter((t) => q.includes(t)).length * tokenWeight;
+}
 
 /** Primer módulo obligatorio que falta (o confirmación de preview pendiente) */
 export function nextRequiredStep(flow: BookingNavContext): BookingNavState {
@@ -98,36 +160,41 @@ export function parsePaymentPreview(text: string): 'sena' | 'total' | null {
 
 export function matchServiceFromText(
   rawText: string,
-  services: Array<{ id: string; name: string; shortDescription?: string | null }>,
+  services: Array<{
+    id: string;
+    name: string;
+    shortDescription?: string | null;
+    longDescription?: string | null;
+    serviceType?: string | null;
+  }>,
 ): { id: string; name: string } | null {
   if (looksLikeSlotPickQuery(rawText)) return null;
 
-  const q = rawText.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+  const q = normalizeMatchText(rawText);
   if (q.length < 4) return null;
 
+  const infoQuery = looksLikeServiceInfoQuery(q);
   let best: { id: string; name: string; score: number } | null = null;
 
   for (const s of services) {
-    const name = s.name.toLowerCase().normalize('NFD').replace(/\p{M}/gu, '');
+    const name = normalizeMatchText(s.name);
     let score = 0;
 
     if (q.includes(name)) score += 100;
     const nameTokens = name.split(/\s+/).filter((t) => t.length > 3);
-    const hits = nameTokens.filter((t) => q.includes(t));
-    score += hits.length * 35;
+    score += nameTokens.filter((t) => q.includes(t)).length * 35;
 
-    if (s.shortDescription) {
-      const descTokens = s.shortDescription.toLowerCase().split(/\s+/).filter((t) => t.length > 4);
-      const descHits = descTokens.filter((t) => q.includes(t));
-      score += descHits.length * 15;
-    }
+    score += scoreServiceTextMatch(q, s.serviceType, 25);
+    score += scoreServiceTextMatch(q, s.shortDescription, 15);
+    score += scoreServiceTextMatch(q, s.longDescription, 12);
 
     if (score > (best?.score ?? 0)) {
       best = { id: s.id, name: s.name, score };
     }
   }
 
-  if (best && best.score >= 70) return { id: best.id, name: best.name };
+  const threshold = infoQuery ? 45 : 70;
+  if (best && best.score >= threshold) return { id: best.id, name: best.name };
   return null;
 }
 

@@ -13,6 +13,7 @@ import {
   CONFIRM_PAYMENT_TOTAL_OPTIONS,
   CONFIRM_SERVICE_OPTIONS,
   CONFIRM_SLOT_OPTIONS,
+  formatServicePreviewBody,
   isConfirmModify,
   isConfirmYes,
   matchServiceFromText,
@@ -686,17 +687,8 @@ export class BookingFlowService {
           CONFIRM_SLOT_OPTIONS,
           true,
         ));
-      case 'confirm_service_preview': {
-        const svc = flow.previewServiceId
-          ? await prisma.bookingService.findUnique({ where: { id: flow.previewServiceId } })
-          : null;
-        const desc = svc?.shortDescription || '';
-        return this.resumeWithBridge(tenantId, settings, flow, flowReply(
-          `¿Confirmás este camino?\n\n*${flow.previewServiceName}*${desc ? `\n${desc}` : ''}`,
-          CONFIRM_SERVICE_OPTIONS,
-          true,
-        ));
-      }
+      case 'confirm_service_preview':
+        return this.resumeWithBridge(tenantId, settings, flow, await this.servicePreviewReply(flow));
       case 'confirm_payment_preview': {
         const label = flow.previewPaymentType === 'total' ? 'Pago 100%' : `Seña ${settings.depositPercentage}%`;
         const opts = flow.previewPaymentType === 'total' ? CONFIRM_PAYMENT_TOTAL_OPTIONS : CONFIRM_PAYMENT_SENA_OPTIONS;
@@ -1048,14 +1040,8 @@ export class BookingFlowService {
           CONFIRM_SLOT_OPTIONS,
           true,
         );
-      case 'confirm_service_preview': {
-        const svc = flow.previewServiceId
-          ? await prisma.bookingService.findUnique({ where: { id: flow.previewServiceId } })
-          : null;
-        const desc = svc?.shortDescription || svc?.botRecommendationText || '';
-        const body = `¿Confirmás este camino?\n\n*${flow.previewServiceName || svc?.name}*${desc ? `\n${desc}` : ''}`;
-        return flowReply(body, CONFIRM_SERVICE_OPTIONS, true);
-      }
+      case 'confirm_service_preview':
+        return this.servicePreviewReply(flow);
       case 'confirm_payment_preview': {
         const label = flow.previewPaymentType === 'total' ? 'Pago 100%' : `Seña ${settings.depositPercentage}%`;
         const opts = flow.previewPaymentType === 'total' ? CONFIRM_PAYMENT_TOTAL_OPTIONS : CONFIRM_PAYMENT_SENA_OPTIONS;
@@ -1083,6 +1069,17 @@ export class BookingFlowService {
   private static paymentChoiceReply(tenantId: string, settings: any, flow: BookingFlowContext): FlowHandleResult {
     const payOptions = [`Señar ${settings.depositPercentage}%`, 'Pagar 100%', 'Cambiar horario'];
     return flowReply('Elegí cómo querés pagar:', payOptions, true);
+  }
+
+  private static async servicePreviewReply(flow: BookingFlowContext): Promise<FlowHandleResult> {
+    const svc = flow.previewServiceId
+      ? await prisma.bookingService.findUnique({ where: { id: flow.previewServiceId } })
+      : null;
+    const body = formatServicePreviewBody(
+      svc || { name: flow.previewServiceName || 'este camino' },
+      flow.previewServiceName || svc?.name,
+    );
+    return flowReply(body, CONFIRM_SERVICE_OPTIONS, true);
   }
 
   private static async assignPreviewSlot(
