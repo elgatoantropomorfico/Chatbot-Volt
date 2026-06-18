@@ -36,6 +36,15 @@ const CANCEL_MSG = {
     `¿Confirmás la cancelación de este turno?\n\n${service} — ${slot}\n\n⚠️ Esta acción no tiene vuelta atrás.\n${policy}`,
 };
 
+function notesPromptText(greeting?: string): string {
+  const body = `¿Hay algo que quieras avisar antes de la sesión?
+
+Algunos ejemplos: _tengo la piel sensible_, _me cuesta respirar boca abajo_ o _prefiero evitar cierta zona_.
+
+Si no hay nada que comentar, respondé *no*.`;
+  return greeting ? `${greeting}\n\n🌿 ${body}` : `🌿 ${body}`;
+}
+
 export interface FlowInteractive {
   type: 'button' | 'list';
   body: string;
@@ -705,7 +714,7 @@ export class BookingFlowService {
       case 'customer_notes':
         return this.resumeWithBridge(tenantId, settings, flow, {
           handled: true,
-          text: `¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
+          text: `${notesPromptText()}${HOME_HINT}`,
         });
       case 'payment_choice':
         return this.resumeWithBridge(tenantId, settings, flow, flowReply(
@@ -1062,7 +1071,7 @@ export class BookingFlowService {
       case 'customer_notes':
         return {
           handled: true,
-          text: `¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
+          text: `${notesPromptText()}${HOME_HINT}`,
         };
       case 'payment_choice':
         return this.paymentChoiceReply(tenantId, settings, flow);
@@ -1764,7 +1773,7 @@ export class BookingFlowService {
     await this.saveFlow(conversationId, flow);
     return {
       handled: true,
-      text: `Gracias, ${name.split(' ')[0]}. ¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
+      text: `${notesPromptText(`Gracias, ${name.split(' ')[0]}.`)}${HOME_HINT}`,
     };
   }
 
@@ -1826,7 +1835,7 @@ export class BookingFlowService {
       if (answer) {
         return {
           handled: true,
-          text: `${answer}\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.${HOME_HINT}`,
+          text: `${answer}\n\n${notesPromptText()}${HOME_HINT}`,
         };
       }
     }
