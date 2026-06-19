@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import OpenAI from 'openai';
 import { env } from '../config/env';
+import { LeadProfileService } from './lead-profile.service';
 
 function pilotNameComplete(lead: { firstName?: string | null; lastName?: string | null }): boolean {
   return !!(lead.firstName?.trim() && lead.lastName?.trim());
@@ -77,6 +78,7 @@ export class LeadExtractionService {
 
     let fields: FieldDef[] = [];
     let isGenericTenant = false;
+    let isZohoTenant = false;
 
     if (leadFieldConfigs.length > 0) {
       // Generic tenant with LeadFieldConfig
@@ -111,6 +113,7 @@ export class LeadExtractionService {
         where: { tenantId, isActive: true },
         orderBy: { sortOrder: 'asc' },
       });
+      isZohoTenant = zohoConfigs.length > 0;
       fields = zohoConfigs
         .filter((fc: any) => !fc.fixedValue && fc.localKey !== 'phone')
         .map((fc: any) => ({
@@ -222,6 +225,13 @@ Reglas PILOT (concesionaria):
 - lastName: apellido del usuario (solo si lo dijo explícitamente)
 - fullName: nombre completo si lo dijo todo junto`;
 
+    const zohoNameRules = isZohoTenant ? `
+Reglas ZOHO (educación):
+- offerInterest: SOLO si el usuario CONFIRMÓ interés en un programa concreto de la lista (ej: "sí, ese curso", "me interesa el Curso 2", "quiero inscribirme en..."). Si solo PREGUNTÓ información sin confirmar cuál le interesa o si quiere inscribirse, devolvé null aunque haya nombrado un programa.
+- No extraigas nombre, email, modalidad, DNI ni período si offerInterest todavía no figura en "Datos ya conocidos".
+- Revisá TODA la conversación, no solo el último mensaje.
+` : '';
+
     const extractionPrompt = `Eres un extractor de datos estructurados de conversaciones de WhatsApp.
 Extraé datos que el usuario haya mencionado o confirmado en la conversación. No inventes datos que no aparezcan.
 
@@ -245,7 +255,7 @@ Reglas generales:
 - Si un campo no se puede extraer con certeza, usá null.
 - Para picklists, devolvé el VALUE exacto de la lista (ej: "1" o "2", no el label).
 - Si el profileName parece ser un nombre real y el usuario lo confirmó, usalo para fname/lname/fullName.
-${pilotNameRules}
+${pilotNameRules}${zohoNameRules}
 Respondé SOLO con JSON válido, sin markdown ni texto adicional:
 ${JSON.stringify(jsonTemplate)}`;
 
@@ -285,6 +295,13 @@ ${JSON.stringify(jsonTemplate)}`;
           delete (extracted as any).biz;
           delete (extracted as any).has_trade_in;
         }
+      }
+
+      if (isZohoTenant && lead) {
+        const zohoConfigs = await prisma.zohoFieldConfig.findMany({
+          where: { tenantId, isActive: true },
+        });
+        return LeadProfileService.applyZohoExtractionGuards(lead, extracted, zohoConfigs);
       }
 
       console.log(`🔍 Extracted lead data:`, JSON.stringify(extracted));

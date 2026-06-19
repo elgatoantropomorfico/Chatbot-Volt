@@ -423,11 +423,17 @@ REGLAS:
           orderBy: { sortOrder: 'asc' },
         });
 
+        const lead = conversation.lead || (await prisma.lead.findUnique({
+          where: { id: (conversation as any).leadId },
+        }));
+        const waProfile = (lead as any)?.whatsappProfileName || lead?.name || null;
+        const capture = LeadProfileService.getZohoCaptureState(lead || {}, fieldConfigs);
+
         const offerField = fieldConfigs.find((f: any) => f.localKey === 'offerInterest');
         let programsList = '';
-        if (offerField && offerField.optionsJson) {
-          const options = offerField.optionsJson as Array<{ value: string; slug?: string; aliases?: string[] }>;
-          programsList = options.map(opt => `- ${opt.value}`).join('\n');
+        if (offerField?.optionsJson) {
+          const options = offerField.optionsJson as Array<{ value: string; description?: string }>;
+          programsList = options.map((opt) => `- *${opt.value}*${opt.description ? `: ${opt.description}` : ''}`).join('\n');
         }
 
         const picklistInfo: string[] = [];
@@ -440,44 +446,79 @@ REGLAS:
           }
         }
 
+        const knownLines: string[] = [];
+        if (lead?.offerInterest) knownLines.push(`- Programa confirmado: ${lead.offerInterest}`);
+        if (lead?.firstName) knownLines.push(`- Nombre: ${lead.firstName}`);
+        if (lead?.lastName) knownLines.push(`- Apellido: ${lead.lastName}`);
+        if (lead?.email) knownLines.push(`- Email: ${lead.email}`);
+        if (lead?.modalityInterest) knownLines.push(`- Modalidad: ${lead.modalityInterest}`);
+        if (lead?.dni) knownLines.push(`- DNI: ${lead.dni}`);
+        if (lead?.periodInterest) knownLines.push(`- Período: ${lead.periodInterest}`);
+
+        const nextField = capture.next;
+        const nextStepBlock = (() => {
+          if (!nextField) {
+            return '✅ Los datos principales están completos. Confirmá el registro y quedate disponible por consultas.';
+          }
+          if (nextField.localKey === 'offerInterest') {
+            return `🔴 PRÓXIMO PASO OBLIGATORIO — CONFIRMAR PROGRAMA:
+1) Primero respondé la consulta del usuario con info del programa que preguntó (si aplica).
+2) Después, en un párrafo aparte, confirmá el programa concreto de interés.
+   - Si preguntó por uno específico: "¿Te interesa inscribirte en [ese programa]?"
+   - Si preguntó en general: resumí las opciones y pedile que elija/confirme una de la lista.
+🚫 NO pidas nombre, email ni otros datos hasta tener el programa confirmado.`;
+          }
+          if (nextField.localKey === 'full_name') {
+            return waProfile
+              ? `🔴 PRÓXIMO PASO — CONFIRMAR NOMBRE:
+Preguntá literalmente: "¿Tu nombre completo es ${waProfile}, es correcto?"
+Si corrige el nombre, aceptá la corrección.`
+              : `🔴 PRÓXIMO PASO — PEDIR NOMBRE:
+Preguntá: "¿Me decís tu nombre completo para dejarte registrado/a?"
+🚫 NUNCA escribas placeholders entre corchetes ni variables sin reemplazar.`;
+          }
+          if (nextField.localKey === 'email') {
+            return '🔴 PRÓXIMO PASO — EMAIL:\nPedí el correo de contacto de forma natural.';
+          }
+          if (nextField.localKey === 'modalityInterest') {
+            return '🔴 PRÓXIMO PASO — MODALIDAD:\nPreguntá presencial, a distancia u híbrida.';
+          }
+          if (nextField.localKey === 'dni') {
+            return '🔴 PRÓXIMO PASO — DNI:\nPedí el número de documento.';
+          }
+          if (nextField.localKey === 'periodInterest') {
+            return '🔴 PRÓXIMO PASO — PERÍODO:\nPreguntá para qué año o período le interesaría comenzar.';
+          }
+          return `🔴 PRÓXIMO PASO: ${nextField.label}\n${nextField.description || ''}`;
+        })();
+
         systemPrompt += `\n\n📋 CAPTURA DE DATOS — FLUJO SECUENCIAL OBLIGATORIO:
 
-Sos un asistente que ayuda a potenciales estudiantes. Cuando alguien pregunte por carreras, cursos, ofertas académicas, inscripciones, costos, fechas, modalidades o requisitos, ES un lead. Activá el flujo de captura.
+Sos un asistente que ayuda a potenciales estudiantes. Cuando alguien pregunte por carreras, cursos, ofertas académicas, inscripciones, costos, fechas, modalidades o requisitos, ES un lead.
 
 🎓 PROGRAMAS QUE OFRECEMOS (SOLO estos, no inventes otros):
 ${programsList || '(sin programas configurados)'}
 ${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
+${knownLines.length > 0 ? `\n✅ DATOS YA CONFIRMADOS:\n${knownLines.join('\n')}` : ''}
+${capture.missing.length > 0 ? `\n⏳ DATOS QUE FALTAN (orden estricto — no saltees):\n${capture.missing.map((f, i) => `${i + 1}. ${f.label}`).join('\n')}` : ''}
+
+${nextStepBlock}
 
 🚫 NUNCA pidas teléfono/celular/número. Ya lo tenemos por WhatsApp.
 🚫 NUNCA menciones CRM, Zoho, base de datos ni procesos internos.
+🚫 NUNCA uses texto tipo [nombre del perfil de WhatsApp] — siempre el nombre real o preguntá directo.
+🚫 NO pidas nombre/email/modalidad/DNI hasta tener el programa confirmado.
 
-FLUJO PASO A PASO (seguilo en orden estricto):
+ESTRUCTURA DE CADA RESPUESTA (cuando hay datos faltantes):
+1) Respondé la consulta del usuario en 2-4 oraciones con info del contexto.
+2) En un párrafo aparte, pedí SOLO el próximo dato obligatorio de arriba (uno por mensaje).
 
-PASO 1 — RESPONDER LA CONSULTA:
-Cuando el usuario pregunte por algún programa/carrera, respondé su consulta con la información que tengas. Usá SOLO los programas de la lista de arriba.
-
-PASO 2 — CONFIRMAR NOMBRE:
-Después de dar la info, confirmá su nombre usando el perfil de WhatsApp: "Tu nombre completo es [nombre del perfil de WhatsApp], ¿estoy en lo correcto?" Si no tenemos nombre de perfil, preguntá: "¿Me decís tu nombre completo para dejarte registrado/a?"
-
-PASO 3 — PEDIR EMAIL:
-Una vez confirmado el nombre, pedí el correo electrónico de forma natural: "¿Me pasás un correo electrónico de contacto?"
-
-PASO 4 — PEDIR MODALIDAD:
-Después del email, preguntá la modalidad de estudio si aplica: "¿Preferís modalidad presencial, a distancia o híbrida?"
-
-PASO 5 — PEDIR DNI:
-Después de la modalidad: "¿Me compartís tu número de documento (DNI)?"
-
-PASO 6 — PEDIR PERÍODO:
-Si aplica, preguntá el período/año de interés: "¿Para qué año o período te interesaría comenzar?"
-
-REGLAS DEL FLUJO:
-- Seguí los pasos EN ORDEN. No saltes pasos ni pidas varios datos en un mismo mensaje.
-- Si el usuario ya proporcionó algún dato en mensajes anteriores, SALTÁ ese paso y pasá al siguiente.
-- UN solo dato por mensaje. Sé conversacional, no un formulario.
-- Si el usuario hace una pregunta en el medio del flujo, respondela y después retomá el paso donde quedaste.
-- Si la persona SOLO quiere info general (ubicación, horarios de atención) sin relación a ofertas, respondé normalmente sin iniciar el flujo.
-- Siempre priorizá AYUDAR al usuario. La captura de datos es secundaria a resolver su consulta.`;
+REGLAS:
+- Seguí el orden de "DATOS QUE FALTAN" sin excepción.
+- UN solo dato por mensaje. Conversacional, no formulario.
+- Si el usuario hace una pregunta en el medio, respondela y después retomá el paso pendiente.
+- Si solo quiere info general sin relación a programas (ubicación, horarios), respondé sin iniciar captura.
+- Cuando completes los datos principales (programa, nombre, email), confirmá el registro.`;
       }
       }
     }

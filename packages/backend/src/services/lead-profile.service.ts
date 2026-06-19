@@ -29,6 +29,53 @@ const PILOT_COLUMN_MAP: Record<string, string> = {
 /** Filled automatically — not part of the conversational capture sequence */
 const PILOT_AUTO_FIELDS = new Set(['phone', 'notes']);
 
+const ZOHO_AUTO_FIELDS = new Set(['phone']);
+
+/** Orden conversacional Zoho: primero programa confirmado, después identidad */
+const ZOHO_CAPTURE_STEPS: Array<{
+  localKey: string;
+  label: string;
+  description?: string;
+  requiredForSync: boolean;
+}> = [
+  {
+    localKey: 'offerInterest',
+    label: 'Programa de interés',
+    requiredForSync: true,
+    description: 'Confirmá qué programa concreto le interesa (de la lista configurada). Si preguntó por uno, pedile confirmación antes de seguir.',
+  },
+  {
+    localKey: 'full_name',
+    label: 'Nombre y apellido',
+    requiredForSync: true,
+    description: 'Confirmá o pedí nombre y apellido completos.',
+  },
+  {
+    localKey: 'email',
+    label: 'Email',
+    requiredForSync: true,
+    description: 'Pedí un correo electrónico de contacto.',
+  },
+  {
+    localKey: 'modalityInterest',
+    label: 'Modalidad',
+    requiredForSync: false,
+    description: 'Preguntá presencial, a distancia u híbrida si aplica.',
+  },
+  {
+    localKey: 'dni',
+    label: 'DNI',
+    requiredForSync: false,
+    description: 'Pedí el número de documento si corresponde.',
+  },
+  {
+    localKey: 'periodInterest',
+    label: 'Período',
+    requiredForSync: false,
+    description: 'Preguntá año o período de inicio si aplica.',
+  },
+];
+
 export class LeadProfileService {
   static getPilotFieldValue(lead: any, localKey: string): string | null {
     if (localKey === 'phone') return lead.phone || null;
@@ -103,6 +150,99 @@ export class LeadProfileService {
       next: missing[0] || null,
       isComplete: missing.length === 0,
     };
+  }
+
+  static isZohoNameComplete(lead: { firstName?: string | null; lastName?: string | null }): boolean {
+    return !!(lead.firstName?.trim() && lead.lastName?.trim());
+  }
+
+  static getZohoFieldValue(lead: Record<string, any>, localKey: string): string | null {
+    if (localKey === 'full_name') {
+      return this.isZohoNameComplete(lead) ? `${lead.firstName} ${lead.lastName}`.trim() : null;
+    }
+    const v = lead[localKey];
+    return v != null && String(v).trim() !== '' ? String(v) : null;
+  }
+
+  static getZohoCaptureState(
+    lead: Record<string, any>,
+    fieldConfigs: Array<{
+      localKey: string;
+      label: string;
+      description?: string | null;
+      isRequired?: boolean;
+      isActive?: boolean;
+      fixedValue?: string | null;
+    }>,
+  ) {
+    const configured = new Set(
+      fieldConfigs
+        .filter((f) => f.isActive !== false && !f.fixedValue && !f.localKey.startsWith('_fixed_'))
+        .map((f) => f.localKey),
+    );
+
+    const missing: Array<{ localKey: string; label: string; description?: string | null }> = [];
+
+    for (const step of ZOHO_CAPTURE_STEPS) {
+      if (step.localKey === 'full_name') {
+        if (!configured.has('firstName') && !configured.has('lastName')) continue;
+        if (!this.getZohoFieldValue(lead, 'full_name')) {
+          missing.push({
+            localKey: 'full_name',
+            label: step.label,
+            description: step.description,
+          });
+        }
+        continue;
+      }
+
+      if (!configured.has(step.localKey)) continue;
+      const fc = fieldConfigs.find((f) => f.localKey === step.localKey);
+
+      if (!this.getZohoFieldValue(lead, step.localKey)) {
+        missing.push({
+          localKey: step.localKey,
+          label: fc?.label || step.label,
+          description: step.description || fc?.description,
+        });
+      }
+    }
+
+    const syncMissing = ZOHO_CAPTURE_STEPS.filter((s) => s.requiredForSync).filter((s) => {
+      if (s.localKey === 'full_name') return !this.isZohoNameComplete(lead);
+      return configured.has(s.localKey) && !this.getZohoFieldValue(lead, s.localKey);
+    });
+
+    return {
+      missing,
+      next: missing[0] || null,
+      isComplete: syncMissing.length === 0,
+    };
+  }
+
+  /** Solo extrae el dato del paso actual del flujo Zoho (evita saltar la confirmación de oferta) */
+  static applyZohoExtractionGuards(
+    lead: Record<string, any>,
+    extracted: ExtractedLeadData,
+    fieldConfigs: Array<{ localKey: string; label: string; description?: string | null; isRequired?: boolean }>,
+  ): ExtractedLeadData {
+    const result = { ...extracted };
+    const capture = this.getZohoCaptureState(lead, fieldConfigs);
+    const nextKey = capture.next?.localKey;
+    const allowed = new Set<string>(['intentLevel']);
+
+    if (nextKey === 'full_name') {
+      allowed.add('firstName');
+      allowed.add('lastName');
+      allowed.add('fullName');
+    } else if (nextKey) {
+      allowed.add(nextKey);
+    }
+
+    for (const key of Object.keys(result)) {
+      if (!allowed.has(key)) delete result[key];
+    }
+    return result;
   }
 
   /**
