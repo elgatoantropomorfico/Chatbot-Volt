@@ -2020,6 +2020,16 @@ Importante: ${policyShort}
         'Perfecto. Tu turno quedó pre-reservado. Configurá Mercado Pago en Integraciones para recibir el link automático.'),
     };
   }
+
+  /** Saludo con menú principal — usado por BookingOrchestrator v2 */
+  static buildWelcomeReply(tenantId: string, settings: any): FlowHandleResult {
+    return this.mainMenuReply(tenantId, settings);
+  }
+
+  /** Menú con opciones numeradas — usado por BookingOrchestrator v2 */
+  static buildMenuOptionsReply(body: string): FlowHandleResult {
+    return this.mainMenuOptionsReply(body);
+  }
 }
 
 function textCapitalize(s: string): string {

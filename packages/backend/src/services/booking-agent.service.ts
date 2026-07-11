@@ -1,0 +1,180 @@
+import OpenAI from 'openai';
+import { env } from '../config/env';
+import { prisma } from '../config/database';
+import { BookingAiService } from './booking-ai.service';
+import { BookingContextService } from './booking-context.service';
+import { BookingToolExecutor, type ToolExecutionContext } from './booking-tool-executor.service';
+import { BOOKING_AGENT_TOOLS, toolCatalogText } from './booking-tool-definitions';
+import type { AgentRunResult, BookingConversationContext, ToolCallRecord } from './booking-agent.types';
+
+const MAX_ITERATIONS = 8;
+
+export class BookingAgentService {
+  private static openai = env.OPENAI_API_KEY ? new OpenAI({ apiKey: env.OPENAI_API_KEY }) : null;
+
+  static async run(params: {
+    tenantId: string;
+    conversationId: string;
+    leadId: string;
+    phone: string;
+    text: string;
+    profileName?: string | null;
+    ctx: BookingConversationContext;
+    settings: any;
+  }): Promise<{ reply: string; ctx: BookingConversationContext; runMeta: AgentRunResult }> {
+    if (!this.openai) {
+      return {
+        reply: 'Por el momento no puedo procesar reservas automáticas. Escribí *humano* y te ayuda alguien del equipo.',
+        ctx: params.ctx,
+        runMeta: { reply: '', toolCalls: [], iterations: 0 },
+      };
+    }
+
+    const exec: ToolExecutionContext = {
+      tenantId: params.tenantId,
+      conversationId: params.conversationId,
+      leadId: params.leadId,
+      phone: params.phone,
+      settings: params.settings,
+    };
+
+    let ctx = params.ctx;
+    const toolCalls: ToolCallRecord[] = [];
+    const history = await this.loadHistory(params.conversationId, 12);
+    const systemPrompt = await this.buildSystemPrompt(params.tenantId, params.settings, ctx, params.profileName);
+
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: 'system', content: systemPrompt },
+      ...history,
+      { role: 'user', content: params.text },
+    ];
+
+    let reply = '';
+    let iterations = 0;
+
+    for (iterations = 0; iterations < MAX_ITERATIONS; iterations++) {
+      const completion = await this.openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        temperature: 0.35,
+        max_tokens: 500,
+        messages,
+        tools: BOOKING_AGENT_TOOLS,
+        tool_choice: 'auto',
+      });
+
+      const choice = completion.choices[0]?.message;
+      if (!choice) break;
+
+      if (choice.tool_calls?.length) {
+        messages.push(choice);
+        for (const tc of choice.tool_calls) {
+          if (tc.type !== 'function') continue;
+          let args: Record<string, unknown> = {};
+          try {
+            args = JSON.parse(tc.function.arguments || '{}');
+          } catch {
+            args = {};
+          }
+          const started = Date.now();
+          const { result, ctx: nextCtx } = await BookingToolExecutor.execute(
+            tc.function.name,
+            args,
+            ctx,
+            exec,
+          );
+          ctx = nextCtx;
+          toolCalls.push({
+            name: tc.function.name,
+            args,
+            resultSummary: result.ok
+              ? JSON.stringify(result.data || {}).slice(0, 120)
+              : `error:${result.error}`,
+            ms: Date.now() - started,
+          });
+          messages.push({
+            role: 'tool',
+            tool_call_id: tc.id,
+            content: JSON.stringify(result),
+          });
+        }
+        continue;
+      }
+
+      reply = choice.content?.trim() || '';
+      break;
+    }
+
+    if (!reply) {
+      reply = 'Contame un poco más y te ayudo con la reserva 🌿';
+    }
+
+    if (toolCalls.length > 0) {
+      console.log('📅 Agent turn:', JSON.stringify({
+        conversationId: params.conversationId,
+        iterations: iterations + 1,
+        tools: toolCalls,
+        botReply: reply.slice(0, 200),
+      }));
+    }
+
+    return {
+      reply,
+      ctx,
+      runMeta: { reply, toolCalls, iterations: iterations + 1 },
+    };
+  }
+
+  private static async loadHistory(conversationId: string, limit: number) {
+    const rows = await prisma.message.findMany({
+      where: { conversationId },
+      orderBy: { createdAt: 'desc' },
+      take: limit,
+      select: { direction: true, text: true },
+    });
+    return rows.reverse().map((m) => ({
+      role: (m.direction === 'in' ? 'user' : 'assistant') as 'user' | 'assistant',
+      content: m.text,
+    }));
+  }
+
+  private static async buildSystemPrompt(
+    tenantId: string,
+    settings: any,
+    ctx: BookingConversationContext,
+    profileName?: string | null,
+  ): Promise<string> {
+    const context = await BookingAiService.buildContext(tenantId, settings);
+    const tz = settings.timezone || 'America/Argentina/Cordoba';
+    const today = new Date().toLocaleDateString('es-AR', { weekday: 'long', day: '2-digit', month: 'long', timeZone: tz });
+
+    const contactHint = profileName
+      ? `\nQuien escribe se llama ${profileName} en WhatsApp; no es identidad confirmada hasta set_customer_name.`
+      : '';
+
+    return `Sos la asistente de turnos de un spa/masajes en Argentina por WhatsApp.
+Hoy: ${today} (${tz}).
+
+Tu trabajo: ayudar a reservar, consultar precios y cancelar turnos. Hablá natural, cálido y breve en español argentino.
+${contactHint}
+
+ESTADO (borrador editable — las herramientas lo modifican):
+\`\`\`json
+${JSON.stringify(ctx.agentState, null, 2)}
+\`\`\`
+
+HERRAMIENTAS (usá como una recepcionista — no inventes horarios ni precios):
+${toolCatalogText()}
+
+INTEGRIDAD:
+- NUNCA menciones fecha/hora concreta sin haber llamado find_available_slots en ESTE intercambio.
+- show_price_info es solo texto de precios/promos; NO lista horarios.
+- Antes de initiate_checkout: servicio confirmado, horario confirmado, nombre confirmado, notas pedidas (o skip).
+- initiate_checkout es el único camino al pago; no simules links de Mercado Pago.
+- Si el usuario quiere cancelar, usá list_my_appointments y cancel_appointment.
+- menu / empezar de nuevo → reset_booking.
+- Recomendador: podés sugerir opciones de referencia (tensión, calor, etc.) pero siempre con match_service o list_services para datos reales.
+
+CONTEXTO DEL NEGOCIO:
+${context}`;
+  }
+}

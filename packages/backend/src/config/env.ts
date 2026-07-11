@@ -36,6 +36,9 @@ const envSchema = z.object({
   PILOT_BUSINESS_TYPE_DEFAULT: z.string().optional(),
   PILOT_DEBUG: z.string().optional(),
 
+  /** Pie de mensaje con flags de estado turnera (st, svc, slot, apt…). Quitar en prod estable. */
+  BOOKING_DEBUG_FLAGS: z.string().optional(),
+
   GROQ_API_KEY: z.string().optional(),
   GROQ_API_BASE: z.string().url().optional(),
   GROQ_WHISPER_MODEL: z.string().optional(),

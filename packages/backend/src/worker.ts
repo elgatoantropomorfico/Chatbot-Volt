@@ -15,7 +15,9 @@ import { GroqTranscriptionService } from './services/groq-transcription.service'
 import { R2Service } from './services/r2.service';
 import { prisma } from './config/database';
 import { BookingAvailabilityService } from './services/booking-availability.service';
-import { BookingFlowService } from './services/booking-flow.service';
+import { BookingDebounceService } from './services/booking-debounce.service';
+import { BookingOrchestrator } from './services/booking-orchestrator.service';
+import { BookingResponseService } from './services/booking-response.service';
 
 // Store last search results per conversation for "agregar el 2" cart operations
 const lastSearchResults = new Map<string, any[]>();
@@ -290,29 +292,56 @@ async function processMessage(job: Job<IncomingMessage>) {
     }
   }
 
-  // 5b. Booking flow (turnera) — closed state machine, before OpenAI
-  let bookingFlowResult: import('./services/booking-flow.service').FlowHandleResult | null = null;
+  // 5b. Booking v2 (agente + checkout) — debounce 6s, antes de OpenAI
   try {
     if (await BookingAvailabilityService.isBookingEnabled(tenant.id)) {
-      const flowResult = await BookingFlowService.handle({
-        tenantId: tenant.id,
-        conversationId: conversation.id,
-        leadId: lead.id,
-        phone: data.from,
-        text: data.text,
-        profileName: data.profileName,
-      });
-      if (flowResult.handled) {
-        if (flowResult.handoff) {
-          await HandoffService.executeHandoff(conversation.id, 'Booking flow — human requested');
-          return;
-        }
-        bookingFlowResult = flowResult;
+      if (data.messageType === 'audio') {
+        await BookingResponseService.deliver({
+          phoneNumberId: channel.phoneNumberId,
+          to: data.from,
+          conversationId: conversation.id,
+          result: { handled: true, text: BookingOrchestrator.audioBlockMessage() },
+        });
+        return;
       }
+
+      BookingDebounceService.schedule({
+        conversationId: conversation.id,
+        text: data.text,
+        onFlush: async (mergedText) => {
+          try {
+            const flowResult = await BookingOrchestrator.handle({
+              tenantId: tenant.id,
+              conversationId: conversation.id,
+              leadId: lead.id,
+              phone: data.from,
+              text: mergedText,
+              profileName: data.profileName,
+              messageType: data.messageType,
+            });
+            if (!flowResult.handled) return;
+            if (flowResult.handoff) {
+              await HandoffService.executeHandoff(conversation.id, 'Booking — human requested');
+              return;
+            }
+            await BookingResponseService.deliver({
+              phoneNumberId: channel.phoneNumberId,
+              to: data.from,
+              conversationId: conversation.id,
+              result: flowResult,
+            });
+          } catch (bookingErr: any) {
+            console.error('⚠️ Booking orchestrator error:', bookingErr.message || bookingErr);
+          }
+        },
+      });
+      return;
     }
   } catch (bookingErr: any) {
     console.error('⚠️ Booking flow error (non-fatal):', bookingErr.message);
   }
+
+  let bookingFlowResult: null = null;
 
   // 5. Check for WooCommerce intent (wrapped in try/catch to prevent crashes)
   let wooDirectResponse: string | null = null;

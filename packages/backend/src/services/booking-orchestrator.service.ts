@@ -1,0 +1,181 @@
+import { prisma } from '../config/database';
+import { BookingContextService } from './booking-context.service';
+import { BookingAgentService } from './booking-agent.service';
+import { BookingCheckoutService } from './booking-checkout.service';
+import { BookingFlowService, type FlowHandleResult } from './booking-flow.service';
+import { BookingAiService } from './booking-ai.service';
+import { matchServiceFromText } from './booking-flow-nav.service';
+import { BookingExpiryService } from './booking-notification.service';
+
+const AUDIO_BLOCK_MSG = '🎤 Por ahora la turnera funciona solo con mensajes de *texto*. Escribime lo que necesitás y te ayudo con la reserva 🌿';
+
+const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
+
+function normalizeInput(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function isMenuCommand(input: string): boolean {
+  return ['menú', 'menu', 'empezar de nuevo', 'inicio'].some((c) => input === c || input === c.replace('ó', 'o'));
+}
+
+function isHumanCommand(input: string): boolean {
+  return input === 'humano' || input === 'hablar con persona';
+}
+
+function looksLikeCancelIntent(input: string): boolean {
+  if (/no\s+(quiero|voy\s+a)\s+cancelar/.test(input)) return false;
+  if (/^(cancelar|anular)(\s+(mi|el|un))?\s*(turno|reserva|cita)?\s*$/.test(input)) return true;
+  if (/quiero\s+cancelar/.test(input)) return true;
+  if (/cancel(ar|ación|acion).*(turno|reserva|cita)/.test(input)) return true;
+  return false;
+}
+
+export class BookingOrchestrator {
+  static audioBlockMessage(): string {
+    return AUDIO_BLOCK_MSG;
+  }
+
+  static async handle(params: {
+    tenantId: string;
+    conversationId: string;
+    leadId: string;
+    phone: string;
+    text: string;
+    profileName?: string | null;
+    messageType?: string;
+  }): Promise<FlowHandleResult> {
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId: params.tenantId } });
+    if (!settings?.bookingEnabled) return { handled: false };
+
+    if (params.messageType === 'audio') {
+      return { handled: true, text: AUDIO_BLOCK_MSG };
+    }
+
+    await BookingExpiryService.expireStaleHolds(params.tenantId);
+
+    const input = normalizeInput(params.text);
+    const ctx = await BookingContextService.load(params.conversationId);
+
+    if (ctx.legacyV1) {
+      return BookingFlowService.handle(params);
+    }
+
+    if (isHumanCommand(input)) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: { ...ctx.agentState, mode: 'idle' },
+      });
+      return { handled: true, handoff: true, text: 'Te comunico con una persona del equipo.' };
+    }
+
+    if (ctx.checkout) {
+      return BookingCheckoutService.handle(params);
+    }
+
+    if (isMenuCommand(input)) {
+      const keepName = ctx.agentState.customer?.fullName;
+      await BookingContextService.resetAfterBooking(params.conversationId, keepName);
+      return BookingFlowService.buildWelcomeReply(params.tenantId, settings!);
+    }
+
+    if (looksLikeCancelIntent(input)) {
+      return this.handleCancelIntent(params, ctx);
+    }
+
+    if (ctx.agentState.greetingPending) {
+      const specific = await this.looksLikeSpecificIntent(params.tenantId, params.text, input);
+      if (!specific) {
+        await BookingContextService.save(params.conversationId, {
+          ...ctx,
+          agentState: { ...ctx.agentState, greetingPending: false },
+        });
+        return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
+      }
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: { ...ctx.agentState, greetingPending: false, mode: 'booking' },
+      });
+    }
+
+    const { reply, ctx: nextCtx, checkoutStarted } = await this.runAgent(params, ctx, settings);
+    if (checkoutStarted) {
+      return BookingCheckoutService.handle(params);
+    }
+
+    await BookingContextService.save(params.conversationId, nextCtx);
+    return { handled: true, text: reply };
+  }
+
+  private static async runAgent(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+      profileName?: string | null;
+    },
+    ctx: Awaited<ReturnType<typeof BookingContextService.load>>,
+    settings: any,
+  ) {
+    const { reply, ctx: nextCtx } = await BookingAgentService.run({
+      ...params,
+      ctx,
+      settings,
+    });
+    const checkoutStarted = !!nextCtx.checkout && !ctx.checkout;
+    return { reply, ctx: nextCtx, checkoutStarted };
+  }
+
+  private static async handleCancelIntent(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+      profileName?: string | null;
+    },
+    ctx: Awaited<ReturnType<typeof BookingContextService.load>>,
+  ): Promise<FlowHandleResult> {
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId: params.tenantId } });
+    if (!settings?.cancelEnabled) {
+      return { handled: true, text: 'Por el momento no podemos cancelar turnos automáticamente por acá. Escribí *humano* para ayuda.' };
+    }
+
+    const { reply, ctx: nextCtx } = await BookingAgentService.run({
+      ...params,
+      text: `${params.text}\n\n[El usuario quiere cancelar un turno. Usá list_my_appointments y cancel_appointment si corresponde.]`,
+      ctx: { ...ctx, agentState: { ...ctx.agentState, mode: 'booking' } },
+      settings: settings!,
+    });
+    await BookingContextService.save(params.conversationId, nextCtx);
+    return { handled: true, text: reply };
+  }
+
+  private static async looksLikeSpecificIntent(
+    tenantId: string,
+    rawText: string,
+    input: string,
+  ): Promise<boolean> {
+    if (BookingAiService.looksLikeGreeting(rawText) && rawText.trim().length < 25) return false;
+    if (BookingAiService.looksLikePriceQuestion(rawText)) return true;
+    if (BookingAiService.looksLikeAvailabilityQuestion(rawText)) return true;
+    if (BookingAiService.looksLikeInfoRequest(rawText)) return true;
+    if (looksLikeCancelIntent(input)) return true;
+    if (/reserv|turno|quiero|necesito|masaje|camino|sesión|sesion/.test(input)) return true;
+
+    const services = await prisma.bookingService.findMany({
+      where: { tenantId, isActive: true },
+      select: { id: true, name: true, shortDescription: true, longDescription: true, serviceType: true },
+    });
+    if (matchServiceFromText(rawText, services)) return true;
+
+    for (const opt of MAIN_MENU_OPTIONS) {
+      if (input.includes(opt.toLowerCase().slice(0, 8))) return true;
+    }
+
+    return rawText.trim().length >= 20;
+  }
+}

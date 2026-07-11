@@ -89,7 +89,7 @@ export class BookingAiService {
   }
 
   /** Contexto: operativo (Bot/IA) + turnera (servicios y slots). Tratamientos solo desde servicios. */
-  private static async buildContext(tenantId: string, settings: any): Promise<string> {
+  static async buildContext(tenantId: string, settings: any): Promise<string> {
     const sections: string[] = [];
 
     const botSettings = await prisma.botSettings.findUnique({ where: { tenantId } });
