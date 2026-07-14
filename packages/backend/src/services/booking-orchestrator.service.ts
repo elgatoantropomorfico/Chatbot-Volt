@@ -104,6 +104,20 @@ export class BookingOrchestrator {
     }
 
     await BookingContextService.save(params.conversationId, nextCtx);
+
+    const ui = nextCtx.agentState.uiPresentation;
+    if (ui?.options?.length) {
+      // Consumir presentation para no re-mostrar botones viejos en el próximo turno
+      await BookingContextService.save(params.conversationId, {
+        ...nextCtx,
+        agentState: { ...nextCtx.agentState, uiPresentation: null },
+      });
+      const body = (reply && reply.trim().length > 0 && reply.trim().length <= 200)
+        ? reply.trim()
+        : ui.body;
+      return BookingFlowService.buildOptionsReply(body, ui.options);
+    }
+
     return { handled: true, text: reply };
   }
 

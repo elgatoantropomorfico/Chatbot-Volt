@@ -75,6 +75,12 @@ function flagsFromV2Context(ctx: Record<string, unknown>): string[] {
     if (cust?.fullName) push(flagPart('nm', cust.nameConfirmed ? 'ok' : 'pend'));
     if (cust && 'notes' in cust) push(flagPart('notes', cust.notes === null ? 'skip' : 'set'));
     if (Array.isArray(agent.listedSlots)) push(flagPart('lst', agent.listedSlots.length));
+    if (Array.isArray(agent.shownSlotKeys) && agent.shownSlotKeys.length) {
+      push(flagPart('sh', agent.shownSlotKeys.length));
+    }
+    push(flagPart('br', agent.browsePhase as string));
+    const pref = agent.datePreference as { mode?: string } | null;
+    if (pref?.mode) push(flagPart('pref', pref.mode));
   }
 
   if (checkout?.phase) push(flagPart('chk', String(checkout.phase)));

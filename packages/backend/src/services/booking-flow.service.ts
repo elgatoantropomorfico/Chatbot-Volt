@@ -2030,6 +2030,11 @@ Importante: ${policyShort}
   static buildMenuOptionsReply(body: string): FlowHandleResult {
     return this.mainMenuOptionsReply(body);
   }
+
+  /** Menú con opciones arbitrarias (slots, días, ver más) — BookingOrchestrator v2 */
+  static buildOptionsReply(body: string, options: string[], includeHome = false): FlowHandleResult {
+    return flowReply(body, options, includeHome);
+  }
 }
 
 function textCapitalize(s: string): string {

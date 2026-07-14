@@ -4,10 +4,16 @@ import { BookingPricingService } from './booking-pricing.service';
 import { BookingContextService } from './booking-context.service';
 import {
   filterSlotsByQuery,
+  matchesDaypart,
+  weekRangeInTz,
 } from './booking-datetime.service';
 import { formatServicePreviewBody, matchServiceFromText } from './booking-flow-nav.service';
-import type { BookingConversationContext } from './booking-agent.types';
-import { emptyAgentState } from './booking-agent.types';
+import type {
+  BookingConversationContext,
+  DatePreference,
+  Daypart,
+} from './booking-agent.types';
+import { emptyAgentState, slotKey } from './booking-agent.types';
 
 export interface ToolExecutionContext {
   tenantId: string;
@@ -23,6 +29,9 @@ export interface ToolResult {
   error?: string;
   contextPatch?: Partial<BookingConversationContext>;
 }
+
+const MORE_SLOTS_LABEL = 'Ver más horarios';
+const MORE_MENU_OPTIONS = ['Esta semana', 'Semana próxima', 'Elegir fecha'];
 
 export class BookingToolExecutor {
   static async execute(
@@ -47,6 +56,15 @@ export class BookingToolExecutor {
           break;
         case 'find_available_slots':
           result = await this.findAvailableSlots(exec, ctx, args);
+          break;
+        case 'show_slot_browse_menu':
+          result = this.showSlotBrowseMenu(ctx);
+          break;
+        case 'get_available_days':
+          result = await this.getAvailableDays(exec, ctx, args);
+          break;
+        case 'get_slots_for_day':
+          result = await this.getSlotsForDay(exec, ctx, args);
           break;
         case 'confirm_service':
           result = this.confirmService(ctx, args);
@@ -167,7 +185,7 @@ export class BookingToolExecutor {
       ok: true,
       data: { text: lines.join('\n\n') },
       contextPatch: {
-        agentState: { ...ctx.agentState, pricePreviewShown: true, mode: 'booking' },
+        agentState: { ...ctx.agentState, pricePreviewShown: true, mode: 'booking', uiPresentation: null },
       },
     };
   }
@@ -178,36 +196,316 @@ export class BookingToolExecutor {
     args: Record<string, unknown>,
   ): Promise<ToolResult> {
     const serviceId = (args.service_id as string) || ctx.agentState.service?.id;
-    const limit = Math.min(Number(args.limit) || 5, 10);
-    const dateQuery = (args.date_query as string) || '';
+    const dateQuery = String(args.date_query || '');
+    const modeArg = String(args.mode || '').toUpperCase();
+    const rangeArg = String(args.range || '');
+    const daypart = (String(args.daypart || 'ANY').toUpperCase() || 'ANY') as Daypart;
+    const tz = exec.settings.timezone || 'America/Argentina/Cordoba';
 
-    let slots = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
-      limit: 40,
+    const hasShown = (ctx.agentState.shownSlotKeys?.length || 0) > 0;
+    const excludeShown = args.exclude_shown !== undefined
+      ? !!args.exclude_shown
+      : hasShown;
+
+    let mode: DatePreference['mode'] = 'ASAP';
+    if (modeArg === 'RANGE' || modeArg === 'EXACT_DATE' || modeArg === 'ASAP') {
+      mode = modeArg as DatePreference['mode'];
+    } else if (rangeArg === 'this_week' || rangeArg === 'next_week') {
+      mode = 'RANGE';
+    } else if (dateQuery) {
+      mode = 'EXACT_DATE';
+    }
+
+    const limitDefault = mode === 'ASAP' && !excludeShown ? 2 : 3;
+    const limit = Math.min(Math.max(Number(args.limit) || limitDefault, 1), 5);
+
+    let dateFrom: string | undefined;
+    let dateTo: string | undefined;
+    if (mode === 'RANGE') {
+      const which = rangeArg === 'next_week' ? 'next' : 'this';
+      const wr = weekRangeInTz(tz, which);
+      dateFrom = wr.dateFrom;
+      dateTo = wr.dateTo;
+    }
+
+    const slots = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
+      limit: 80,
       serviceId,
+      fromDateStr: dateFrom,
+      toDateStr: dateTo,
     });
 
     let filtered = slots.map((s) => ({ date: s.date, time: s.time, label: s.label }));
+
     if (dateQuery) {
-      filtered = filterSlotsByQuery(
-        dateQuery,
-        exec.settings.timezone || 'America/Argentina/Cordoba',
-        filtered,
-      );
+      filtered = filterSlotsByQuery(dateQuery, tz, filtered);
+    }
+    if (daypart && daypart !== 'ANY') {
+      filtered = filtered.filter((s) => matchesDaypart(s.time, daypart));
+    }
+
+    const shown = new Set(ctx.agentState.shownSlotKeys || []);
+    if (excludeShown && shown.size > 0) {
+      filtered = filtered.filter((s) => !shown.has(slotKey(s.date, s.time)));
     }
 
     const picked = filtered.slice(0, limit);
+    let nearestFallback: typeof picked = [];
+
+    if (picked.length === 0 && (mode === 'EXACT_DATE' || excludeShown)) {
+      const all = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
+        limit: 40,
+        serviceId,
+      });
+      nearestFallback = all
+        .map((s) => ({ date: s.date, time: s.time, label: s.label }))
+        .filter((s) => !excludeShown || !shown.has(slotKey(s.date, s.time)))
+        .slice(0, 2);
+    }
+
+    const toShow = picked.length > 0 ? picked : nearestFallback;
+    const newKeys = toShow.map((s) => slotKey(s.date, s.time));
+    const nextShown = [...new Set([...(ctx.agentState.shownSlotKeys || []), ...newKeys])];
+
+    const options = toShow.map((s) => s.label);
+    if (toShow.length > 0) options.push(MORE_SLOTS_LABEL);
+
+    const body = picked.length > 0
+      ? 'Estos son los primeros horarios disponibles:'
+      : nearestFallback.length > 0
+        ? 'No encontré lugar en ese momento. Lo más cercano que tengo es:'
+        : 'No encontré horarios libres con ese filtro.';
+
+    const preference: DatePreference = {
+      mode,
+      dateFrom,
+      dateTo,
+      daypart: daypart || 'ANY',
+    };
 
     return {
       ok: true,
-      data: { found: picked.length > 0, slots: picked },
+      data: {
+        found: toShow.length > 0,
+        slots: toShow,
+        used_fallback: picked.length === 0 && nearestFallback.length > 0,
+        presentation: 'quick_slots',
+        next_if_rejected: 'show_slot_browse_menu o find_available_slots(exclude_shown=true)',
+      },
+      contextPatch: {
+        agentState: {
+          ...ctx.agentState,
+          mode: 'booking',
+          datePreference: preference,
+          listedSlots: toShow,
+          shownSlotKeys: nextShown,
+          offeredSlot: toShow[0]
+            ? { ...toShow[0], confirmed: false }
+            : ctx.agentState.offeredSlot,
+          browsePhase: toShow.length > 0 ? 'presenting_slots' : ctx.agentState.browsePhase,
+          uiPresentation: toShow.length > 0
+            ? { type: 'quick_slots', body, options }
+            : null,
+        },
+      },
+    };
+  }
+
+  private static showSlotBrowseMenu(ctx: BookingConversationContext): ToolResult {
+    return {
+      ok: true,
+      data: {
+        options: MORE_MENU_OPTIONS,
+        hint: 'Esta semana → get_available_days(range=this_week). Semana próxima → next_week. Elegir fecha → pedir fecha libre y find_available_slots con date_query.',
+      },
+      contextPatch: {
+        agentState: {
+          ...ctx.agentState,
+          mode: 'booking',
+          browsePhase: 'more_menu',
+          uiPresentation: {
+            type: 'more_menu',
+            body: '¿Cómo preferís buscar?',
+            options: MORE_MENU_OPTIONS,
+          },
+        },
+      },
+    };
+  }
+
+  private static async getAvailableDays(
+    exec: ToolExecutionContext,
+    ctx: BookingConversationContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    const serviceId = (args.service_id as string) || ctx.agentState.service?.id;
+    const tz = exec.settings.timezone || 'America/Argentina/Cordoba';
+    const rangeArg = String(args.range || '');
+
+    let dateFrom = args.date_from ? String(args.date_from) : '';
+    let dateTo = args.date_to ? String(args.date_to) : '';
+
+    if (!dateFrom || !dateTo) {
+      const which = rangeArg === 'next_week' ? 'next' : 'this';
+      const wr = weekRangeInTz(tz, which);
+      dateFrom = wr.dateFrom;
+      dateTo = wr.dateTo;
+    }
+
+    const days = await BookingAvailabilityService.getAvailableDays(exec.tenantId, {
+      dateFrom,
+      dateTo,
+      serviceId,
+    });
+
+    if (days.length === 0) {
+      if (rangeArg === 'this_week') {
+        const next = weekRangeInTz(tz, 'next');
+        const nextDays = await BookingAvailabilityService.getAvailableDays(exec.tenantId, {
+          dateFrom: next.dateFrom,
+          dateTo: next.dateTo,
+          serviceId,
+        });
+        if (nextDays.length > 0) {
+          return {
+            ok: true,
+            data: { found: true, weeks: 'next_week_fallback', days: nextDays },
+            contextPatch: {
+              agentState: {
+                ...ctx.agentState,
+                mode: 'booking',
+                availableDays: nextDays,
+                datePreference: {
+                  mode: 'RANGE',
+                  dateFrom: next.dateFrom,
+                  dateTo: next.dateTo,
+                  daypart: ctx.agentState.datePreference?.daypart || 'ANY',
+                },
+                browsePhase: 'picking_day',
+                uiPresentation: {
+                  type: 'available_days',
+                  body: 'Esta semana no hay lugar. En la próxima tengo estos días:',
+                  options: [...nextDays.map((d) => d.label), MORE_SLOTS_LABEL],
+                },
+              },
+            },
+          };
+        }
+      }
+
+      return {
+        ok: true,
+        data: { found: false, days: [] },
+        contextPatch: {
+          agentState: {
+            ...ctx.agentState,
+            browsePhase: 'more_menu',
+            uiPresentation: {
+              type: 'more_menu',
+              body: 'No encontré días con lugar en ese rango. ¿Probamos otra búsqueda?',
+              options: MORE_MENU_OPTIONS,
+            },
+          },
+        },
+      };
+    }
+
+    return {
+      ok: true,
+      data: { found: true, days },
+      contextPatch: {
+        agentState: {
+          ...ctx.agentState,
+          mode: 'booking',
+          availableDays: days,
+          datePreference: {
+            mode: 'RANGE',
+            dateFrom,
+            dateTo,
+            daypart: ctx.agentState.datePreference?.daypart || 'ANY',
+          },
+          browsePhase: 'picking_day',
+          uiPresentation: {
+            type: 'available_days',
+            body: 'Tengo disponibilidad estos días:',
+            options: [...days.slice(0, 8).map((d) => d.label), MORE_SLOTS_LABEL],
+          },
+        },
+      },
+    };
+  }
+
+  private static async getSlotsForDay(
+    exec: ToolExecutionContext,
+    ctx: BookingConversationContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    let date = String(args.date || '');
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+      const hit = ctx.agentState.availableDays?.find(
+        (d) => d.label.toLowerCase() === date.toLowerCase() || d.date === date,
+      );
+      if (hit) date = hit.date;
+      else return { ok: false, error: 'date YYYY-MM-DD requerido' };
+    }
+
+    const serviceId = (args.service_id as string) || ctx.agentState.service?.id;
+    const daypart = (String(args.daypart || ctx.agentState.datePreference?.daypart || 'ANY').toUpperCase() || 'ANY') as Daypart;
+
+    const slots = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
+      limit: 40,
+      serviceId,
+      fromDateStr: date,
+      toDateStr: date,
+    });
+
+    let filtered = slots.map((s) => ({ date: s.date, time: s.time, label: s.label }));
+    if (daypart && daypart !== 'ANY') {
+      filtered = filtered.filter((s) => matchesDaypart(s.time, daypart));
+    }
+
+    const picked = filtered.slice(0, 5);
+    const newKeys = picked.map((s) => slotKey(s.date, s.time));
+    const nextShown = [...new Set([...(ctx.agentState.shownSlotKeys || []), ...newKeys])];
+
+    if (picked.length === 0) {
+      return {
+        ok: true,
+        data: { found: false, slots: [] },
+        contextPatch: {
+          agentState: {
+            ...ctx.agentState,
+            uiPresentation: {
+              type: 'more_menu',
+              body: 'Ese día ya no tiene horarios libres. ¿Buscamos otro?',
+              options: MORE_MENU_OPTIONS,
+            },
+            browsePhase: 'more_menu',
+          },
+        },
+      };
+    }
+
+    const dayLabel = ctx.agentState.availableDays?.find((d) => d.date === date)?.label
+      || picked[0].label.split('—')[0]?.trim()
+      || date;
+
+    return {
+      ok: true,
+      data: { found: true, slots: picked },
       contextPatch: {
         agentState: {
           ...ctx.agentState,
           mode: 'booking',
           listedSlots: picked,
-          offeredSlot: picked[0]
-            ? { ...picked[0], confirmed: false }
-            : ctx.agentState.offeredSlot,
+          shownSlotKeys: nextShown,
+          offeredSlot: { ...picked[0], confirmed: false },
+          browsePhase: 'day_slots',
+          uiPresentation: {
+            type: 'day_slots',
+            body: `Horarios disponibles el ${dayLabel}:`,
+            options: [...picked.map((s) => s.time), MORE_SLOTS_LABEL],
+          },
         },
       },
     };
@@ -227,6 +525,13 @@ export class BookingToolExecutor {
           ...ctx.agentState,
           mode: 'booking',
           service: { id: serviceId, name: serviceName, confirmed: true },
+          listedSlots: [],
+          shownSlotKeys: [],
+          availableDays: [],
+          offeredSlot: null,
+          datePreference: { mode: 'ASAP', daypart: 'ANY' },
+          browsePhase: null,
+          uiPresentation: null,
         },
       },
     };
@@ -238,8 +543,9 @@ export class BookingToolExecutor {
     const label = String(args.label || `${date} — ${time}`);
     if (!date || !time) return { ok: false, error: 'date y time requeridos' };
 
-    const listed = ctx.agentState.listedSlots;
-    const fromList = listed.find((s) => s.date === date && s.time === time);
+    const listed = ctx.agentState.listedSlots || [];
+    const fromList = listed.find((s) => s.date === date && s.time === time)
+      || listed.find((s) => s.time === time);
 
     return {
       ok: true,
@@ -249,11 +555,13 @@ export class BookingToolExecutor {
           ...ctx.agentState,
           mode: 'booking',
           offeredSlot: {
-            date,
-            time,
+            date: fromList?.date || date,
+            time: fromList?.time || time,
             label: fromList?.label || label,
             confirmed: true,
           },
+          browsePhase: null,
+          uiPresentation: null,
         },
       },
     };
@@ -278,6 +586,7 @@ export class BookingToolExecutor {
         agentState: {
           ...ctx.agentState,
           mode: 'booking',
+          uiPresentation: null,
           customer: {
             fullName: name,
             nameConfirmed: true,
@@ -301,6 +610,7 @@ export class BookingToolExecutor {
         agentState: {
           ...ctx.agentState,
           mode: 'booking',
+          uiPresentation: null,
           customer: {
             fullName: ctx.agentState.customer?.fullName || '',
             nameConfirmed: ctx.agentState.customer?.nameConfirmed ?? false,
@@ -347,7 +657,7 @@ export class BookingToolExecutor {
       data: { checkout_started: true, phase: 'payment_choice' },
       contextPatch: {
         checkout,
-        agentState: { ...ctx.agentState, mode: 'idle' },
+        agentState: { ...ctx.agentState, mode: 'idle', uiPresentation: null },
       },
     };
   }
@@ -366,7 +676,6 @@ export class BookingToolExecutor {
 
     const tz = exec.settings.timezone || 'America/Argentina/Cordoba';
     const items = apts.map((a) => {
-      const dateStr = a.appointmentDate.toISOString().slice(0, 10);
       const label = a.appointmentDate.toLocaleDateString('es-AR', {
         weekday: 'short', day: '2-digit', month: '2-digit', timeZone: tz,
       });

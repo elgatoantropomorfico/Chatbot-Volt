@@ -38,7 +38,14 @@ export class BookingAvailabilityService {
 
   static async getAvailableSlots(
     tenantId: string,
-    opts: { limit?: number; fromDate?: Date; serviceId?: string } = {},
+    opts: {
+      limit?: number;
+      fromDate?: Date;
+      serviceId?: string;
+      /** YYYY-MM-DD inclusive end (opcional) */
+      toDateStr?: string;
+      fromDateStr?: string;
+    } = {},
   ): Promise<AvailableSlot[]> {
     const limit = opts.limit ?? 5;
     const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
@@ -70,6 +77,9 @@ export class BookingAvailabilityService {
 
     for (let dayOffset = 0; dayOffset < 60 && results.length < limit; dayOffset++) {
       const dateStr = calendarDateInTz(timezone, dayOffset);
+      if (opts.fromDateStr && dateStr < opts.fromDateStr) continue;
+      if (opts.toDateStr && dateStr > opts.toDateStr) break;
+
       const dateObj = new Date(`${dateStr}T12:00:00`);
       const weekday = dateObj.toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
       const dow = weekdayMap[weekday] ?? dateObj.getDay();
@@ -116,6 +126,37 @@ export class BookingAvailabilityService {
     }
 
     return results;
+  }
+
+  /** Días con al menos un cupo libre en el rango (max 14 días mostrados). */
+  static async getAvailableDays(
+    tenantId: string,
+    opts: { dateFrom: string; dateTo: string; serviceId?: string },
+  ): Promise<Array<{ date: string; label: string; count: number }>> {
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
+    const timezone = settings?.timezone || 'America/Argentina/Cordoba';
+    const slots = await this.getAvailableSlots(tenantId, {
+      limit: 120,
+      serviceId: opts.serviceId,
+      fromDateStr: opts.dateFrom,
+      toDateStr: opts.dateTo,
+    });
+
+    const byDay = new Map<string, number>();
+    for (const s of slots) {
+      byDay.set(s.date, (byDay.get(s.date) || 0) + 1);
+    }
+
+    const todayStr = calendarDateInTz(timezone, 0);
+    return [...byDay.entries()].slice(0, 14).map(([date, count]) => {
+      const dateObj = new Date(`${date}T12:00:00`);
+      const label = date === todayStr
+        ? 'Hoy'
+        : dateObj.toLocaleDateString('es-AR', {
+          weekday: 'long', day: '2-digit', month: '2-digit', timeZone: timezone,
+        });
+      return { date, label: label.charAt(0).toUpperCase() + label.slice(1), count };
+    });
   }
 
   /** Slots from today through end of current calendar week (Sunday) */

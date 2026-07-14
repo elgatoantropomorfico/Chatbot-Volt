@@ -2,6 +2,10 @@ import type { BookingFlowContext, BookingFlowState } from './booking-flow.servic
 
 export type AgentMode = 'idle' | 'booking';
 
+export type DatePreferenceMode = 'ASAP' | 'RANGE' | 'EXACT_DATE';
+export type Daypart = 'ANY' | 'MORNING' | 'AFTERNOON';
+export type BrowsePhase = 'presenting_slots' | 'more_menu' | 'picking_day' | 'day_slots';
+
 export interface AgentServiceRef {
   id: string;
   name: string;
@@ -22,12 +26,31 @@ export interface AgentCustomerRef {
   notesCollected?: boolean;
 }
 
+export interface DatePreference {
+  mode: DatePreferenceMode;
+  dateFrom?: string;
+  dateTo?: string;
+  daypart?: Daypart;
+}
+
+export interface UiPresentation {
+  type: 'quick_slots' | 'more_menu' | 'available_days' | 'day_slots';
+  body: string;
+  options: string[];
+}
+
 export interface AgentState {
   mode: AgentMode;
   greetingPending: boolean;
   service: AgentServiceRef | null;
   offeredSlot: AgentSlotRef | null;
   listedSlots: Array<{ date: string; time: string; label: string }>;
+  /** Keys date@time ya mostrados — para no repetir al pedir "otros" */
+  shownSlotKeys: string[];
+  availableDays: Array<{ date: string; label: string; count: number }>;
+  datePreference: DatePreference | null;
+  browsePhase: BrowsePhase | null;
+  uiPresentation: UiPresentation | null;
   customer: AgentCustomerRef | null;
   pricePreviewShown?: boolean;
 }
@@ -80,6 +103,10 @@ export const V1_CHECKOUT_STATES: BookingFlowState[] = ['payment_choice', 'waitin
 
 export const V1_LEGACY_CANCEL_STATES: BookingFlowState[] = ['cancel_pick', 'cancel_confirm'];
 
+export function slotKey(date: string, time: string): string {
+  return `${date}@${time}`;
+}
+
 export function emptyAgentState(overrides?: Partial<AgentState>): AgentState {
   return {
     mode: 'idle',
@@ -87,6 +114,11 @@ export function emptyAgentState(overrides?: Partial<AgentState>): AgentState {
     service: null,
     offeredSlot: null,
     listedSlots: [],
+    shownSlotKeys: [],
+    availableDays: [],
+    datePreference: null,
+    browsePhase: null,
+    uiPresentation: null,
     customer: null,
     ...overrides,
   };

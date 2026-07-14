@@ -26,6 +26,31 @@ export function calendarDateInTz(timezone: string, offsetDays = 0): string {
   return new Date(Date.UTC(y, m - 1, d + offsetDays)).toISOString().slice(0, 10);
 }
 
+/** Rango de semana calendario en TZ del negocio (lunes–domingo local). */
+export function weekRangeInTz(
+  timezone: string,
+  which: 'this' | 'next',
+): { dateFrom: string; dateTo: string } {
+  const today = calendarDateInTz(timezone, 0);
+  const short = new Date(`${today}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short' });
+  const dow = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }[short] ?? 0;
+  const sinceMonday = dow === 0 ? 6 : dow - 1;
+  const mondayOffset = which === 'this' ? -sinceMonday : (7 - sinceMonday);
+  return {
+    dateFrom: calendarDateInTz(timezone, mondayOffset),
+    dateTo: calendarDateInTz(timezone, mondayOffset + 6),
+  };
+}
+
+export function matchesDaypart(time: string, daypart: 'ANY' | 'MORNING' | 'AFTERNOON' | 'EVENING' = 'ANY'): boolean {
+  if (daypart === 'ANY') return true;
+  const h = parseInt(time.split(':')[0], 10);
+  if (daypart === 'MORNING') return h < 13;
+  if (daypart === 'AFTERNOON') return h >= 13 && h < 18;
+  if (daypart === 'EVENING') return h >= 18;
+  return true;
+}
+
 export function currentYearInTz(timezone: string): number {
   return parseInt(calendarDateInTz(timezone, 0).slice(0, 4), 10);
 }

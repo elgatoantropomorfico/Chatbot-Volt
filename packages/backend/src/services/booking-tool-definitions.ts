@@ -42,14 +42,89 @@ export const BOOKING_AGENT_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
     type: 'function',
     function: {
       name: 'find_available_slots',
-      description: 'Consulta la agenda REAL y devuelve horarios libres. OBLIGATORIO antes de mencionar fechas/horas concretas al usuario.',
+      description:
+        'Consulta la agenda REAL y devuelve los primeros horarios libres. ' +
+        'Usar apenas tengas servicio confirmado (modo ASAP, limit 2). ' +
+        'También para fecha/frase libre (date_query) o "otros horarios" (exclude_shown=true). ' +
+        'OBLIGATORIO antes de mencionar fechas/horas concretas.',
       parameters: {
         type: 'object',
         properties: {
-          service_id: { type: 'string', description: 'ID del servicio (requerido si hay servicio elegido)' },
-          limit: { type: 'number', description: 'Cantidad máxima de slots a devolver (default 5)' },
-          date_query: { type: 'string', description: 'Filtro opcional: "mañana", "jueves", "20/06", etc.' },
+          service_id: { type: 'string' },
+          limit: { type: 'number', description: 'Default 2 en primera propuesta; máx 5' },
+          mode: {
+            type: 'string',
+            enum: ['ASAP', 'RANGE', 'EXACT_DATE'],
+            description: 'ASAP = próximos disponibles. RANGE requiere range. EXACT_DATE con date_query.',
+          },
+          range: {
+            type: 'string',
+            enum: ['this_week', 'next_week'],
+            description: 'Solo con mode=RANGE',
+          },
+          date_query: {
+            type: 'string',
+            description: 'Frase libre: "mañana", "jueves", "25/07", "por la tarde", etc.',
+          },
+          daypart: {
+            type: 'string',
+            enum: ['ANY', 'MORNING', 'AFTERNOON'],
+            description: 'Filtro franja horaria',
+          },
+          exclude_shown: {
+            type: 'boolean',
+            description: 'true si el usuario pidió otros/más horarios (excluye shownSlotKeys). Default true si ya hay shown.',
+          },
         },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'show_slot_browse_menu',
+      description:
+        'Segundo nivel tras "Ver más horarios": menú Esta semana / Semana próxima / Elegir fecha. ' +
+        'No consulta agenda; solo presenta el selector de rango.',
+      parameters: { type: 'object', properties: {}, additionalProperties: false },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_available_days',
+      description:
+        'Lista SOLO los días del rango que tienen al menos un cupo libre. ' +
+        'Usar tras elegir Esta semana / Semana próxima, o un rango explícito.',
+      parameters: {
+        type: 'object',
+        properties: {
+          service_id: { type: 'string' },
+          range: {
+            type: 'string',
+            enum: ['this_week', 'next_week'],
+          },
+          date_from: { type: 'string', description: 'YYYY-MM-DD (alternativa a range)' },
+          date_to: { type: 'string', description: 'YYYY-MM-DD' },
+        },
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'get_slots_for_day',
+      description: 'Horarios libres de un día concreto (después de que el usuario eligió un día de get_available_days).',
+      parameters: {
+        type: 'object',
+        properties: {
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+          service_id: { type: 'string' },
+          daypart: { type: 'string', enum: ['ANY', 'MORNING', 'AFTERNOON'] },
+        },
+        required: ['date'],
         additionalProperties: false,
       },
     },

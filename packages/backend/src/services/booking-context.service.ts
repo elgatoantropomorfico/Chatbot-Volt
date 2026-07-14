@@ -77,11 +77,17 @@ export class BookingContextService {
 
     if (raw.version === 2) {
       const ctx = raw as unknown as BookingConversationContext;
+      const merged = emptyAgentState(ctx.agentState || undefined);
       return {
         ...emptyBookingContext(),
         ...ctx,
         version: 2,
-        agentState: { ...emptyAgentState(), ...ctx.agentState },
+        agentState: {
+          ...merged,
+          listedSlots: Array.isArray(ctx.agentState?.listedSlots) ? ctx.agentState.listedSlots : [],
+          shownSlotKeys: Array.isArray(ctx.agentState?.shownSlotKeys) ? ctx.agentState.shownSlotKeys : [],
+          availableDays: Array.isArray(ctx.agentState?.availableDays) ? ctx.agentState.availableDays : [],
+        },
         aiWindow: { fromMessageId: ctx.aiWindow?.fromMessageId ?? null },
       };
     }
