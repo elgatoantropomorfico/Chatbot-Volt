@@ -2,6 +2,7 @@ import { prisma } from '../config/database';
 import { WhatsAppService } from './whatsapp.service';
 import { ConversationService } from './conversation.service';
 import { ResendService } from './resend.service';
+import { BookingContextService } from './booking-context.service';
 
 function toWaMeUrl(phone: string): string | null {
   const digits = phone.replace(/\D/g, '');
@@ -21,7 +22,7 @@ export class BookingExpiryService {
 
     const stale = await prisma.appointment.findMany({
       where,
-      select: { id: true, conversationId: true },
+      select: { id: true, conversationId: true, customerName: true },
     });
 
     if (stale.length === 0) return 0;
@@ -31,15 +32,20 @@ export class BookingExpiryService {
       data: { status: 'vencido' },
     });
 
-    const conversationIds = stale
-      .map((a) => a.conversationId)
-      .filter((id): id is string => !!id);
+    const conversationIds = [...new Set(
+      stale.map((a) => a.conversationId).filter((id): id is string => !!id),
+    )];
 
-    if (conversationIds.length > 0) {
-      await prisma.conversation.updateMany({
-        where: { id: { in: conversationIds } },
-        data: { bookingFlowJson: { state: 'booking_start' } },
-      });
+    for (const conversationId of conversationIds) {
+      const staleRow = stale.find((a) => a.conversationId === conversationId);
+      try {
+        await BookingContextService.resetAfterBooking(
+          conversationId,
+          staleRow?.customerName || undefined,
+        );
+      } catch (err: any) {
+        console.warn(`⚠️ Expire reset flow ${conversationId}:`, err.message);
+      }
     }
 
     console.log(`⏱️ Expired ${stale.length} pending-payment appointment(s), reset ${conversationIds.length} flow(s)`);
@@ -96,25 +102,14 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
     }
 
     if (appointment.conversationId) {
-      const existing = (appointment.conversation?.bookingFlowJson as Record<string, unknown>) || {};
-      const dateStr = appointment.appointmentDate.toISOString().slice(0, 10);
-      await prisma.conversation.update({
-        where: { id: appointment.conversationId },
-        data: {
-          bookingFlowJson: {
-            ...existing,
-            state: 'confirmed',
-            appointmentId: appointment.id,
-            serviceId: appointment.serviceId,
-            serviceName: appointment.service.name,
-            slotDate: dateStr,
-            slotTime: appointment.appointmentTime,
-            slotLabel: `${dateStr} — ${appointment.appointmentTime}`,
-            customerName: appointment.customerName ?? (existing as any).customerName,
-            customerNotes: appointment.customerNotes ?? (existing as any).customerNotes,
-          },
-        },
-      });
+      try {
+        await BookingContextService.finalizeAfterBooking(
+          appointment.conversationId,
+          appointment.customerName || undefined,
+        );
+      } catch (err: any) {
+        console.warn(`⚠️ finalizeAfterBooking falló (${appointment.conversationId}):`, err.message);
+      }
     }
 
     await this.sendStaffConfirmationEmail(appointmentId);

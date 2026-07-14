@@ -161,4 +161,51 @@ export class BookingContextService {
     });
     await this.save(conversationId, ctx);
   }
+
+  /** Post-comprobante (webhook MP u otro): limpia checkout/gestión y conserva solo el nombre. */
+  static async finalizeAfterBooking(conversationId: string, keepCustomerName?: string): Promise<void> {
+    await this.resetAfterBooking(conversationId, keepCustomerName);
+  }
+
+  /** Si el hold ya está confirmado/vencido/cancelado, limpia checkout v2. */
+  static async reconcileCheckoutWithAppointment(
+    conversationId: string,
+  ): Promise<BookingConversationContext> {
+    const ctx = await this.load(conversationId);
+    if (!ctx.checkout?.appointmentId) return ctx;
+
+    const apt = await prisma.appointment.findUnique({
+      where: { id: ctx.checkout.appointmentId },
+      select: { status: true, customerName: true },
+    });
+
+    if (!apt) {
+      ctx.checkout = null;
+      await this.save(conversationId, ctx);
+      return ctx;
+    }
+
+    if (apt.status === 'confirmado') {
+      await this.finalizeAfterBooking(conversationId, apt.customerName || ctx.checkout.customerName);
+      return this.load(conversationId);
+    }
+
+    if (apt.status === 'vencido' || apt.status === 'cancelado') {
+      ctx.checkout = null;
+      ctx.agentState = emptyAgentState({
+        greetingPending: false,
+        customer: ctx.agentState.customer?.fullName
+          ? {
+              fullName: ctx.agentState.customer.fullName,
+              nameConfirmed: true,
+              notesCollected: false,
+            }
+          : null,
+      });
+      await this.save(conversationId, ctx);
+      return ctx;
+    }
+
+    return ctx;
+  }
 }

@@ -51,6 +51,8 @@ export interface AgentState {
   datePreference: DatePreference | null;
   browsePhase: BrowsePhase | null;
   uiPresentation: UiPresentation | null;
+  /** Cancelación pendiente de confirmación dura */
+  pendingCancel: { appointmentId: string; label: string } | null;
   customer: AgentCustomerRef | null;
   pricePreviewShown?: boolean;
 }
@@ -119,6 +121,7 @@ export function emptyAgentState(overrides?: Partial<AgentState>): AgentState {
     datePreference: null,
     browsePhase: null,
     uiPresentation: null,
+    pendingCancel: null,
     customer: null,
     ...overrides,
   };

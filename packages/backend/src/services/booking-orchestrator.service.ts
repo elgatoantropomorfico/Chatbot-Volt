@@ -55,7 +55,46 @@ export class BookingOrchestrator {
     await BookingExpiryService.expireStaleHolds(params.tenantId);
 
     const input = normalizeInput(params.text);
-    const ctx = await BookingContextService.load(params.conversationId);
+    let ctx = await BookingContextService.reconcileCheckoutWithAppointment(params.conversationId);
+
+    // Cancelación pendiente: botones Sí/No sin pasar por el LLM
+    if (ctx.agentState.pendingCancel) {
+      const hardYes = /^(sí|si|dale|ok|confirmo|1|sí,? cancelar|si,? cancelar)$/i.test(input.trim())
+        || /sí,\s*cancelar|si,\s*cancelar/i.test(input);
+      const hardNo = /^(no|mejor no|2|no,? volver)$/i.test(input.trim())
+        || /no,\s*volver/i.test(input);
+      if (hardYes || hardNo) {
+        const { BookingToolExecutor } = await import('./booking-tool-executor.service');
+        const exec = {
+          tenantId: params.tenantId,
+          conversationId: params.conversationId,
+          leadId: params.leadId,
+          phone: params.phone,
+          settings,
+        };
+        if (hardYes) {
+          const pendingLabel = ctx.agentState.pendingCancel.label;
+          const { result } = await BookingToolExecutor.execute(
+            'cancel_appointment',
+            { appointment_id: ctx.agentState.pendingCancel.appointmentId, confirm: true },
+            ctx,
+            exec,
+          );
+          if (result.ok) {
+            return {
+              handled: true,
+              text: `Listo, cancelamos tu turno:\n\n${pendingLabel}\n\nSi querés reservar otro, decime 🌿`,
+            };
+          }
+          return { handled: true, text: result.error || 'No pude cancelar ese turno.' };
+        }
+        await BookingContextService.save(params.conversationId, {
+          ...ctx,
+          agentState: { ...ctx.agentState, pendingCancel: null, uiPresentation: null },
+        });
+        return { handled: true, text: 'Perfecto, dejamos el turno como está. ¿En qué más te ayudo?' };
+      }
+    }
 
     if (ctx.legacyV1) {
       return BookingFlowService.handle(params);
@@ -70,7 +109,10 @@ export class BookingOrchestrator {
     }
 
     if (ctx.checkout) {
-      return BookingCheckoutService.handle(params);
+      const checkoutResult = await BookingCheckoutService.handle(params);
+      if (checkoutResult.handled) return checkoutResult;
+      // checkout reconciliado (ya pagó/venció) → seguir con agente
+      ctx = await BookingContextService.load(params.conversationId);
     }
 
     if (isMenuCommand(input)) {
@@ -160,11 +202,24 @@ export class BookingOrchestrator {
 
     const { reply, ctx: nextCtx } = await BookingAgentService.run({
       ...params,
-      text: `${params.text}\n\n[El usuario quiere cancelar un turno. Usá list_my_appointments y cancel_appointment si corresponde.]`,
+      text: `${params.text}\n\n[El usuario quiere cancelar. Usá list_my_appointments y luego request_cancel_appointment — NUNCA cancel_appointment directo.]`,
       ctx: { ...ctx, agentState: { ...ctx.agentState, mode: 'booking' } },
       settings: settings!,
     });
     await BookingContextService.save(params.conversationId, nextCtx);
+
+    const ui = nextCtx.agentState.uiPresentation;
+    if (ui?.options?.length) {
+      await BookingContextService.save(params.conversationId, {
+        ...nextCtx,
+        agentState: { ...nextCtx.agentState, uiPresentation: null },
+      });
+      const body = (reply && reply.trim().length > 0 && reply.trim().length <= 280)
+        ? reply.trim()
+        : ui.body;
+      return BookingFlowService.buildOptionsReply(body, ui.options);
+    }
+
     return { handled: true, text: reply };
   }
 

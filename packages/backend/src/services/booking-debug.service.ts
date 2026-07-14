@@ -81,6 +81,7 @@ function flagsFromV2Context(ctx: Record<string, unknown>): string[] {
     push(flagPart('br', agent.browsePhase as string));
     const pref = agent.datePreference as { mode?: string } | null;
     if (pref?.mode) push(flagPart('pref', pref.mode));
+    if (agent.pendingCancel) parts.push('cx:pend');
   }
 
   if (checkout?.phase) push(flagPart('chk', String(checkout.phase)));

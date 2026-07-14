@@ -70,7 +70,7 @@ export class BookingToolExecutor {
           result = this.confirmService(ctx, args);
           break;
         case 'confirm_slot':
-          result = this.confirmSlot(ctx, args);
+          result = await this.confirmSlot(ctx, exec, args);
           break;
         case 'set_customer_name':
           result = await this.setCustomerName(ctx, exec, String(args.full_name || ''));
@@ -84,8 +84,11 @@ export class BookingToolExecutor {
         case 'list_my_appointments':
           result = await this.listMyAppointments(exec);
           break;
+        case 'request_cancel_appointment':
+          result = await this.requestCancelAppointment(ctx, exec, args);
+          break;
         case 'cancel_appointment':
-          result = await this.cancelAppointment(exec, String(args.appointment_id || ''));
+          result = await this.cancelAppointment(ctx, exec, args);
           break;
         case 'reset_booking':
           result = this.resetBooking();
@@ -537,7 +540,11 @@ export class BookingToolExecutor {
     };
   }
 
-  private static confirmSlot(ctx: BookingConversationContext, args: Record<string, unknown>): ToolResult {
+  private static async confirmSlot(
+    ctx: BookingConversationContext,
+    exec: ToolExecutionContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
     const date = String(args.date || '');
     const time = String(args.time || '');
     const label = String(args.label || `${date} — ${time}`);
@@ -546,18 +553,59 @@ export class BookingToolExecutor {
     const listed = ctx.agentState.listedSlots || [];
     const fromList = listed.find((s) => s.date === date && s.time === time)
       || listed.find((s) => s.time === time);
+    const finalDate = fromList?.date || date;
+    const finalTime = fromList?.time || time;
+    const finalLabel = fromList?.label || label;
+
+    const status = await BookingAvailabilityService.getSlotStatus(exec.tenantId, finalDate, finalTime);
+    if (status !== 'available') {
+      const alts = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
+        limit: 3,
+        serviceId: ctx.agentState.service?.id,
+      });
+      const toShow = alts.map((s) => ({ date: s.date, time: s.time, label: s.label }));
+      const newKeys = toShow.map((s) => slotKey(s.date, s.time));
+      const nextShown = [...new Set([...(ctx.agentState.shownSlotKeys || []), ...newKeys])];
+      const options = [...toShow.map((s) => s.label), 'Ver más horarios'];
+
+      return {
+        ok: true,
+        data: {
+          confirmed: false,
+          reason: status,
+          alternatives: toShow,
+        },
+        contextPatch: {
+          agentState: {
+            ...ctx.agentState,
+            mode: 'booking',
+            offeredSlot: null,
+            listedSlots: toShow,
+            shownSlotKeys: nextShown,
+            browsePhase: 'presenting_slots',
+            uiPresentation: toShow.length
+              ? {
+                  type: 'quick_slots',
+                  body: 'Ese horario se acaba de ocupar. Estos son los siguientes disponibles:',
+                  options,
+                }
+              : null,
+          },
+        },
+      };
+    }
 
     return {
       ok: true,
-      data: { confirmed: true, slot: { date, time, label: fromList?.label || label } },
+      data: { confirmed: true, slot: { date: finalDate, time: finalTime, label: finalLabel } },
       contextPatch: {
         agentState: {
           ...ctx.agentState,
           mode: 'booking',
           offeredSlot: {
-            date: fromList?.date || date,
-            time: fromList?.time || time,
-            label: fromList?.label || label,
+            date: finalDate,
+            time: finalTime,
+            label: finalLabel,
             confirmed: true,
           },
           browsePhase: null,
@@ -636,6 +684,39 @@ export class BookingToolExecutor {
       return { ok: false, error: 'Falta paso de notas (pedir o marcar que no hay)' };
     }
 
+    const status = await BookingAvailabilityService.getSlotStatus(
+      exec.tenantId,
+      offeredSlot.date,
+      offeredSlot.time,
+    );
+    if (status !== 'available') {
+      const alts = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
+        limit: 3,
+        serviceId: service.id,
+      });
+      const toShow = alts.map((s) => ({ date: s.date, time: s.time, label: s.label }));
+      return {
+        ok: false,
+        error: 'El horario elegido ya no está libre',
+        data: { alternatives: toShow },
+        contextPatch: {
+          agentState: {
+            ...ctx.agentState,
+            offeredSlot: null,
+            listedSlots: toShow,
+            browsePhase: 'presenting_slots',
+            uiPresentation: toShow.length
+              ? {
+                  type: 'quick_slots',
+                  body: 'Ese horario se acaba de ocupar. Estos son los siguientes disponibles:',
+                  options: [...toShow.map((s) => s.label), 'Ver más horarios'],
+                }
+              : null,
+          },
+        },
+      };
+    }
+
     const prior = await prisma.appointment.count({
       where: { leadId: exec.leadId, status: 'confirmado' },
     });
@@ -690,10 +771,17 @@ export class BookingToolExecutor {
     return { ok: true, data: { appointments: items } };
   }
 
-  private static async cancelAppointment(exec: ToolExecutionContext, appointmentId: string): Promise<ToolResult> {
+  private static async requestCancelAppointment(
+    ctx: BookingConversationContext,
+    exec: ToolExecutionContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
     if (!exec.settings.cancelEnabled) {
       return { ok: false, error: 'Cancelación automática deshabilitada' };
     }
+    const appointmentId = String(args.appointment_id || '');
+    if (!appointmentId) return { ok: false, error: 'appointment_id requerido' };
+
     const apt = await prisma.appointment.findFirst({
       where: {
         id: appointmentId,
@@ -705,10 +793,85 @@ export class BookingToolExecutor {
     });
     if (!apt) return { ok: false, error: 'Turno no encontrado o no cancelable' };
 
+    const tz = exec.settings.timezone || 'America/Argentina/Cordoba';
+    const day = apt.appointmentDate.toLocaleDateString('es-AR', {
+      weekday: 'long', day: '2-digit', month: '2-digit', timeZone: tz,
+    });
+    const label = String(args.label || `${apt.service.name} — ${day} ${apt.appointmentTime}`);
+
+    const policy = (exec.settings.cancellationPolicyJson as any)?.policy_short_text
+      || 'En caso de cancelación, la seña no es reembolsable.';
+
+    return {
+      ok: true,
+      data: { pending: true, appointment_id: apt.id, label },
+      contextPatch: {
+        agentState: {
+          ...ctx.agentState,
+          pendingCancel: { appointmentId: apt.id, label },
+          uiPresentation: {
+            type: 'more_menu',
+            body: `¿Confirmás la cancelación de este turno?\n\n${label}\n\n⚠️ Esta acción no tiene vuelta atrás.\n${policy}`,
+            options: ['Sí, cancelar', 'No, volver'],
+          },
+        },
+      },
+    };
+  }
+
+  private static async cancelAppointment(
+    ctx: BookingConversationContext,
+    exec: ToolExecutionContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    if (!exec.settings.cancelEnabled) {
+      return { ok: false, error: 'Cancelación automática deshabilitada' };
+    }
+
+    const appointmentId = String(args.appointment_id || '');
+    const confirm = !!args.confirm;
+    if (!appointmentId) return { ok: false, error: 'appointment_id requerido' };
+
+    const pendingMatches = ctx.agentState.pendingCancel?.appointmentId === appointmentId;
+    if (!confirm && !pendingMatches) {
+      return {
+        ok: false,
+        error: 'Falta confirmación. Usá request_cancel_appointment primero.',
+      };
+    }
+    if (!confirm && pendingMatches) {
+      return {
+        ok: false,
+        error: 'El usuario aún no confirmó. Esperá Sí/No o llamá con confirm=true.',
+      };
+    }
+
+    const apt = await prisma.appointment.findFirst({
+      where: {
+        id: appointmentId,
+        tenantId: exec.tenantId,
+        leadId: exec.leadId,
+        status: { in: ['confirmado', 'pendiente_pago', 'pendiente_datos'] },
+      },
+      include: { service: true },
+    });
+    if (!apt) {
+      return {
+        ok: false,
+        error: 'Turno no encontrado o no cancelable',
+        contextPatch: {
+          agentState: { ...ctx.agentState, pendingCancel: null, uiPresentation: null },
+        },
+      };
+    }
+
     await prisma.appointment.update({
       where: { id: apt.id },
       data: { status: 'cancelado', cancelledAt: new Date() },
     });
+
+    // Si cancelamos el hold de checkout actual, liberar checkout
+    const clearCheckout = ctx.checkout?.appointmentId === apt.id;
 
     return {
       ok: true,
@@ -716,6 +879,14 @@ export class BookingToolExecutor {
         cancelled: true,
         service: apt.service.name,
         appointment_id: apt.id,
+      },
+      contextPatch: {
+        checkout: clearCheckout ? null : ctx.checkout,
+        agentState: {
+          ...ctx.agentState,
+          pendingCancel: null,
+          uiPresentation: null,
+        },
       },
     };
   }

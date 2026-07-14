@@ -17,8 +17,11 @@ export class BookingCheckoutService {
 
     await BookingExpiryService.expireStaleHolds(params.tenantId);
 
-    const ctx = await BookingContextService.load(params.conversationId);
-    if (!ctx.checkout) return { handled: false };
+    let ctx = await BookingContextService.reconcileCheckoutWithAppointment(params.conversationId);
+    if (!ctx.checkout) {
+      // Hold ya confirmado/vencido: salir del checkout y no forzar FSM
+      return { handled: false };
+    }
 
     const priorAgent = { ...ctx.agentState };
     const v1Flow = v1FlowFromCheckout(ctx.checkout);

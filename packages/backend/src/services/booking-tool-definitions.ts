@@ -149,7 +149,8 @@ export const BOOKING_AGENT_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
     type: 'function',
     function: {
       name: 'confirm_slot',
-      description: 'Marca el horario ofrecido como confirmado. Requiere date y time del slot elegido.',
+      description:
+        'Confirma el horario elegido revalidando en agenda real. Si se ocupó, devuelve alternativas. Requiere date y time.',
       parameters: {
         type: 'object',
         properties: {
@@ -211,14 +212,34 @@ export const BOOKING_AGENT_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
   {
     type: 'function',
     function: {
-      name: 'cancel_appointment',
-      description: 'Cancela un turno activo por appointment_id.',
+      name: 'request_cancel_appointment',
+      description:
+        'Prepara la cancelación: guarda el turno pendiente y muestra confirmación Sí/No. ' +
+        'OBLIGATORIO antes de cancel_appointment (salvo confirm=true tras el sí del usuario).',
       parameters: {
         type: 'object',
         properties: {
           appointment_id: { type: 'string' },
+          label: { type: 'string', description: 'Texto legible del turno a cancelar' },
         },
         required: ['appointment_id'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancel_appointment',
+      description:
+        'Cancela un turno. Requiere confirm=true (o pendingCancel ya aceptado por el usuario).',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string' },
+          confirm: { type: 'boolean', description: 'Debe ser true para ejecutar la cancelación' },
+        },
+        required: ['appointment_id', 'confirm'],
         additionalProperties: false,
       },
     },

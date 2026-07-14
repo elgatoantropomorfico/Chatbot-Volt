@@ -1948,6 +1948,40 @@ Importante: ${policyShort}
       return { handled: true, text: 'Hubo un error. Escribí *menu* para empezar de nuevo.' };
     }
 
+    const slotStatus = await BookingAvailabilityService.getSlotStatus(
+      tenantId,
+      flow.slotDate,
+      flow.slotTime,
+    );
+    if (slotStatus !== 'available') {
+      const alts = await BookingAvailabilityService.getAvailableSlots(tenantId, {
+        limit: 3,
+        serviceId: flow.serviceId,
+      });
+      flow = {
+        ...flow,
+        state: 'slot_selection',
+        slotDate: undefined,
+        slotTime: undefined,
+        slotLabel: undefined,
+        paymentType: undefined,
+        tempSlots: alts.map((s) => ({ date: s.date, time: s.time, label: s.label })),
+      };
+      await this.saveFlow(conversationId, flow);
+      const labels = alts.map((s) => s.label);
+      if (labels.length) {
+        return flowReply(
+          'Ese horario se acaba de ocupar. Estos son los siguientes disponibles:',
+          [...labels, 'Ver más horarios'],
+          true,
+        );
+      }
+      return {
+        handled: true,
+        text: 'Ese horario se acaba de ocupar y no encontré alternativas cercanas. Escribí *menu* para buscar de nuevo.',
+      };
+    }
+
     const pricing = await BookingPricingService.resolvePrice(tenantId, flow.serviceId);
     const payAmount = BookingPricingService.computePaymentAmount(
       pricing.finalPrice,
