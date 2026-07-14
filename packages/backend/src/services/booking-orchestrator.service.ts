@@ -203,13 +203,31 @@ export class BookingOrchestrator {
     const raw = params.text.trim();
     const exec = this.toolExec(params, settings);
 
-    // "Ver más" desde propuesta de slots
-    if (
-      (phase === 'presenting_slots' || phase === 'day_slots' || phase === 'picking_day')
-      && (input === MORE_SLOTS_LABEL || input === '3' || input === 'ver mas' || /ver mas horarios|mas horarios|otros horarios/.test(input))
-    ) {
-      const { ctx: next } = await BookingToolExecutor.execute('show_slot_browse_menu', {}, ctx, exec);
-      return this.deliverFromCtx(params.conversationId, next);
+    const isMoreSlots = (itemCountBeforeMore: number) => {
+      if (input === MORE_SLOTS_LABEL || input === 'ver mas' || /ver mas horarios|mas horarios|otros horarios/.test(input)) {
+        return true;
+      }
+      // WhatsApp buttons envían "1","2","3" (id opt_N). "Ver más" es SIEMPRE la última opción.
+      if (/^\d+$/.test(input)) {
+        return parseInt(input, 10) === itemCountBeforeMore + 1;
+      }
+      return false;
+    };
+
+    // "Ver más" desde propuesta de slots / días / horas del día
+    if (phase === 'presenting_slots' || phase === 'day_slots') {
+      const n = ctx.agentState.listedSlots?.length || 0;
+      if (n > 0 && isMoreSlots(n)) {
+        const { ctx: next } = await BookingToolExecutor.execute('show_slot_browse_menu', {}, ctx, exec);
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+    }
+    if (phase === 'picking_day') {
+      const n = Math.min(ctx.agentState.availableDays?.length || 0, 8);
+      if (n > 0 && isMoreSlots(n)) {
+        const { ctx: next } = await BookingToolExecutor.execute('show_slot_browse_menu', {}, ctx, exec);
+        return this.deliverFromCtx(params.conversationId, next);
+      }
     }
 
     if (phase === 'more_menu') {
@@ -246,9 +264,17 @@ export class BookingOrchestrator {
           text: 'Decime qué día te queda bien. Podés escribir *jueves*, *mañana*, *20/07* o algo como *viernes a la tarde*.',
         };
       }
-      // Re-mostrar menú si tocó basura en more_menu
-      const { ctx: next } = await BookingToolExecutor.execute('show_slot_browse_menu', {}, ctx, exec);
-      return this.deliverFromCtx(params.conversationId, next);
+      // Día/fecha escrita directo sobre el menú de rangos → buscar esa fecha
+      if (looksLikeDateQuery(raw)) {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'find_available_slots',
+          { mode: 'EXACT_DATE', date_query: raw, exclude_shown: false, limit: 3 },
+          ctx,
+          exec,
+        );
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+      return null;
     }
 
     if (phase === 'awaiting_date') {
@@ -273,9 +299,12 @@ export class BookingOrchestrator {
     }
 
     if (phase === 'picking_day') {
-      const days = ctx.agentState.availableDays || [];
+      const days = (ctx.agentState.availableDays || []).slice(0, 8);
       const byIndex = /^\d+$/.test(input) ? days[parseInt(input, 10) - 1] : null;
-      const byLabel = days.find((d) => normalizeInput(d.label) === input || d.date === input);
+      const byLabel = days.find((d) => {
+        const label = normalizeInput(d.label);
+        return label === input || d.date === input || label.includes(input) || input.includes(label);
+      });
       const day = byIndex || byLabel;
       if (day) {
         const { ctx: next } = await BookingToolExecutor.execute(
@@ -286,7 +315,6 @@ export class BookingOrchestrator {
         );
         return this.deliverFromCtx(params.conversationId, next);
       }
-      // Usuario escribió una fecha libre estando en picking_day
       if (looksLikeDateQuery(raw)) {
         const { ctx: next } = await BookingToolExecutor.execute(
           'find_available_slots',
@@ -313,7 +341,6 @@ export class BookingOrchestrator {
           ctx,
           exec,
         );
-        // Si falló y hay alternativas, mostrarlas; si ok, una frase corta + seguir con agente no hace falta
         if (next.agentState.uiPresentation?.options?.length) {
           return this.deliverFromCtx(params.conversationId, next);
         }
