@@ -6,13 +6,26 @@ import { BookingFlowService, type FlowHandleResult } from './booking-flow.servic
 import { BookingAiService } from './booking-ai.service';
 import { matchServiceFromText } from './booking-flow-nav.service';
 import { BookingExpiryService } from './booking-notification.service';
+import { BookingToolExecutor } from './booking-tool-executor.service';
+import type { BookingConversationContext } from './booking-agent.types';
+import { looksLikeDateQuery } from './booking-datetime.service';
 
 const AUDIO_BLOCK_MSG = '🎤 Por ahora la turnera funciona solo con mensajes de *texto*. Escribime lo que necesitás y te ayudo con la reserva 🌿';
 
 const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
+const MORE_SLOTS_LABEL = 'ver más horarios';
+const MORE_MENU = {
+  thisWeek: 'esta semana',
+  nextWeek: 'semana proxima',
+  pickDate: 'elegir fecha',
+} as const;
 
 function normalizeInput(text: string): string {
-  return text.trim().toLowerCase();
+  return text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
 }
 
 function isMenuCommand(input: string): boolean {
@@ -125,6 +138,10 @@ export class BookingOrchestrator {
       return this.handleCancelIntent(params, ctx);
     }
 
+    // Menú de horarios: routing duro (no LLM) — Ver más / rangos / elegir fecha / día
+    const browseHandled = await this.handleBrowseRouting(params, ctx, settings);
+    if (browseHandled) return browseHandled;
+
     if (ctx.agentState.greetingPending) {
       const specific = await this.looksLikeSpecificIntent(params.tenantId, params.text, input);
       if (!specific) {
@@ -145,22 +162,219 @@ export class BookingOrchestrator {
       return BookingCheckoutService.handle(params);
     }
 
-    await BookingContextService.save(params.conversationId, nextCtx);
+    return this.deliverAgentResult(params.conversationId, reply, nextCtx);
+  }
+
+  private static toolExec(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+    },
+    settings: any,
+  ) {
+    return {
+      tenantId: params.tenantId,
+      conversationId: params.conversationId,
+      leadId: params.leadId,
+      phone: params.phone,
+      settings,
+    };
+  }
+
+  /** Routing determinístico del segundo nivel de disponibilidad. */
+  private static async handleBrowseRouting(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+      profileName?: string | null;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    const phase = ctx.agentState.browsePhase;
+    if (!phase) return null;
+
+    const input = normalizeInput(params.text);
+    const raw = params.text.trim();
+    const exec = this.toolExec(params, settings);
+
+    // "Ver más" desde propuesta de slots
+    if (
+      (phase === 'presenting_slots' || phase === 'day_slots' || phase === 'picking_day')
+      && (input === MORE_SLOTS_LABEL || input === '3' || input === 'ver mas' || /ver mas horarios|mas horarios|otros horarios/.test(input))
+    ) {
+      const { ctx: next } = await BookingToolExecutor.execute('show_slot_browse_menu', {}, ctx, exec);
+      return this.deliverFromCtx(params.conversationId, next);
+    }
+
+    if (phase === 'more_menu') {
+      if (input === MORE_MENU.thisWeek || input === '1') {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'get_available_days',
+          { range: 'this_week' },
+          ctx,
+          exec,
+        );
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+      if (input === MORE_MENU.nextWeek || input === '2' || input === 'proxima semana' || input === 'la semana proxima') {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'get_available_days',
+          { range: 'next_week' },
+          ctx,
+          exec,
+        );
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+      if (input === MORE_MENU.pickDate || input === '3' || input === 'elegir dia' || input === 'otra fecha') {
+        await BookingContextService.save(params.conversationId, {
+          ...ctx,
+          agentState: {
+            ...ctx.agentState,
+            browsePhase: 'awaiting_date',
+            datePreference: { mode: 'EXACT_DATE', daypart: ctx.agentState.datePreference?.daypart || 'ANY' },
+            uiPresentation: null,
+          },
+        });
+        return {
+          handled: true,
+          text: 'Decime qué día te queda bien. Podés escribir *jueves*, *mañana*, *20/07* o algo como *viernes a la tarde*.',
+        };
+      }
+      // Re-mostrar menú si tocó basura en more_menu
+      const { ctx: next } = await BookingToolExecutor.execute('show_slot_browse_menu', {}, ctx, exec);
+      return this.deliverFromCtx(params.conversationId, next);
+    }
+
+    if (phase === 'awaiting_date') {
+      if (!looksLikeDateQuery(raw) && raw.length < 3) {
+        return {
+          handled: true,
+          text: 'Necesito una fecha o día. Ej: *jueves*, *mañana*, *25/07* o *el viernes después de las 17*.',
+        };
+      }
+      const { ctx: next } = await BookingToolExecutor.execute(
+        'find_available_slots',
+        {
+          mode: 'EXACT_DATE',
+          date_query: raw,
+          exclude_shown: false,
+          limit: 3,
+        },
+        ctx,
+        exec,
+      );
+      return this.deliverFromCtx(params.conversationId, next);
+    }
+
+    if (phase === 'picking_day') {
+      const days = ctx.agentState.availableDays || [];
+      const byIndex = /^\d+$/.test(input) ? days[parseInt(input, 10) - 1] : null;
+      const byLabel = days.find((d) => normalizeInput(d.label) === input || d.date === input);
+      const day = byIndex || byLabel;
+      if (day) {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'get_slots_for_day',
+          { date: day.date },
+          ctx,
+          exec,
+        );
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+      // Usuario escribió una fecha libre estando en picking_day
+      if (looksLikeDateQuery(raw)) {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'find_available_slots',
+          { mode: 'EXACT_DATE', date_query: raw, exclude_shown: false, limit: 3 },
+          ctx,
+          exec,
+        );
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+    }
+
+    if (phase === 'presenting_slots' || phase === 'day_slots') {
+      const slots = ctx.agentState.listedSlots || [];
+      const byIndex = /^\d+$/.test(input) ? slots[parseInt(input, 10) - 1] : null;
+      const byLabel = slots.find((s) => {
+        const n = normalizeInput(s.label);
+        return n === input || normalizeInput(s.time) === input || n.includes(input);
+      });
+      const pick = byIndex || byLabel;
+      if (pick) {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'confirm_slot',
+          { date: pick.date, time: pick.time, label: pick.label },
+          ctx,
+          exec,
+        );
+        // Si falló y hay alternativas, mostrarlas; si ok, una frase corta + seguir con agente no hace falta
+        if (next.agentState.uiPresentation?.options?.length) {
+          return this.deliverFromCtx(params.conversationId, next);
+        }
+        if (next.agentState.offeredSlot?.confirmed) {
+          await BookingContextService.save(params.conversationId, next);
+          const slotLabel = next.agentState.offeredSlot.label;
+          if (!next.agentState.customer?.nameConfirmed) {
+            return {
+              handled: true,
+              text: `Quedó anotado: *${slotLabel}*.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.`,
+            };
+          }
+          if (!next.agentState.customer?.notesCollected) {
+            return {
+              handled: true,
+              text: `Quedó anotado: *${slotLabel}*.\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
+            };
+          }
+          const { ctx: checkoutCtx, result } = await BookingToolExecutor.execute(
+            'initiate_checkout',
+            {},
+            next,
+            exec,
+          );
+          if (result.ok && checkoutCtx.checkout) {
+            return BookingCheckoutService.handle({ ...params, text: params.text });
+          }
+          return this.deliverFromCtx(params.conversationId, checkoutCtx, result.error || undefined);
+        }
+      }
+    }
+
+    return null;
+  }
+
+  private static async deliverFromCtx(
+    conversationId: string,
+    ctx: BookingConversationContext,
+    replyFallback?: string,
+  ): Promise<FlowHandleResult> {
+    return this.deliverAgentResult(conversationId, replyFallback || '', ctx);
+  }
+
+  private static async deliverAgentResult(
+    conversationId: string,
+    reply: string,
+    nextCtx: BookingConversationContext,
+  ): Promise<FlowHandleResult> {
+    await BookingContextService.save(conversationId, nextCtx);
 
     const ui = nextCtx.agentState.uiPresentation;
     if (ui?.options?.length) {
-      // Consumir presentation para no re-mostrar botones viejos en el próximo turno
-      await BookingContextService.save(params.conversationId, {
+      await BookingContextService.save(conversationId, {
         ...nextCtx,
         agentState: { ...nextCtx.agentState, uiPresentation: null },
       });
-      const body = (reply && reply.trim().length > 0 && reply.trim().length <= 200)
-        ? reply.trim()
-        : ui.body;
-      return BookingFlowService.buildOptionsReply(body, ui.options);
+      // Siempre el body de la tool: evita menú duplicado por el LLM
+      return BookingFlowService.buildOptionsReply(ui.body, ui.options);
     }
 
-    return { handled: true, text: reply };
+    return { handled: true, text: reply || 'Contame en qué te ayudo 🌿' };
   }
 
   private static async runAgent(
@@ -206,21 +420,7 @@ export class BookingOrchestrator {
       ctx: { ...ctx, agentState: { ...ctx.agentState, mode: 'booking' } },
       settings: settings!,
     });
-    await BookingContextService.save(params.conversationId, nextCtx);
-
-    const ui = nextCtx.agentState.uiPresentation;
-    if (ui?.options?.length) {
-      await BookingContextService.save(params.conversationId, {
-        ...nextCtx,
-        agentState: { ...nextCtx.agentState, uiPresentation: null },
-      });
-      const body = (reply && reply.trim().length > 0 && reply.trim().length <= 280)
-        ? reply.trim()
-        : ui.body;
-      return BookingFlowService.buildOptionsReply(body, ui.options);
-    }
-
-    return { handled: true, text: reply };
+    return this.deliverAgentResult(params.conversationId, reply, nextCtx);
   }
 
   private static async looksLikeSpecificIntent(

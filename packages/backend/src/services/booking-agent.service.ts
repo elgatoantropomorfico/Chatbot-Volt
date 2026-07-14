@@ -169,11 +169,10 @@ FLUJO DE HORARIOS (disponibilidad primero — estilo Calendly/grandes apps):
 1. Con servicio confirmado, NO preguntes "¿para cuándo?". Llamá find_available_slots(mode=ASAP, limit=2).
 2. El sistema muestra 2 horarios reales + "Ver más horarios". Tu mensaje: una frase corta de intro; no listes de nuevo todos los slots.
 3. Si elige un horario → confirm_slot con date/time de listedSlots.
-4. Si elige "Ver más horarios" / "otro" / "más" → show_slot_browse_menu (NO vuelvas a llamar ASAP sin exclude).
-5. Menú Ver más: Esta semana → get_available_days(range=this_week); Semana próxima → next_week; Elegir fecha → pedí la fecha y find_available_slots(date_query=...).
-6. Tras get_available_days, el usuario elige un día → get_slots_for_day(date).
-7. Si pide "otros horarios" sin rango → find_available_slots(exclude_shown=true).
-8. Si fecha exacta sin cupo, la tool ya trae fallback cercano: presentalo.
+4. "Ver más" / menú Esta semana / Semana próxima / Elegir fecha / elegir día o slot de botones: el SISTEMA lo resuelve solo. No rearmes esos menús ni vuelvas a listar opciones.
+5. Si browsePhase=awaiting_date: pedí SOLO la fecha (no llames ASAP ni re-muestres el menú de rangos).
+6. Si pide "otros horarios" en texto libre → find_available_slots(exclude_shown=true).
+7. Si fecha exacta sin cupo, la tool ya trae fallback cercano: presentalo.
 
 INTEGRIDAD:
 - NUNCA menciones fecha/hora concreta sin haber llamado find_available_slots / get_available_days / get_slots_for_day en ESTE intercambio.

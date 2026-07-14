@@ -341,8 +341,6 @@ async function processMessage(job: Job<IncomingMessage>) {
     console.error('⚠️ Booking flow error (non-fatal):', bookingErr.message);
   }
 
-  let bookingFlowResult: null = null;
-
   // 5. Check for WooCommerce intent (wrapped in try/catch to prevent crashes)
   let wooDirectResponse: string | null = null;
   try {
@@ -539,12 +537,9 @@ async function processMessage(job: Job<IncomingMessage>) {
     console.error('⚠️ WooCommerce error (non-fatal):', wooErr.message || wooErr);
   }
 
-  // 6. If booking or WooCommerce handled it directly, send that response
+  // 6. If WooCommerce handled it directly, send that response; else OpenAI
   let aiResponse: string;
-  if (bookingFlowResult?.text) {
-    console.log(`📅 Booking direct response (${bookingFlowResult.text.length} chars)`);
-    aiResponse = bookingFlowResult.text;
-  } else if (wooDirectResponse) {
+  if (wooDirectResponse) {
     console.log(`📤 WooCommerce direct response (${wooDirectResponse.length} chars)`);
     aiResponse = wooDirectResponse;
   } else {
@@ -568,35 +563,11 @@ async function processMessage(job: Job<IncomingMessage>) {
   }
 
   // 8. Send response via WhatsApp
-  let providerMessageId: string | null = null;
-  if (bookingFlowResult?.interactive) {
-    const ix = bookingFlowResult.interactive;
-    // El body del interactivo puede ser más corto que el texto completo (respuesta IA + menú)
-    let body = ix.body;
-    if (bookingFlowResult.text && bookingFlowResult.text.length > body.length) {
-      const enriched = bookingFlowResult.text
-        .replace(/\n\n(?:\d+️⃣[^\n]+\n?)+$/u, '')
-        .trim()
-        .slice(0, 1020);
-      if (enriched.length > body.length) body = enriched;
-    }
-    providerMessageId = await WhatsAppService.sendInteractive({
-      phoneNumberId: channel.phoneNumberId,
-      to: data.from,
-      body,
-      type: ix.type,
-      buttons: ix.buttons,
-      listButtonText: ix.listButtonText,
-      listRows: ix.listRows,
-      listSectionTitle: ix.listSectionTitle,
-    });
-  } else {
-    providerMessageId = await WhatsAppService.sendTextMessage({
-      phoneNumberId: channel.phoneNumberId,
-      to: data.from,
-      text: aiResponse,
-    });
-  }
+  const providerMessageId = await WhatsAppService.sendTextMessage({
+    phoneNumberId: channel.phoneNumberId,
+    to: data.from,
+    text: aiResponse,
+  });
 
   // 8. Save outgoing message
   await ConversationService.saveOutgoingMessage(conversation.id, aiResponse, providerMessageId);

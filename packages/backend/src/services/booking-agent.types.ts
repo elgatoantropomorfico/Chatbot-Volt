@@ -4,7 +4,12 @@ export type AgentMode = 'idle' | 'booking';
 
 export type DatePreferenceMode = 'ASAP' | 'RANGE' | 'EXACT_DATE';
 export type Daypart = 'ANY' | 'MORNING' | 'AFTERNOON';
-export type BrowsePhase = 'presenting_slots' | 'more_menu' | 'picking_day' | 'day_slots';
+export type BrowsePhase =
+  | 'presenting_slots'
+  | 'more_menu'
+  | 'awaiting_date'
+  | 'picking_day'
+  | 'day_slots';
 
 export interface AgentServiceRef {
   id: string;
