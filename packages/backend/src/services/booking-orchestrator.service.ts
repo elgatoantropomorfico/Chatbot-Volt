@@ -162,7 +162,8 @@ export class BookingOrchestrator {
       return BookingCheckoutService.handle(params);
     }
 
-    return this.deliverAgentResult(params.conversationId, reply, nextCtx);
+    const withSlots = await this.ensureAvailabilityUi(params, nextCtx, settings);
+    return this.deliverAgentResult(params.conversationId, reply, withSlots);
   }
 
   private static toolExec(
@@ -376,6 +377,91 @@ export class BookingOrchestrator {
     return null;
   }
 
+  private static rebuildUiFromState(ctx: BookingConversationContext): BookingConversationContext {
+    const a = ctx.agentState;
+    if (a.uiPresentation?.options?.length) return ctx;
+
+    if (
+      (a.browsePhase === 'presenting_slots' || a.browsePhase === 'day_slots')
+      && a.listedSlots?.length
+    ) {
+      return {
+        ...ctx,
+        agentState: {
+          ...a,
+          uiPresentation: {
+            type: a.browsePhase === 'day_slots' ? 'day_slots' : 'quick_slots',
+            body: a.browsePhase === 'day_slots'
+              ? 'Horarios disponibles:'
+              : 'Estos son los primeros horarios disponibles:',
+            options: [
+              ...a.listedSlots.map((s) => (a.browsePhase === 'day_slots' ? s.time : s.label)),
+              'Ver más horarios',
+            ],
+          },
+        },
+      };
+    }
+
+    if (a.browsePhase === 'picking_day' && a.availableDays?.length) {
+      return {
+        ...ctx,
+        agentState: {
+          ...a,
+          uiPresentation: {
+            type: 'available_days',
+            body: 'Tengo disponibilidad estos días:',
+            options: [...a.availableDays.slice(0, 8).map((d) => d.label), 'Ver más horarios'],
+          },
+        },
+      };
+    }
+
+    if (a.browsePhase === 'more_menu') {
+      return {
+        ...ctx,
+        agentState: {
+          ...a,
+          uiPresentation: {
+            type: 'more_menu',
+            body: '¿Cómo preferís buscar?',
+            options: ['Esta semana', 'Semana próxima', 'Elegir fecha'],
+          },
+        },
+      };
+    }
+
+    return ctx;
+  }
+
+  private static async ensureAvailabilityUi(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<BookingConversationContext> {
+    let next = this.rebuildUiFromState(ctx);
+    const a = next.agentState;
+
+    if (!a.service?.confirmed) return next;
+    if (a.offeredSlot?.confirmed) return next;
+    if (a.browsePhase === 'more_menu' || a.browsePhase === 'awaiting_date') return next;
+    if (a.uiPresentation?.options?.length) return next;
+
+    // Servicio confirmado sin propuesta visible → ASAP obligatorio
+    const { ctx: searched } = await BookingToolExecutor.execute(
+      'find_available_slots',
+      { mode: 'ASAP', limit: 2, exclude_shown: false },
+      next,
+      this.toolExec(params, settings),
+    );
+    return searched;
+  }
+
   private static async deliverFromCtx(
     conversationId: string,
     ctx: BookingConversationContext,
@@ -389,15 +475,15 @@ export class BookingOrchestrator {
     reply: string,
     nextCtx: BookingConversationContext,
   ): Promise<FlowHandleResult> {
-    await BookingContextService.save(conversationId, nextCtx);
+    const ctx = this.rebuildUiFromState(nextCtx);
+    await BookingContextService.save(conversationId, ctx);
 
-    const ui = nextCtx.agentState.uiPresentation;
+    const ui = ctx.agentState.uiPresentation;
     if (ui?.options?.length) {
       await BookingContextService.save(conversationId, {
-        ...nextCtx,
-        agentState: { ...nextCtx.agentState, uiPresentation: null },
+        ...ctx,
+        agentState: { ...ctx.agentState, uiPresentation: null },
       });
-      // Siempre el body de la tool: evita menú duplicado por el LLM
       return BookingFlowService.buildOptionsReply(ui.body, ui.options);
     }
 

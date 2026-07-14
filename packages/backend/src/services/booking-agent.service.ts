@@ -67,7 +67,19 @@ export class BookingAgentService {
 
       if (choice.tool_calls?.length) {
         messages.push(choice);
-        for (const tc of choice.tool_calls) {
+        // Orden estable: confirmar servicio antes de buscar slots (evita que confirm limpie la búsqueda)
+        const ordered = [...choice.tool_calls].sort((a, b) => {
+          const rank = (name: string) => {
+            if (name === 'confirm_service') return 0;
+            if (name === 'match_service' || name === 'list_services') return 1;
+            if (name.startsWith('find_') || name.startsWith('get_')) return 2;
+            return 3;
+          };
+          const an = a.type === 'function' ? a.function.name : '';
+          const bn = b.type === 'function' ? b.function.name : '';
+          return rank(an) - rank(bn);
+        });
+        for (const tc of ordered) {
           if (tc.type !== 'function') continue;
           let args: Record<string, unknown> = {};
           try {
