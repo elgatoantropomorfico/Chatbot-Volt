@@ -20,6 +20,12 @@ export const RECOMMENDER_Q2_OPTIONS = [
   'Más corporal',
 ];
 
+export const RECOMMENDER_CONFIRM_OPTIONS = [
+  'Reservar este camino',
+  'Ver otros caminos',
+  'Hablar con persona',
+];
+
 const Q1_TAGS: Record<number, string[]> = {
   1: ['tension_acumulada', 'relajacion', 'equilibrio'],
   2: ['pies', 'piernas', 'cansancio'],

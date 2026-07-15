@@ -67,6 +67,12 @@ export interface AgentState {
   pendingCancel: { appointmentId: string; label: string } | null;
   /** Flujo "Ayudame a elegir" */
   recommender: RecommenderState | null;
+  /** Tras Q1/Q2: camino recomendado, esperando confirmar reserva */
+  pendingRecommend: {
+    id: string;
+    name: string;
+    recommendationText: string;
+  } | null;
   /** Tras "Ya sé cuál quiero": eligiendo de la lista de caminos */
   pickingServiceList?: boolean;
   customer: AgentCustomerRef | null;
@@ -139,6 +145,7 @@ export function emptyAgentState(overrides?: Partial<AgentState>): AgentState {
     uiPresentation: null,
     pendingCancel: null,
     recommender: null,
+    pendingRecommend: null,
     customer: null,
     ...overrides,
   };

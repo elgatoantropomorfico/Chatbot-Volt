@@ -84,6 +84,10 @@ function flagsFromV2Context(ctx: Record<string, unknown>): string[] {
     if (agent.pendingCancel) parts.push('cx:pend');
     const rec = agent.recommender as { step?: string } | null;
     if (rec?.step) push(flagPart('rec', rec.step));
+    if (agent.pendingRecommend) {
+      const pr = agent.pendingRecommend as { name?: string };
+      push(flagPart('prec', pr.name?.slice(0, 12) || '1'));
+    }
     if (agent.pickingServiceList) parts.push('psvc:1');
   }
 
