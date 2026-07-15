@@ -4,7 +4,7 @@ import { BookingAgentService } from './booking-agent.service';
 import { BookingCheckoutService } from './booking-checkout.service';
 import { BookingFlowService, type FlowHandleResult } from './booking-flow.service';
 import { BookingAiService } from './booking-ai.service';
-import { matchServiceFromText } from './booking-flow-nav.service';
+import { formatServicePreviewBody, matchServiceFromText } from './booking-flow-nav.service';
 import { BookingExpiryService } from './booking-notification.service';
 import { BookingToolExecutor } from './booking-tool-executor.service';
 import type { BookingConversationContext } from './booking-agent.types';
@@ -138,6 +138,32 @@ export class BookingOrchestrator {
       return this.handleCancelIntent(params, ctx);
     }
 
+    // Saludo puro con browse colgado → soltar el menú viejo y saludar limpio
+    if (BookingAiService.looksLikeGreeting(params.text) && params.text.trim().length < 60) {
+      const soft = {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          browsePhase: null as const,
+          uiPresentation: null,
+          greetingPending: false,
+        },
+      };
+      await BookingContextService.save(params.conversationId, soft);
+      ctx = soft;
+      // no return: si además pide reserva en el mismo debounce, sigue abajo
+      if (!/reserv|turno|quiero|necesito|camino|masaje|sesi[oó]n/.test(input)) {
+        return {
+          handled: true,
+          text: '¡Hola de nuevo! 😊 Contame qué camino querés reservar o qué necesitás.',
+        };
+      }
+    }
+
+    // Cambio/pedido de servicio: si matchea un camino, NO pasar por menú Ver más viejo
+    const serviceSwitch = await this.tryHardServiceSwitch(params, ctx, settings);
+    if (serviceSwitch) return serviceSwitch;
+
     // Menú de horarios: routing duro (no LLM) — Ver más / rangos / elegir fecha / día
     const browseHandled = await this.handleBrowseRouting(params, ctx, settings);
     if (browseHandled) return browseHandled;
@@ -182,6 +208,91 @@ export class BookingOrchestrator {
       phone: params.phone,
       settings,
     };
+  }
+
+  /**
+   * Si el usuario nombra un camino distinto (o arranca reserva), confirma + ASAP con botones.
+   * Evita el caso "Voy a buscar..." sin selector.
+   */
+  private static async tryHardServiceSwitch(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    const raw = params.text.trim();
+    if (raw.length < 6) return null;
+    // No interceptar taps numéricos del menú
+    if (/^\d+$/.test(raw.trim())) return null;
+
+    const services = await prisma.bookingService.findMany({
+      where: { tenantId: params.tenantId, isActive: true },
+      select: {
+        id: true, name: true, shortDescription: true, longDescription: true, serviceType: true,
+      },
+    });
+    const match = matchServiceFromText(raw, services);
+    if (!match) return null;
+
+    // No pisar checkout ni cancelación pendiente
+    if (ctx.checkout || ctx.agentState.pendingCancel) return null;
+
+    // Si ya hay horario confirmado del MISMO camino, dejar seguir nombre/notas
+    if (
+      ctx.agentState.offeredSlot?.confirmed
+      && ctx.agentState.service?.id === match.id
+    ) {
+      return null;
+    }
+
+    const sameAlready =
+      ctx.agentState.service?.confirmed
+      && ctx.agentState.service.id === match.id
+      && ctx.agentState.browsePhase === 'presenting_slots'
+      && (ctx.agentState.listedSlots?.length || 0) > 0;
+
+    if (sameAlready) {
+      // Reenviar selector del mismo camino
+      return this.deliverFromCtx(params.conversationId, this.rebuildUiFromState(ctx));
+    }
+
+    const exec = this.toolExec(params, settings);
+    let next = ctx;
+    const { ctx: afterConfirm } = await BookingToolExecutor.execute(
+      'confirm_service',
+      { service_id: match.id, service_name: match.name },
+      next,
+      exec,
+    );
+    next = afterConfirm;
+
+    const { ctx: afterSlots } = await BookingToolExecutor.execute(
+      'find_available_slots',
+      { mode: 'ASAP', limit: 2, exclude_shown: false },
+      next,
+      exec,
+    );
+    next = afterSlots;
+
+    const svc = await prisma.bookingService.findUnique({ where: { id: match.id } });
+    const intro = svc
+      ? formatServicePreviewBody(svc, match.name).split('¿Querés reservar')[0].trim()
+      : `Perfecto, *${match.name}*.`;
+
+    // Entregar selector; body corto + slots (sin chat vacío del LLM)
+    const delivered = this.rebuildUiFromState(next);
+    if (delivered.agentState.uiPresentation) {
+      delivered.agentState.uiPresentation = {
+        ...delivered.agentState.uiPresentation,
+        body: `${intro}\n\nEstos son los primeros horarios disponibles:`,
+      };
+    }
+    return this.deliverFromCtx(params.conversationId, delivered);
   }
 
   /** Routing determinístico del segundo nivel de disponibilidad. */
@@ -449,14 +560,16 @@ export class BookingOrchestrator {
 
     if (!a.service?.confirmed) return next;
     if (a.offeredSlot?.confirmed) return next;
-    if (a.browsePhase === 'more_menu' || a.browsePhase === 'awaiting_date') return next;
+    if (a.browsePhase === 'awaiting_date') return next;
+    // more_menu + servicio confirmado distinto / sin UI → forzar ASAP (cambio de camino)
+    if (a.browsePhase === 'more_menu' && a.uiPresentation?.options?.length) return next;
     if (a.uiPresentation?.options?.length) return next;
 
     // Servicio confirmado sin propuesta visible → ASAP obligatorio
     const { ctx: searched } = await BookingToolExecutor.execute(
       'find_available_slots',
       { mode: 'ASAP', limit: 2, exclude_shown: false },
-      next,
+      { ...next, agentState: { ...a, browsePhase: null, uiPresentation: null } },
       this.toolExec(params, settings),
     );
     return searched;
