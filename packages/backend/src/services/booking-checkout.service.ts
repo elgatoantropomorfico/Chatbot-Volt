@@ -16,9 +16,20 @@ function normalize(text: string): string {
 
 function isChangeScheduleChoice(text: string): boolean {
   const t = normalize(text);
+  // Texto explícito (incluye título de botón / list row)
+  if (t.includes('cambiar horario')) return true;
+  // Índice 3 del menú de pago SOLO si el mensaje es únicamente "3"
+  // (no "3\n..." de debounce, ni etiquetas de horario)
   if (t === '3') return true;
-  if (t === 'cambiar horario' || t === 'cambiar horarios') return true;
-  if (/cambiar\s+horario/.test(t)) return true;
+  return false;
+}
+
+function isPaymentHomeChoice(text: string): boolean {
+  const t = normalize(text);
+  if (t === 'volver al inicio' || t === 'menu' || t === 'menú') return true;
+  if (t.includes('volver al inicio')) return true;
+  // Opción 4 del menú de pago (3 formas de pago + home)
+  if (t === '4') return true;
   return false;
 }
 
@@ -178,8 +189,7 @@ Elegí cómo querés pagar:`;
     }
 
     // Volver al inicio / menu desde pago
-    const t = normalize(params.text);
-    if (t === '4' || t === 'volver al inicio' || t === 'menu' || t === 'menú') {
+    if (isPaymentHomeChoice(params.text)) {
       if (ctx.checkout.appointmentId) {
         await prisma.appointment.updateMany({
           where: {
@@ -203,13 +213,31 @@ Elegí cómo querés pagar:`;
 
     const updatedV1 = await BookingFlowService.getFlow(params.conversationId);
 
-    // Si el FSM se fue a slot_selection u otro estado pre-pago, recuperar v2 con priorAgent
+    // Si el FSM se fue a slot_selection u otro estado pre-pago, NO asumir "cambiar horario"
+    // (eso reabría ASAP y pisaba el slot recién confirmado). Re-mostrar pago o menú limpio.
     if (
       updatedV1.state === 'slot_selection'
       || updatedV1.state === 'booking_start'
       || updatedV1.state === 'idle'
     ) {
-      // Fallback: tratar como cambiar horario
+      if (ctx.checkout && ctx.checkout.phase === 'payment_choice') {
+        await BookingContextService.save(params.conversationId, {
+          version: 2,
+          agentState: {
+            ...priorAgent,
+            greetingPending: false,
+            mode: 'booking',
+            browsePhase: null,
+            uiPresentation: null,
+          },
+          checkout: ctx.checkout,
+          aiWindow: { fromMessageId: null },
+        });
+        return this.presentPaymentChoice({
+          tenantId: params.tenantId,
+          conversationId: params.conversationId,
+        });
+      }
       await BookingContextService.save(params.conversationId, {
         version: 2,
         agentState: {
@@ -224,12 +252,10 @@ Elegí cómo querés pagar:`;
         checkout: null,
         aiWindow: { fromMessageId: null },
       });
-      return this.changeSchedule({
-        tenantId: params.tenantId,
-        conversationId: params.conversationId,
-        leadId: params.leadId,
-        phone: params.phone,
-      });
+      return {
+        handled: true,
+        text: 'No entendí esa opción de pago. Escribí *1* para seña, *2* para pagar 100%, o *Cambiar horario*.',
+      };
     }
 
     await BookingContextService.syncFromV1Flow(params.conversationId, updatedV1, priorAgent);

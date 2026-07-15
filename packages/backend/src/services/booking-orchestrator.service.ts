@@ -184,6 +184,10 @@ export class BookingOrchestrator {
     }
 
     // Nombre / notas / entrar a pago — routing duro (no LLM)
+    // Browse de horarios ANTES: con nm/notes listos, un tap "3" no debe ir a notas/pago
+    const browseHandled = await this.handleBrowseRouting(params, ctx, settings);
+    if (browseHandled) return browseHandled;
+
     const checkoutProgress = await this.tryHardCheckoutProgress(params, ctx, settings);
     if (checkoutProgress) return checkoutProgress;
 
@@ -191,9 +195,7 @@ export class BookingOrchestrator {
     const serviceSwitch = await this.tryHardServiceSwitch(params, ctx, settings);
     if (serviceSwitch) return serviceSwitch;
 
-    // Menú de horarios: routing duro (no LLM) — Ver más / rangos / elegir fecha / día
-    const browseHandled = await this.handleBrowseRouting(params, ctx, settings);
-    if (browseHandled) return browseHandled;
+    // (browse ya evaluado arriba)
 
     if (ctx.agentState.greetingPending) {
       const specific = await this.looksLikeSpecificIntent(params.tenantId, params.text, input);
@@ -878,8 +880,11 @@ export class BookingOrchestrator {
     const phase = ctx.agentState.browsePhase;
     if (!phase) return null;
 
-    const input = normalizeInput(params.text);
-    const raw = params.text.trim();
+    // Debounce a veces pega el menú del bot + la opción; usar la última línea no vacía
+    const rawFull = params.text.trim();
+    const lastLine = rawFull.split(/\n+/).map((l) => l.trim()).filter(Boolean).pop() || rawFull;
+    const raw = lastLine;
+    const input = normalizeInput(raw);
     const exec = this.toolExec(params, settings);
 
     const isMoreSlots = (itemCountBeforeMore: number) => {
@@ -1045,7 +1050,11 @@ export class BookingOrchestrator {
             exec,
           );
           if (result.ok && checkoutCtx.checkout) {
-            return BookingCheckoutService.handle({ ...params, text: params.text });
+            // NUNCA reenviar el tap del slot a handle() — "3" se confunde con "Cambiar horario"
+            return BookingCheckoutService.presentPaymentChoice({
+              tenantId: params.tenantId,
+              conversationId: params.conversationId,
+            });
           }
           return this.deliverFromCtx(params.conversationId, checkoutCtx, result.error || undefined);
         }
