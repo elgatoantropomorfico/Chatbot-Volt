@@ -82,6 +82,9 @@ function flagsFromV2Context(ctx: Record<string, unknown>): string[] {
     const pref = agent.datePreference as { mode?: string } | null;
     if (pref?.mode) push(flagPart('pref', pref.mode));
     if (agent.pendingCancel) parts.push('cx:pend');
+    const rec = agent.recommender as { step?: string } | null;
+    if (rec?.step) push(flagPart('rec', rec.step));
+    if (agent.pickingServiceList) parts.push('psvc:1');
   }
 
   if (checkout?.phase) push(flagPart('chk', String(checkout.phase)));

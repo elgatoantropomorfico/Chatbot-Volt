@@ -178,7 +178,8 @@ HERRAMIENTAS (usá como una recepcionista — no inventes horarios ni precios):
 ${toolCatalogText()}
 
 FLUJO DE HORARIOS (disponibilidad primero — estilo Calendly/grandes apps):
-1. Con servicio confirmado, NO preguntes "¿para cuándo?". Llamá find_available_slots(mode=ASAP, limit=2).
+1. Menú principal: Ayudame a elegir / Ya sé cuál quiero / Ver precios — el SISTEMA lo resuelve (recomendador o lista). No inventes catálogo largo si el usuario tocó esas opciones.
+2. Con servicio confirmado, NO preguntes "¿para cuándo?". Llamá find_available_slots(mode=ASAP, limit=2).
 2. El sistema muestra 2 horarios reales + "Ver más horarios". Tu mensaje: una frase corta de intro; no listes de nuevo todos los slots.
 3. Si elige un horario → confirm_slot con date/time de listedSlots.
 4. "Ver más" / menú Esta semana / Semana próxima / Elegir fecha / elegir día o slot de botones: el SISTEMA lo resuelve solo. No rearmes esos menús ni vuelvas a listar opciones.

@@ -4,6 +4,12 @@ import { BookingAgentService } from './booking-agent.service';
 import { BookingCheckoutService } from './booking-checkout.service';
 import { BookingFlowService, type FlowHandleResult } from './booking-flow.service';
 import { BookingAiService } from './booking-ai.service';
+import { BookingPricingService } from './booking-pricing.service';
+import {
+  BookingRecommenderService,
+  RECOMMENDER_Q1_OPTIONS,
+  RECOMMENDER_Q2_OPTIONS,
+} from './booking-recommender.service';
 import { formatServicePreviewBody, matchServiceFromText } from './booking-flow-nav.service';
 import { BookingExpiryService } from './booking-notification.service';
 import { BookingToolExecutor } from './booking-tool-executor.service';
@@ -138,6 +144,18 @@ export class BookingOrchestrator {
       return this.handleCancelIntent(params, ctx);
     }
 
+    // Recomendador "Ayudame a elegir" (q1/q2)
+    const reco = await this.tryHardRecommender(params, ctx, settings);
+    if (reco) return reco;
+
+    // Lista "Ya sé cuál quiero"
+    const serviceListPick = await this.tryHardServiceListPick(params, ctx, settings);
+    if (serviceListPick) return serviceListPick;
+
+    // Menú principal: Ayudame / Ya sé / Ver precios
+    const mainMenu = await this.tryHardMainMenu(params, ctx, settings);
+    if (mainMenu) return mainMenu;
+
     // Saludo puro con browse colgado → soltar el menú viejo y saludar limpio
     if (BookingAiService.looksLikeGreeting(params.text) && params.text.trim().length < 60) {
       const soft = {
@@ -227,6 +245,299 @@ export class BookingOrchestrator {
       leadId: params.leadId,
       phone: params.phone,
       settings,
+    };
+  }
+
+  private static async tryHardServiceListPick(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    if (!ctx.agentState.pickingServiceList) return null;
+
+    const t = normalizeInput(params.text);
+    if (t === 'volver al inicio' || t === 'menu' || t === 'menú') {
+      await BookingContextService.resetAfterBooking(
+        params.conversationId,
+        ctx.agentState.customer?.fullName,
+      );
+      return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
+    }
+
+    const services = await prisma.bookingService.findMany({
+      where: { tenantId: params.tenantId, isActive: true },
+      orderBy: { sortOrder: 'asc' },
+    });
+    if (!services.length) return null;
+
+    let chosen = matchServiceFromText(params.text, services);
+    if (!chosen && /^\d+$/.test(t)) {
+      const n = parseInt(t, 10);
+      if (n >= 1 && n <= services.length) {
+        chosen = { id: services[n - 1].id, name: services[n - 1].name };
+      }
+    }
+    if (!chosen) {
+      return BookingFlowService.buildOptionsReply(
+        'Elegí un camino de la lista:',
+        services.map((s) => s.name),
+        true,
+      );
+    }
+
+    const exec = this.toolExec(params, settings);
+    let next: BookingConversationContext = {
+      ...ctx,
+      agentState: { ...ctx.agentState, pickingServiceList: false },
+    };
+    const { ctx: afterConfirm } = await BookingToolExecutor.execute(
+      'confirm_service',
+      { service_id: chosen.id, service_name: chosen.name },
+      next,
+      exec,
+    );
+    next = afterConfirm;
+    const { ctx: afterSlots } = await BookingToolExecutor.execute(
+      'find_available_slots',
+      { mode: 'ASAP', limit: 2, exclude_shown: false },
+      next,
+      exec,
+    );
+    const ui = afterSlots.agentState.uiPresentation;
+    if (ui?.options?.length) {
+      await BookingContextService.save(params.conversationId, {
+        ...afterSlots,
+        agentState: { ...afterSlots.agentState, uiPresentation: null, pickingServiceList: false },
+      });
+      const svc = services.find((s) => s.id === chosen!.id);
+      const intro = svc
+        ? formatServicePreviewBody(svc, chosen.name).split('¿Querés reservar')[0].trim()
+        : `Perfecto, *${chosen.name}*.`;
+      return BookingFlowService.buildOptionsReply(
+        `${intro}\n\nEstos son los primeros horarios disponibles:`,
+        ui.options,
+      );
+    }
+    await BookingContextService.save(params.conversationId, {
+      ...afterSlots,
+      agentState: { ...afterSlots.agentState, pickingServiceList: false },
+    });
+    return { handled: true, text: `Quedó anotado *${chosen.name}*. Por ahora no hay horarios libres.` };
+  }
+
+  private static async tryHardMainMenu(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    if (ctx.checkout || ctx.agentState.pendingCancel || ctx.agentState.recommender) return null;
+    if (ctx.agentState.pickingServiceList) return null;
+    if (ctx.agentState.browsePhase) return null;
+    // No pisar una reserva en curso (camino ya elegido / slots en pantalla)
+    if (ctx.agentState.service?.confirmed) return null;
+    if (ctx.agentState.listedSlots?.length) return null;
+
+    const raw = params.text.trim();
+    const t = normalizeInput(raw);
+    let pick: 1 | 2 | 3 | null = null;
+    if (t === '1' || t.includes('ayudame') || t === 'ayudame a elegir') pick = 1;
+    if (t === '2' || t.includes('ya se') || t.includes('cual quiero') || t.includes('se cual')) pick = 2;
+    if (t === '3' || t.includes('precio') || t.includes('ver precio')) pick = 3;
+    // Evitar falsos positivos en texto libre largo
+    if (pick && raw.length > 40 && !/^\d+$/.test(t)) {
+      if (pick === 1 && !/ayudame|elegir/.test(t)) pick = null;
+      if (pick === 2 && !/ya se|cual quiero/.test(t)) pick = null;
+      if (pick === 3 && !/precio/.test(t)) pick = null;
+    }
+    if (!pick) return null;
+
+    if (pick === 1) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          mode: 'booking',
+          greetingPending: false,
+          recommender: { step: 'q1' },
+          pickingServiceList: false,
+          browsePhase: null,
+          uiPresentation: null,
+          listedSlots: [],
+          service: null,
+          offeredSlot: null,
+        },
+      });
+      return BookingFlowService.buildOptionsReply(
+        '¿Qué sentís que necesitás hoy?',
+        RECOMMENDER_Q1_OPTIONS,
+        true,
+      );
+    }
+
+    if (pick === 2) {
+      const services = await prisma.bookingService.findMany({
+        where: { tenantId: params.tenantId, isActive: true },
+        orderBy: { sortOrder: 'asc' },
+        select: { name: true },
+      });
+      if (!services.length) {
+        return { handled: true, text: 'Por ahora no hay caminos cargados. Escribí *humano*.' };
+      }
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          mode: 'booking',
+          greetingPending: false,
+          recommender: null,
+          pickingServiceList: true,
+          browsePhase: null,
+        },
+      });
+      return BookingFlowService.buildOptionsReply(
+        'Estos son nuestros caminos. Elegí el que querés:',
+        services.map((s) => s.name),
+        true,
+      );
+    }
+
+    // pick === 3 Ver precios (solo texto + CTA, sin lista de slots)
+    const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
+    const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
+    const depositPct = settings.depositPercentage || 50;
+    const duration = settings.sessionDurationMinutes || 80;
+    const promoBlock = await BookingPricingService.formatActivePromosSummary(params.tenantId, basePrice);
+    const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
+    await BookingContextService.save(params.conversationId, {
+      ...ctx,
+      agentState: {
+        ...ctx.agentState,
+        greetingPending: false,
+        pricePreviewShown: true,
+        mode: 'booking',
+      },
+    });
+    return {
+      handled: true,
+      text: `💆‍♀️ *Valor de sesión* (${duration} min): ${price}${promoSection}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nDecime qué camino querés o escribí *1* si preferís que te ayude a elegir.`,
+    };
+  }
+
+  private static async tryHardRecommender(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    const rec = ctx.agentState.recommender;
+    if (!rec) return null;
+
+    const t = normalizeInput(params.text);
+    if (t === '4' || t === 'volver al inicio' || t === 'menu' || t === 'menú') {
+      await BookingContextService.resetAfterBooking(
+        params.conversationId,
+        ctx.agentState.customer?.fullName,
+      );
+      return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
+    }
+
+    const options = rec.step === 'q1' ? RECOMMENDER_Q1_OPTIONS : RECOMMENDER_Q2_OPTIONS;
+    let index: number | null = null;
+    if (/^\d+$/.test(t)) {
+      const n = parseInt(t, 10);
+      if (n >= 1 && n <= options.length) index = n;
+    } else {
+      const hit = options.findIndex((o) => normalizeInput(o) === t || normalizeInput(o).includes(t) || t.includes(normalizeInput(o).slice(0, 8)));
+      if (hit >= 0) index = hit + 1;
+    }
+
+    if (!index) {
+      return BookingFlowService.buildOptionsReply(
+        rec.step === 'q1' ? '¿Qué sentís que necesitás hoy?' : '¿Cómo te gustaría vivir la sesión?',
+        options,
+        true,
+      );
+    }
+
+    if (rec.step === 'q1') {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          recommender: { step: 'q2', q1: index },
+        },
+      });
+      return BookingFlowService.buildOptionsReply(
+        '¿Cómo te gustaría vivir la sesión?',
+        RECOMMENDER_Q2_OPTIONS,
+        true,
+      );
+    }
+
+    const q1 = rec.q1 || 1;
+    const best = await BookingRecommenderService.recommend(params.tenantId, q1, index);
+    if (!best) {
+      return { handled: true, text: 'No encontramos caminos disponibles. Escribí *humano*.' };
+    }
+
+    const exec = this.toolExec(params, settings);
+    let next: BookingConversationContext = {
+      ...ctx,
+      agentState: {
+        ...ctx.agentState,
+        recommender: null,
+        mode: 'booking' as const,
+      },
+    };
+    const { ctx: afterConfirm } = await BookingToolExecutor.execute(
+      'confirm_service',
+      { service_id: best.id, service_name: best.name },
+      next,
+      exec,
+    );
+    next = afterConfirm;
+
+    const { ctx: afterSlots } = await BookingToolExecutor.execute(
+      'find_available_slots',
+      { mode: 'ASAP', limit: 2, exclude_shown: false },
+      next,
+      exec,
+    );
+    next = afterSlots;
+
+    const ui = next.agentState.uiPresentation;
+    if (ui?.options?.length) {
+      await BookingContextService.save(params.conversationId, {
+        ...next,
+        agentState: { ...next.agentState, uiPresentation: null },
+      });
+      return BookingFlowService.buildOptionsReply(
+        `${best.recommendationText}\n\nEstos son los primeros horarios disponibles:`,
+        ui.options,
+      );
+    }
+
+    await BookingContextService.save(params.conversationId, next);
+    return {
+      handled: true,
+      text: `${best.recommendationText}\n\nPor ahora no hay horarios libres. Probá más tarde o escribí *humano*.`,
     };
   }
 

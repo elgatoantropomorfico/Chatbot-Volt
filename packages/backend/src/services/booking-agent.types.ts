@@ -11,6 +11,13 @@ export type BrowsePhase =
   | 'picking_day'
   | 'day_slots';
 
+export type RecommenderStep = 'q1' | 'q2';
+
+export interface RecommenderState {
+  step: RecommenderStep;
+  q1?: number;
+}
+
 export interface AgentServiceRef {
   id: string;
   name: string;
@@ -58,6 +65,10 @@ export interface AgentState {
   uiPresentation: UiPresentation | null;
   /** Cancelación pendiente de confirmación dura */
   pendingCancel: { appointmentId: string; label: string } | null;
+  /** Flujo "Ayudame a elegir" */
+  recommender: RecommenderState | null;
+  /** Tras "Ya sé cuál quiero": eligiendo de la lista de caminos */
+  pickingServiceList?: boolean;
   customer: AgentCustomerRef | null;
   pricePreviewShown?: boolean;
 }
@@ -127,6 +138,7 @@ export function emptyAgentState(overrides?: Partial<AgentState>): AgentState {
     browsePhase: null,
     uiPresentation: null,
     pendingCancel: null,
+    recommender: null,
     customer: null,
     ...overrides,
   };
