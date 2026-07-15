@@ -144,7 +144,7 @@ export class BookingOrchestrator {
         ...ctx,
         agentState: {
           ...ctx.agentState,
-          browsePhase: null as const,
+          browsePhase: null,
           uiPresentation: null,
           greetingPending: false,
         },
@@ -159,6 +159,10 @@ export class BookingOrchestrator {
         };
       }
     }
+
+    // Nombre / notas / entrar a pago — routing duro (no LLM)
+    const checkoutProgress = await this.tryHardCheckoutProgress(params, ctx, settings);
+    if (checkoutProgress) return checkoutProgress;
 
     // Cambio/pedido de servicio: si matchea un camino, NO pasar por menú Ver más viejo
     const serviceSwitch = await this.tryHardServiceSwitch(params, ctx, settings);
@@ -185,7 +189,23 @@ export class BookingOrchestrator {
 
     const { reply, ctx: nextCtx, checkoutStarted } = await this.runAgent(params, ctx, settings);
     if (checkoutStarted) {
-      return BookingCheckoutService.handle(params);
+      // Nunca interpretar el mensaje de notas como opción de pago
+      return BookingCheckoutService.presentPaymentChoice({
+        tenantId: params.tenantId,
+        conversationId: params.conversationId,
+      });
+    }
+
+    // Post-agente: si quedó listo para pago, forzar resumen
+    if (
+      nextCtx.agentState.service?.confirmed
+      && nextCtx.agentState.offeredSlot?.confirmed
+      && nextCtx.agentState.customer?.nameConfirmed
+      && nextCtx.agentState.customer?.notesCollected
+      && !nextCtx.checkout
+    ) {
+      const forced = await this.forceInitiateCheckout(params, nextCtx, settings);
+      if (forced) return forced;
     }
 
     const withSlots = await this.ensureAvailabilityUi(params, nextCtx, settings);
@@ -208,6 +228,118 @@ export class BookingOrchestrator {
       phone: params.phone,
       settings,
     };
+  }
+
+  /** Nombre → notas → initiate_checkout → resumen de pago (sin LLM). */
+  private static async tryHardCheckoutProgress(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+      profileName?: string | null;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    if (ctx.checkout || ctx.agentState.pendingCancel) return null;
+    if (!ctx.agentState.service?.confirmed || !ctx.agentState.offeredSlot?.confirmed) return null;
+
+    const raw = params.text.trim();
+    if (!raw || /^\d+$/.test(raw)) return null;
+    // No robar taps de menús de slots
+    if (ctx.agentState.browsePhase === 'presenting_slots'
+      || ctx.agentState.browsePhase === 'day_slots'
+      || ctx.agentState.browsePhase === 'more_menu'
+      || ctx.agentState.browsePhase === 'picking_day'
+      || ctx.agentState.browsePhase === 'awaiting_date') {
+      return null;
+    }
+
+    const exec = this.toolExec(params, settings);
+    const cust = ctx.agentState.customer;
+
+    // 1) Falta nombre
+    if (!cust?.nameConfirmed || !cust.fullName) {
+      if (!this.looksLikePersonName(raw)) return null;
+      const { ctx: named } = await BookingToolExecutor.execute(
+        'set_customer_name',
+        { full_name: raw },
+        ctx,
+        exec,
+      );
+      await BookingContextService.save(params.conversationId, named);
+      return {
+        handled: true,
+        text: `Gracias, *${raw.trim()}*.\n\n¿Hay algo que quieras avisar antes de la sesión? (piel sensible, preferencias, etc.)\nSi no hay nada, respondé *no*.`,
+      };
+    }
+
+    // 2) Faltan notas → este mensaje ES la nota (o skip)
+    if (!cust.notesCollected) {
+      const skip = /^(no|nada|ninguno|ninguna|nop|na|sin notas|no hay nada|nope)$/i.test(raw);
+      // Si parece otro pedido de servicio, no tratarlo como nota
+      const services = await prisma.bookingService.findMany({
+        where: { tenantId: params.tenantId, isActive: true },
+        select: { id: true, name: true, shortDescription: true, longDescription: true, serviceType: true },
+      });
+      if (!skip && matchServiceFromText(raw, services)) return null;
+
+      const { ctx: noted } = await BookingToolExecutor.execute(
+        'set_customer_notes',
+        skip ? { skip: true } : { notes: raw },
+        ctx,
+        exec,
+      );
+      return this.forceInitiateCheckout(params, noted, settings);
+    }
+
+    return null;
+  }
+
+  private static async forceInitiateCheckout(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    const exec = this.toolExec(params, settings);
+    const { result, ctx: next } = await BookingToolExecutor.execute(
+      'initiate_checkout',
+      {},
+      ctx,
+      exec,
+    );
+    if (!result.ok || !next.checkout) {
+      if (next.agentState.uiPresentation?.options?.length) {
+        return this.deliverFromCtx(params.conversationId, next);
+      }
+      return {
+        handled: true,
+        text: result.error || 'No pude iniciar el pago. Escribí *menu* o *humano*.',
+      };
+    }
+    return BookingCheckoutService.presentPaymentChoice({
+      tenantId: params.tenantId,
+      conversationId: params.conversationId,
+    });
+  }
+
+  private static looksLikePersonName(raw: string): boolean {
+    const t = raw.trim();
+    if (!t || t.length < 3 || t.includes('?')) return false;
+    if (BookingAiService.looksLikeQuestion(t)) return false;
+    if (!/^[\p{L}\s'.-]{2,80}$/u.test(t)) return false;
+    const words = t.split(/\s+/).filter(Boolean);
+    if (words.length < 2 || words.length > 5) return false;
+    const blocked = /^(quisiera|quiero|turno|reserv|camino|masaje|piel|no|hola|buen)/i;
+    if (words.some((w) => blocked.test(w))) return false;
+    return true;
   }
 
   /**

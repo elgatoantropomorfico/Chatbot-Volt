@@ -191,6 +191,7 @@ INTEGRIDAD:
 - show_price_info es solo texto de precios/promos; NO lista horarios.
 - Antes de initiate_checkout: servicio confirmado, horario confirmado, nombre confirmado, notas pedidas (o skip).
 - initiate_checkout es el único camino al pago; no simules links de Mercado Pago.
+- NUNCA digas que el turno está "confirmado" antes del pago/seña. Hasta entonces está pre-reservado / anotado.
 - Cancelar: list_my_appointments → request_cancel_appointment (NUNCA cancel_appointment directo). El sistema pide Sí/No.
 - Si confirm_slot o initiate_checkout reportan horario ocupado, presentá las alternativas sin inventar.
 - menu / empezar de nuevo → reset_booking.
