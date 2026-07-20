@@ -154,8 +154,13 @@ export class BookingOrchestrator {
     if (reco) return reco;
 
     // Tras Q1/Q2: confirmar / reservar el camino recomendado
+    const hadPendingRecommend = !!ctx.agentState.pendingRecommend;
     const recoConfirm = await this.tryHardRecommendConfirm(params, ctx, settings);
     if (recoConfirm) return recoConfirm;
+    // Texto libre limpió pendingRecommend en DB — refrescar ctx en memoria
+    if (hadPendingRecommend) {
+      ctx = await BookingContextService.load(params.conversationId);
+    }
 
     // Lista "Ya sé cuál quiero"
     const serviceListPick = await this.tryHardServiceListPick(params, ctx, settings);
@@ -572,8 +577,12 @@ export class BookingOrchestrator {
       return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
     }
 
-    // Preguntas de info / texto libre → dejar pasar al agente (no re-spamear la recomendación)
+    // Preguntas de info / texto libre → soltar la recomendación (no perpetuar botones)
     if (looksLikeServiceInfoQuery(raw) || raw.length > 48) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: { ...ctx.agentState, pendingRecommend: null },
+      });
       return null;
     }
 
@@ -592,8 +601,14 @@ export class BookingOrchestrator {
       else if (t === 'humano' || /^hablar\s+con/.test(t)) pick = 3;
     }
 
-    // Sin opción clara: el agente responde; pendingRecommend se mantiene
-    if (!pick) return null;
+    // Sin opción clara: limpiar recomendación y dejar al agente
+    if (!pick) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: { ...ctx.agentState, pendingRecommend: null },
+      });
+      return null;
+    }
 
     if (pick === 3 || isHumanCommand(t)) {
       await BookingContextService.save(params.conversationId, {
@@ -801,8 +816,8 @@ export class BookingOrchestrator {
     if (raw.length < 6) return null;
     // No interceptar taps numéricos del menú
     if (/^\d+$/.test(raw.trim())) return null;
-    // Pregunta de info (o post-recomendación): no forzar ASAP; deja al agente explicar
-    if (looksLikeServiceInfoQuery(raw) || ctx.agentState.pendingRecommend) return null;
+    // Pregunta de info: no forzar ASAP; deja al agente explicar
+    if (looksLikeServiceInfoQuery(raw)) return null;
 
     const services = await prisma.bookingService.findMany({
       where: { tenantId: params.tenantId, isActive: true },
@@ -1179,16 +1194,6 @@ export class BookingOrchestrator {
         agentState: { ...ctx.agentState, uiPresentation: null },
       });
       return BookingFlowService.buildOptionsReply(ui.body, ui.options);
-    }
-
-    // Tras explicar un camino, rearmar botones de confirmar recomendación
-    const pending = ctx.agentState.pendingRecommend;
-    if (pending && (reply || '').trim()) {
-      return BookingFlowService.buildOptionsReply(
-        `${reply.trim()}\n\nSi te cierra, podemos seguir con *${pending.name}*:`,
-        RECOMMENDER_CONFIRM_OPTIONS,
-        true,
-      );
     }
 
     return { handled: true, text: reply || 'Contame en qué te ayudo 🌿' };
