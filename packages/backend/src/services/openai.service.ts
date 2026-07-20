@@ -10,6 +10,8 @@ interface ChatContext {
   model: string;
   temperature: number;
   messages: { role: 'user' | 'assistant' | 'system'; content: string }[];
+  /** Inyectado DESPUÉS del historial para que el catálogo vigente gane sobre mensajes viejos */
+  priorityReminder?: string;
 }
 
 export class OpenAIService {
@@ -20,6 +22,9 @@ export class OpenAIService {
       messages: [
         { role: 'system', content: context.systemPrompt },
         ...context.messages,
+        ...(context.priorityReminder
+          ? [{ role: 'system' as const, content: context.priorityReminder }]
+          : []),
       ],
       max_tokens: 1024,
     });
@@ -203,8 +208,11 @@ export class OpenAIService {
     }
 
     if (conversation.summary) {
-      systemPrompt += `\n\nResumen de la conversación previa: ${conversation.summary}`;
+      systemPrompt += `\n\nResumen de la conversación previa (solo para continuidad de la charla; NO es catálogo de productos/programas):\n${conversation.summary}`;
     }
+
+    // Catálogo vigente (Zoho Ofertas) — se completa en el bloque Zoho y se reinyecta post-historial
+    let priorityReminder: string | undefined;
 
     // ============================================
     // LEAD CAPTURE PROMPT INJECTION
@@ -430,10 +438,13 @@ REGLAS:
         const capture = LeadProfileService.getZohoCaptureState(lead || {}, fieldConfigs);
 
         const offerField = fieldConfigs.find((f: any) => f.localKey === 'offerInterest');
+        const offerOptions = (offerField?.optionsJson as Array<{ value: string; description?: string }>) || [];
+        const validOfferValues = new Set(offerOptions.map((o) => o.value));
         let programsList = '';
-        if (offerField?.optionsJson) {
-          const options = offerField.optionsJson as Array<{ value: string; description?: string }>;
-          programsList = options.map((opt) => `- *${opt.value}*${opt.description ? `: ${opt.description}` : ''}`).join('\n');
+        if (offerOptions.length) {
+          programsList = offerOptions
+            .map((opt) => `- *${opt.value}*${opt.description ? `: ${opt.description}` : ''}`)
+            .join('\n');
         }
 
         const picklistInfo: string[] = [];
@@ -447,7 +458,14 @@ REGLAS:
         }
 
         const knownLines: string[] = [];
-        if (lead?.offerInterest) knownLines.push(`- Programa confirmado: ${lead.offerInterest}`);
+        // No perpetuar un programa viejo que ya no está en Ofertas
+        if (lead?.offerInterest && validOfferValues.has(lead.offerInterest)) {
+          knownLines.push(`- Programa confirmado: ${lead.offerInterest}`);
+        } else if (lead?.offerInterest && offerOptions.length) {
+          knownLines.push(
+            `- ⚠️ El lead había mencionado "${lead.offerInterest}", pero YA NO está en la oferta vigente. Pedile elegir uno de la lista actual.`,
+          );
+        }
         if (lead?.firstName) knownLines.push(`- Nombre: ${lead.firstName}`);
         if (lead?.lastName) knownLines.push(`- Apellido: ${lead.lastName}`);
         if (lead?.email) knownLines.push(`- Email: ${lead.email}`);
@@ -496,8 +514,14 @@ Preguntá: "¿Me decís tu nombre completo para dejarte registrado/a?"
 
 Sos un asistente que ayuda a potenciales estudiantes. Cuando alguien pregunte por carreras, cursos, ofertas académicas, inscripciones, costos, fechas, modalidades o requisitos, ES un lead.
 
-🎓 PROGRAMAS QUE OFRECEMOS (SOLO estos, no inventes otros):
+🎓 PROGRAMAS QUE OFRECEMOS (ÚNICA FUENTE DE VERDAD — viene de Ofertas/ZohoFieldConfig, NO del historial):
 ${programsList || '(sin programas configurados)'}
+
+⚠️ REGLA ABSOLUTA DE CATÁLOGO:
+- Ofrecé / listá / confirmá SOLO programas de la lista de arriba.
+- Si en mensajes anteriores del bot o en el resumen aparecen otros cursos/talleres, están DESACTUALIZADOS: ignorálos por completo.
+- Si el usuario pregunta por un programa que ya no está en la lista, decí que por el momento no está disponible y ofrecé únicamente los vigentes.
+- El historial sirve para continuidad de la charla (nombre, dudas), NUNCA como catálogo.
 ${picklistInfo.length > 0 ? '\n📊 OPCIONES DE CAMPOS:\n' + picklistInfo.join('\n') : ''}
 ${knownLines.length > 0 ? `\n✅ DATOS YA CONFIRMADOS:\n${knownLines.join('\n')}` : ''}
 ${capture.missing.length > 0 ? `\n⏳ DATOS QUE FALTAN (orden estricto — no saltees):\n${capture.missing.map((f, i) => `${i + 1}. ${f.label}`).join('\n')}` : ''}
@@ -519,6 +543,15 @@ REGLAS:
 - Si el usuario hace una pregunta en el medio, respondela y después retomá el paso pendiente.
 - Si solo quiere info general sin relación a programas (ubicación, horarios), respondé sin iniciar captura.
 - Cuando completes los datos principales (programa, nombre, email), confirmá el registro.`;
+
+        if (programsList) {
+          priorityReminder = `🔒 CATÁLOGO VIGENTE (prioridad sobre el historial de esta conversación):
+
+PROGRAMAS DISPONIBLES AHORA:
+${programsList}
+
+Ignorá cualquier otro curso/taller/programa mencionado en mensajes previos del asistente o en el resumen. Si no está en esta lista, no está disponible.`;
+        }
       }
       }
     }
@@ -540,6 +573,7 @@ REGLAS:
       model: botSettings.model,
       temperature: botSettings.temperature,
       messages,
+      priorityReminder,
     };
   }
 
@@ -562,7 +596,10 @@ REGLAS:
       messages: [
         {
           role: 'system',
-          content: 'Resume la siguiente conversación en 2-3 oraciones. Incluye los temas principales, intenciones del cliente y cualquier acción pendiente.',
+          content:
+            'Resume la siguiente conversación en 2-3 oraciones. Incluí temas, intención del cliente y acciones pendientes. '
+            + 'NO enumeres el catálogo de cursos/programas como oferta vigente del negocio: esos listados del bot pueden estar desactualizados. '
+            + 'Si el cliente mostró interés en un programa concreto, mencioná solo ese interés.',
         },
         { role: 'user', content: transcript },
       ],
