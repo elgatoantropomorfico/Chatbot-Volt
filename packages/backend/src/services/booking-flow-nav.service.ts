@@ -99,8 +99,8 @@ export function formatServicePreviewBody(
   return parts.join('\n');
 }
 
-function looksLikeServiceInfoQuery(q: string): boolean {
-  return /\b(info|informaci[oó]n|contame|cu[eé]ntame|saber m[aá]s|qu[eé] es|c[oó]mo es|detalle|detalles)\b/.test(q);
+export function looksLikeServiceInfoQuery(q: string): boolean {
+  return /\b(info|informaci[oó]n|contame|cu[eé]ntame|saber m[aá]s|qu[eé] es|c[oó]mo es|detalle|detalles|diferencia|compar|explica|explicame|explícame)\b/i.test(q);
 }
 
 function scoreServiceTextMatch(q: string, text: string | null | undefined, tokenWeight: number): number {

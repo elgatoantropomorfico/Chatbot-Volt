@@ -11,7 +11,11 @@ import {
   RECOMMENDER_Q1_OPTIONS,
   RECOMMENDER_Q2_OPTIONS,
 } from './booking-recommender.service';
-import { formatServicePreviewBody, matchServiceFromText } from './booking-flow-nav.service';
+import {
+  formatServicePreviewBody,
+  looksLikeServiceInfoQuery,
+  matchServiceFromText,
+} from './booking-flow-nav.service';
 import { BookingExpiryService } from './booking-notification.service';
 import { BookingToolExecutor } from './booking-tool-executor.service';
 import type { BookingConversationContext } from './booking-agent.types';
@@ -552,7 +556,8 @@ export class BookingOrchestrator {
     const pending = ctx.agentState.pendingRecommend;
     if (!pending) return null;
 
-    const t = normalizeInput(params.text);
+    const raw = params.text.trim();
+    const t = normalizeInput(raw);
     const homeIndex = RECOMMENDER_CONFIRM_OPTIONS.length + 1; // 4
     if (
       t === String(homeIndex)
@@ -567,30 +572,28 @@ export class BookingOrchestrator {
       return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
     }
 
+    // Preguntas de info / texto libre → dejar pasar al agente (no re-spamear la recomendación)
+    if (looksLikeServiceInfoQuery(raw) || raw.length > 48) {
+      return null;
+    }
+
     let pick: 1 | 2 | 3 | null = null;
     if (/^\d+$/.test(t)) {
       const n = parseInt(t, 10);
       if (n >= 1 && n <= 3) pick = n as 1 | 2 | 3;
     } else {
-      if (t.includes('reserv') || t.includes('este camino')) pick = 1;
-      else if (t.includes('otro') || t.includes('ver otro')) pick = 2;
-      else if (t.includes('hablar') || t.includes('persona') || t === 'humano') pick = 3;
-      else {
-        const hit = RECOMMENDER_CONFIRM_OPTIONS.findIndex((o) => {
-          const n = normalizeInput(o);
-          return n === t || n.includes(t) || t.includes(n.slice(0, 8));
-        });
-        if (hit >= 0) pick = (hit + 1) as 1 | 2 | 3;
-      }
+      const hit = RECOMMENDER_CONFIRM_OPTIONS.findIndex((o) => {
+        const n = normalizeInput(o);
+        return n === t || t.startsWith(n) || n.startsWith(t);
+      });
+      if (hit >= 0) pick = (hit + 1) as 1 | 2 | 3;
+      else if (/^(reservar|si|sí|dale|vamos|ok|oka)\b/.test(t) || /^reservar\s+este/.test(t)) pick = 1;
+      else if (/^ver\s+otros/.test(t) || t === 'otros caminos') pick = 2;
+      else if (t === 'humano' || /^hablar\s+con/.test(t)) pick = 3;
     }
 
-    if (!pick) {
-      return BookingFlowService.buildOptionsReply(
-        pending.recommendationText,
-        RECOMMENDER_CONFIRM_OPTIONS,
-        true,
-      );
-    }
+    // Sin opción clara: el agente responde; pendingRecommend se mantiene
+    if (!pick) return null;
 
     if (pick === 3 || isHumanCommand(t)) {
       await BookingContextService.save(params.conversationId, {
@@ -798,6 +801,8 @@ export class BookingOrchestrator {
     if (raw.length < 6) return null;
     // No interceptar taps numéricos del menú
     if (/^\d+$/.test(raw.trim())) return null;
+    // Pregunta de info (o post-recomendación): no forzar ASAP; deja al agente explicar
+    if (looksLikeServiceInfoQuery(raw) || ctx.agentState.pendingRecommend) return null;
 
     const services = await prisma.bookingService.findMany({
       where: { tenantId: params.tenantId, isActive: true },
@@ -1174,6 +1179,16 @@ export class BookingOrchestrator {
         agentState: { ...ctx.agentState, uiPresentation: null },
       });
       return BookingFlowService.buildOptionsReply(ui.body, ui.options);
+    }
+
+    // Tras explicar un camino, rearmar botones de confirmar recomendación
+    const pending = ctx.agentState.pendingRecommend;
+    if (pending && (reply || '').trim()) {
+      return BookingFlowService.buildOptionsReply(
+        `${reply.trim()}\n\nSi te cierra, podemos seguir con *${pending.name}*:`,
+        RECOMMENDER_CONFIRM_OPTIONS,
+        true,
+      );
     }
 
     return { handled: true, text: reply || 'Contame en qué te ayudo 🌿' };
