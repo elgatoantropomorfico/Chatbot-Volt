@@ -779,10 +779,18 @@ export class BookingOrchestrator {
         text: result.error || 'No pude iniciar el pago. Escribí *menu* o *humano*.',
       };
     }
-    return BookingCheckoutService.presentPaymentChoice({
-      tenantId: params.tenantId,
-      conversationId: params.conversationId,
-    });
+    try {
+      return await BookingCheckoutService.presentPaymentChoice({
+        tenantId: params.tenantId,
+        conversationId: params.conversationId,
+      });
+    } catch (err: any) {
+      console.error('⚠️ forceInitiateCheckout presentPaymentChoice:', err.message || err);
+      return {
+        handled: true,
+        text: 'Tu turno quedó armado. Escribí *1* para seña, *2* para pagar 100%, o *Cambiar horario*.',
+      };
+    }
   }
 
   private static looksLikePersonName(raw: string): boolean {

@@ -47,7 +47,13 @@ export class BookingCheckoutService {
 
     const checkout = ctx.checkout;
     // Mantener v2 en DB; no pisar con FSM salvo al tomar seña/100%
-    const pricing = await BookingPricingService.resolvePrice(params.tenantId, checkout.serviceId);
+    let priceLabel = 'consultá en sala';
+    try {
+      const pricing = await BookingPricingService.resolvePrice(params.tenantId, checkout.serviceId);
+      priceLabel = `$${pricing.finalPrice.toLocaleString('es-AR')}`;
+    } catch (err: any) {
+      console.warn('⚠️ presentPaymentChoice: no se pudo resolver precio:', err.message || err);
+    }
     const depositPct = settings.depositPercentage || 50;
     const policyShort = (settings.cancellationPolicyJson as any)?.policy_short_text
       || 'En caso de cancelación, la seña no es reembolsable.';
@@ -56,7 +62,7 @@ export class BookingCheckoutService {
 
 Camino: ${checkout.serviceName}
 Día y horario: ${checkout.slotLabel}
-Valor de la sesión: $${pricing.finalPrice.toLocaleString('es-AR')}
+Valor de la sesión: ${priceLabel}
 
 Para confirmar se abona una seña del ${depositPct}%. También podés abonar el 100% ahora.
 
@@ -203,6 +209,21 @@ Elegí cómo querés pagar:`;
       const keepName = ctx.agentState.customer?.fullName || ctx.checkout.customerName;
       await BookingContextService.resetAfterBooking(params.conversationId, keepName);
       return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
+    }
+
+    // En payment_choice solo 1/2 (seña/100%) siguen al cobro.
+    // "hola?", texto libre, etc. → re-mostrar resumen completo (no el menú corto del FSM).
+    if (ctx.checkout.phase === 'payment_choice') {
+      const t = normalize(params.text);
+      const isPaySena = t === '1' || /^(senar|señar)\b/.test(t) || /\bsena\b/.test(t);
+      const isPayTotal = t === '2'
+        || /pagar\s*100|100\s*%|pago\s*total|cien\s*por\s*ciento|abonar\s*todo/.test(t);
+      if (!isPaySena && !isPayTotal) {
+        return this.presentPaymentChoice({
+          tenantId: params.tenantId,
+          conversationId: params.conversationId,
+        });
+      }
     }
 
     const priorAgent = { ...ctx.agentState };

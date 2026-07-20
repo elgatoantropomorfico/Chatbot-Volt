@@ -332,6 +332,19 @@ async function processMessage(job: Job<IncomingMessage>) {
             });
           } catch (bookingErr: any) {
             console.error('⚠️ Booking orchestrator error:', bookingErr.message || bookingErr);
+            try {
+              await BookingResponseService.deliver({
+                phoneNumberId: channel.phoneNumberId,
+                to: data.from,
+                conversationId: conversation.id,
+                result: {
+                  handled: true,
+                  text: 'Tuve un problema al continuar tu reserva. Escribí *menu* o *hola* y retomo desde donde quedó.',
+                },
+              });
+            } catch (deliverErr: any) {
+              console.error('⚠️ Booking fallback deliver failed:', deliverErr.message || deliverErr);
+            }
           }
         },
       });
