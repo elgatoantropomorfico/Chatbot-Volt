@@ -75,11 +75,23 @@ export class BookingPricingService {
     serviceId: string,
     at: Date = new Date(),
   ): Promise<ResolvedPrice> {
-    const [settings, service, rule] = await Promise.all([
+    const [settings, byId, rule] = await Promise.all([
       prisma.bookingSettings.findUnique({ where: { tenantId } }),
       prisma.bookingService.findFirst({ where: { id: serviceId, tenantId } }),
       this.getActivePriceRule(tenantId, at),
     ]);
+
+    // Fallback: a veces llegó el nombre del camino en lugar del id
+    let service = byId;
+    if (!service && serviceId) {
+      service = await prisma.bookingService.findFirst({
+        where: {
+          tenantId,
+          isActive: true,
+          name: { equals: serviceId, mode: 'insensitive' },
+        },
+      });
+    }
 
     if (!settings || !service) {
       throw new Error('Booking settings or service not found');

@@ -67,7 +67,7 @@ export class BookingToolExecutor {
           result = await this.getSlotsForDay(exec, ctx, args);
           break;
         case 'confirm_service':
-          result = this.confirmService(ctx, args);
+          result = await this.confirmService(exec, ctx, args);
           break;
         case 'confirm_slot':
           result = await this.confirmSlot(ctx, exec, args);
@@ -514,20 +514,49 @@ export class BookingToolExecutor {
     };
   }
 
-  private static confirmService(ctx: BookingConversationContext, args: Record<string, unknown>): ToolResult {
-    const serviceId = String(args.service_id || '');
-    const serviceName = String(args.service_name || '');
-    if (!serviceId || !serviceName) {
-      return { ok: false, error: 'service_id y service_name requeridos' };
+  private static async confirmService(
+    exec: ToolExecutionContext,
+    ctx: BookingConversationContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    const rawId = String(args.service_id || '').trim();
+    const rawName = String(args.service_name || '').trim();
+    if (!rawId && !rawName) {
+      return { ok: false, error: 'service_id o service_name requerido' };
     }
+
+    const services = await prisma.bookingService.findMany({
+      where: { tenantId: exec.tenantId, isActive: true },
+      select: { id: true, name: true },
+    });
+
+    // El LLM a veces manda el nombre como service_id — resolver siempre contra DB
+    let svc =
+      services.find((s) => s.id === rawId)
+      || services.find((s) => s.name.toLowerCase() === rawId.toLowerCase())
+      || services.find((s) => s.name.toLowerCase() === rawName.toLowerCase())
+      || null;
+
+    if (!svc && (rawId || rawName)) {
+      const match = matchServiceFromText(rawName || rawId, services);
+      if (match) svc = services.find((s) => s.id === match.id) || null;
+    }
+
+    if (!svc) {
+      return {
+        ok: false,
+        error: `No encontré el camino "${rawName || rawId}". Usá list_services / match_service.`,
+      };
+    }
+
     return {
       ok: true,
-      data: { confirmed: true, service: { id: serviceId, name: serviceName } },
+      data: { confirmed: true, service: { id: svc.id, name: svc.name } },
       contextPatch: {
         agentState: {
           ...ctx.agentState,
           mode: 'booking',
-          service: { id: serviceId, name: serviceName, confirmed: true },
+          service: { id: svc.id, name: svc.name, confirmed: true },
           listedSlots: [],
           shownSlotKeys: [],
           availableDays: [],
@@ -684,6 +713,34 @@ export class BookingToolExecutor {
       return { ok: false, error: 'Falta paso de notas (pedir o marcar que no hay)' };
     }
 
+    // Asegurar id real de DB (el LLM a veces dejó el nombre como id)
+    let serviceId = service.id;
+    let serviceName = service.name;
+    const byId = await prisma.bookingService.findFirst({
+      where: { id: serviceId, tenantId: exec.tenantId, isActive: true },
+      select: { id: true, name: true },
+    });
+    if (!byId) {
+      const byName = await prisma.bookingService.findFirst({
+        where: {
+          tenantId: exec.tenantId,
+          isActive: true,
+          OR: [
+            { name: { equals: serviceId, mode: 'insensitive' } },
+            { name: { equals: serviceName, mode: 'insensitive' } },
+          ],
+        },
+        select: { id: true, name: true },
+      });
+      if (!byName) {
+        return { ok: false, error: `No encontré el camino "${serviceName || serviceId}" en la agenda` };
+      }
+      serviceId = byName.id;
+      serviceName = byName.name;
+    } else {
+      serviceName = byId.name;
+    }
+
     const status = await BookingAvailabilityService.getSlotStatus(
       exec.tenantId,
       offeredSlot.date,
@@ -692,7 +749,7 @@ export class BookingToolExecutor {
     if (status !== 'available') {
       const alts = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
         limit: 3,
-        serviceId: service.id,
+        serviceId,
       });
       const toShow = alts.map((s) => ({ date: s.date, time: s.time, label: s.label }));
       return {
@@ -702,6 +759,7 @@ export class BookingToolExecutor {
         contextPatch: {
           agentState: {
             ...ctx.agentState,
+            service: { id: serviceId, name: serviceName, confirmed: true },
             offeredSlot: null,
             listedSlots: toShow,
             browsePhase: 'presenting_slots',
@@ -723,8 +781,8 @@ export class BookingToolExecutor {
 
     const checkout = {
       phase: 'payment_choice' as const,
-      serviceId: service.id,
-      serviceName: service.name,
+      serviceId,
+      serviceName,
       slotDate: offeredSlot.date,
       slotTime: offeredSlot.time,
       slotLabel: offeredSlot.label,
@@ -738,7 +796,12 @@ export class BookingToolExecutor {
       data: { checkout_started: true, phase: 'payment_choice' },
       contextPatch: {
         checkout,
-        agentState: { ...ctx.agentState, mode: 'idle', uiPresentation: null },
+        agentState: {
+          ...ctx.agentState,
+          mode: 'idle',
+          uiPresentation: null,
+          service: { id: serviceId, name: serviceName, confirmed: true },
+        },
       },
     };
   }
