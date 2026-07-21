@@ -776,7 +776,7 @@ export class BookingToolExecutor {
     }
 
     const prior = await prisma.appointment.count({
-      where: { leadId: exec.leadId, status: 'confirmado' },
+      where: { leadId: exec.leadId, status: { in: ['confirmado', 'senado', 'completado'] } },
     });
 
     const checkout = {
@@ -811,7 +811,7 @@ export class BookingToolExecutor {
       where: {
         tenantId: exec.tenantId,
         leadId: exec.leadId,
-        status: { in: ['confirmado', 'pendiente_pago', 'pendiente_datos'] },
+        status: { in: ['confirmado', 'senado', 'pendiente_pago', 'pendiente_datos'] },
       },
       include: { service: true },
       orderBy: { appointmentDate: 'asc' },
@@ -850,7 +850,7 @@ export class BookingToolExecutor {
         id: appointmentId,
         tenantId: exec.tenantId,
         leadId: exec.leadId,
-        status: { in: ['confirmado', 'pendiente_pago', 'pendiente_datos'] },
+        status: { in: ['confirmado', 'senado', 'pendiente_pago', 'pendiente_datos'] },
       },
       include: { service: true },
     });
@@ -914,7 +914,7 @@ export class BookingToolExecutor {
         id: appointmentId,
         tenantId: exec.tenantId,
         leadId: exec.leadId,
-        status: { in: ['confirmado', 'pendiente_pago', 'pendiente_datos'] },
+        status: { in: ['confirmado', 'senado', 'pendiente_pago', 'pendiente_datos'] },
       },
       include: { service: true },
     });

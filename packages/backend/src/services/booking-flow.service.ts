@@ -751,7 +751,7 @@ export class BookingFlowService {
       where: {
         tenantId,
         OR: [{ leadId }, { customerPhone: phone }],
-        status: { in: ['confirmado', 'pendiente_pago'] },
+        status: { in: ['confirmado', 'senado', 'pendiente_pago'] },
         appointmentDate: { gte: today },
       },
       include: { service: true },
@@ -862,7 +862,7 @@ export class BookingFlowService {
 
     const selected = options[pick.index - 1];
     const apt = await prisma.appointment.findFirst({
-      where: { id: selected.id, tenantId, status: { in: ['confirmado', 'pendiente_pago'] } },
+      where: { id: selected.id, tenantId, status: { in: ['confirmado', 'senado', 'pendiente_pago'] } },
       include: { service: true },
     });
 
@@ -915,7 +915,7 @@ export class BookingFlowService {
       where: {
         id: flow.cancelAppointmentId,
         tenantId,
-        status: { in: ['confirmado', 'pendiente_pago'] },
+        status: { in: ['confirmado', 'senado', 'pendiente_pago'] },
       },
       include: { service: true },
     });
@@ -1773,7 +1773,7 @@ export class BookingFlowService {
     const prior = await prisma.appointment.count({
       where: {
         leadId,
-        status: { in: ['confirmado', 'completado'] },
+        status: { in: ['confirmado', 'senado', 'completado'] },
       },
     });
     return prior === 0;

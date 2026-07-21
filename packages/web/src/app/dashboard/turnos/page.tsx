@@ -32,6 +32,7 @@ import styles from './page.module.css';
 const STATUS_LABELS: Record<string, string> = {
   pendiente_datos: 'Pendiente datos',
   pendiente_pago: 'Pendiente pago',
+  senado: 'Señado (50%)',
   confirmado: 'Confirmado',
   cancelado: 'Cancelado',
   reprogramado: 'Reprogramado',
@@ -42,6 +43,7 @@ const STATUS_LABELS: Record<string, string> = {
 
 const STATUS_BADGE: Record<string, string> = {
   confirmado: styles.badgeConfirmado,
+  senado: styles.badgeSenado,
   pendiente_pago: styles.badgePendientePago,
   pendiente_datos: styles.badgePendienteDatos,
   cancelado: styles.badgeCancelado,
@@ -53,6 +55,7 @@ const STATUS_BADGE: Record<string, string> = {
 
 const STATUS_ICON: Record<string, typeof CheckCircle> = {
   confirmado: CheckCircle,
+  senado: CreditCard,
   pendiente_pago: CreditCard,
   pendiente_datos: Clock,
   cancelado: XCircle,
@@ -242,13 +245,13 @@ export default function TurnosPage() {
 
   const stats = useMemo(() => {
     const today = todayKey();
-    const confirmados = appointments.filter((a) => a.status === 'confirmado').length;
+    const confirmados = appointments.filter((a) => ['confirmado', 'senado'].includes(a.status)).length;
     const pendientesPago = appointments.filter((a) => a.status === 'pendiente_pago').length;
     const hoy = appointments.filter(
       (a) => dateKey(a.appointmentDate) === today && !['cancelado', 'vencido'].includes(a.status),
     ).length;
     const ingresos = appointments
-      .filter((a) => ['confirmado', 'completado'].includes(a.status))
+      .filter((a) => ['confirmado', 'senado', 'completado'].includes(a.status))
       .reduce((sum, a) => sum + Number(a.amountPaid || 0), 0);
     return { confirmados, pendientesPago, hoy, ingresos };
   }, [appointments]);
@@ -550,7 +553,9 @@ export default function TurnosPage() {
                 const count = byDate.get(cell.date)?.length || 0;
                 const isSelected = cell.date === selectedDate;
                 const isToday = cell.date === todayKey();
-                const hasConfirmed = byDate.get(cell.date)?.some((a) => a.status === 'confirmado');
+                const hasConfirmed = byDate.get(cell.date)?.some((a) =>
+                  ['confirmado', 'senado'].includes(a.status),
+                );
                 const hasPending = byDate.get(cell.date)?.some((a) =>
                   ['pendiente_pago', 'pendiente_datos'].includes(a.status),
                 );
@@ -881,7 +886,7 @@ export default function TurnosPage() {
             </div>
 
             <div className={styles.detailActions}>
-              {selected.status === 'confirmado' && (
+              {['confirmado', 'senado'].includes(selected.status) && (
                 <button
                   type="button"
                   className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}

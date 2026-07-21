@@ -18,6 +18,7 @@ import styles from '../sales/page.module.css';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'Todos los estados' },
+  { value: 'senado', label: 'Señado (50%)' },
   { value: 'confirmado', label: 'Confirmado' },
   { value: 'completado', label: 'Completado' },
   { value: 'pendiente_pago', label: 'Pendiente de pago' },

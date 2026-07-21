@@ -141,8 +141,8 @@ export class MercadoPagoService {
     });
     if (!appointment) return;
 
-    // Idempotent: ya confirmado — reintentar email si falló en el primer webhook
-    if (appointment.status === 'confirmado') {
+    // Idempotent: ya cobrado (seña o total) — reintentar email si falló en el primer webhook
+    if (appointment.status === 'confirmado' || appointment.status === 'senado') {
       await BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
       return;
     }
@@ -179,12 +179,17 @@ export class MercadoPagoService {
     }
 
     const balance = Math.max(0, Number(appointment.finalPrice) - paid);
+    const nextStatus = paymentType === 'total' ? 'confirmado' : 'senado';
 
     // Atomic confirm — MP may POST+GET at once; only the first wins and sends WhatsApp
     const confirmed = await prisma.appointment.updateMany({
-      where: { id: appointment.id, status: { not: 'confirmado' } },
+      where: {
+        id: appointment.id,
+        status: { notIn: ['confirmado', 'senado'] },
+      },
       data: {
-        status: 'confirmado',
+        status: nextStatus,
+        paymentType,
         mpPaymentId: String(paymentId),
         mpStatus: status,
         amountPaid: paid,
@@ -200,13 +205,13 @@ export class MercadoPagoService {
     await AppointmentStatusHistoryService.record({
       appointmentId: appointment.id,
       fromStatus: appointment.status,
-      toStatus: 'confirmado',
+      toStatus: nextStatus,
       source: 'mp',
       changedByName: 'Mercado Pago',
-      note: paymentType === 'total' ? 'Pago 100% aprobado' : 'Seña aprobada',
+      note: paymentType === 'total' ? 'Pago 100% aprobado' : 'Seña 50% aprobada → señado',
     });
 
-    console.log(`✅ Turno ${appointment.id} confirmado por MP — disparando notificaciones`);
+    console.log(`✅ Turno ${appointment.id} → ${nextStatus} por MP — disparando notificaciones`);
     try {
       await BookingNotificationService.sendPaymentConfirmation(appointment.id);
     } catch (err: any) {

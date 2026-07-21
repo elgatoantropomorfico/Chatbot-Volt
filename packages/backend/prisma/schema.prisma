@@ -58,6 +58,7 @@ enum IntegrationType {
 enum AppointmentStatus {
   pendiente_datos
   pendiente_pago
+  senado
   confirmado
   cancelado
   reprogramado

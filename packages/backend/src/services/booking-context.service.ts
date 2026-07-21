@@ -185,7 +185,7 @@ export class BookingContextService {
       return ctx;
     }
 
-    if (apt.status === 'confirmado') {
+    if (apt.status === 'confirmado' || apt.status === 'senado') {
       await this.finalizeAfterBooking(conversationId, apt.customerName || ctx.checkout.customerName);
       return this.load(conversationId);
     }

@@ -11,6 +11,7 @@ export interface AvailableSlot {
 
 const OCCUPYING_STATUSES: AppointmentStatus[] = [
   AppointmentStatus.confirmado,
+  AppointmentStatus.senado,
   AppointmentStatus.pendiente_pago,
   AppointmentStatus.pendiente_datos,
 ];

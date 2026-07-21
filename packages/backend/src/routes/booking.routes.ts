@@ -9,6 +9,7 @@ import { MercadoPagoService } from '../services/mercadopago.service';
 import { BookingNotificationService } from '../services/booking-notification.service';
 import { BookingSalesService } from '../services/booking-sales.service';
 import { AppointmentStatusHistoryService } from '../services/appointment-status-history.service';
+import { accountingForStatus } from '../services/appointment-accounting.service';
 
 function resolveTenantId(user: any, queryTenantId?: string): string | null {
   if (user.role === 'superadmin' && queryTenantId) return queryTenantId;
@@ -87,7 +88,7 @@ const appointmentCreateSchema = z.object({
   customerName: z.string().min(1),
   customerPhone: z.string().min(8),
   status: z.enum([
-    'pendiente_datos', 'pendiente_pago', 'confirmado', 'cancelado',
+    'pendiente_datos', 'pendiente_pago', 'senado', 'confirmado', 'cancelado',
     'reprogramado', 'completado', 'no_asistio', 'vencido',
   ]).default('confirmado'),
   customerNotes: z.string().nullable().optional(),
@@ -97,7 +98,7 @@ const appointmentCreateSchema = z.object({
 
 const appointmentPatchSchema = z.object({
   status: z.enum([
-    'pendiente_datos', 'pendiente_pago', 'confirmado', 'cancelado',
+    'pendiente_datos', 'pendiente_pago', 'senado', 'confirmado', 'cancelado',
     'reprogramado', 'completado', 'no_asistio', 'vencido',
   ]).optional(),
   customerName: z.string().nullable().optional(),
@@ -484,10 +485,16 @@ export async function bookingRoutes(app: FastifyInstance) {
         }
       : await BookingPricingService.resolvePrice(tenantId, service.id);
 
-    const amountPaid = body.data.amountPaid ?? (
-      ['confirmado', 'completado'].includes(body.data.status) ? pricing.finalPrice : 0
-    );
-    const balanceDue = Math.max(0, pricing.finalPrice - amountPaid);
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
+    const accounting = accountingForStatus({
+      status: body.data.status,
+      finalPrice: pricing.finalPrice,
+      depositPercentage: settings?.depositPercentage ?? 50,
+    });
+    // amountPaid explícito solo si el estado no impone contabilidad fuerte
+    const statusDriven = ['senado', 'confirmado', 'completado', 'pendiente_pago', 'pendiente_datos', 'vencido', 'cancelado', 'no_asistio', 'reprogramado'].includes(body.data.status);
+    const amountPaid = statusDriven ? accounting.amountPaid : (body.data.amountPaid ?? accounting.amountPaid);
+    const balanceDue = statusDriven ? accounting.balanceDue : Math.max(0, pricing.finalPrice - amountPaid);
 
     const lead = await getOrCreateLeadForAppointment(
       tenantId,
@@ -495,7 +502,6 @@ export async function bookingRoutes(app: FastifyInstance) {
       body.data.customerName,
     );
 
-    const now = new Date();
     const appointment = await prisma.appointment.create({
       data: {
         tenantId,
@@ -514,10 +520,11 @@ export async function bookingRoutes(app: FastifyInstance) {
         amountTotal: pricing.finalPrice,
         amountPaid,
         balanceDue,
+        paymentType: accounting.paymentType,
         customerNotes: body.data.customerNotes,
-        confirmedAt: ['confirmado', 'completado'].includes(body.data.status) ? now : null,
-        completedAt: body.data.status === 'completado' ? now : null,
-        cancelledAt: body.data.status === 'cancelado' ? now : null,
+        confirmedAt: accounting.confirmedAt ?? undefined,
+        completedAt: accounting.completedAt ?? undefined,
+        cancelledAt: accounting.cancelledAt ?? undefined,
       },
       include: { service: true, lead: { select: { id: true, name: true, phone: true } } },
     });
@@ -558,21 +565,34 @@ export async function bookingRoutes(app: FastifyInstance) {
 
     const data: any = { ...body.data };
     if (data.appointmentDate) data.appointmentDate = new Date(data.appointmentDate + (data.appointmentDate.includes('T') ? '' : 'T12:00:00'));
-    if (data.status === 'confirmado' && existing.status !== 'confirmado') data.confirmedAt = new Date();
-    if (data.status === 'cancelado' && existing.status !== 'cancelado') data.cancelledAt = new Date();
-    if (data.status === 'completado' && existing.status !== 'completado') data.completedAt = new Date();
 
     const finalPrice = data.finalPrice ?? Number(existing.finalPrice);
-    const amountPaid = data.amountPaid ?? Number(existing.amountPaid);
-    if (data.finalPrice != null || data.amountPaid != null) {
-      data.balanceDue = Math.max(0, finalPrice - amountPaid);
-      if (data.finalPrice != null) {
-        data.amountTotal = data.finalPrice;
-        data.listPrice = data.finalPrice;
-      }
+    if (data.finalPrice != null) {
+      data.amountTotal = data.finalPrice;
+      data.listPrice = data.finalPrice;
     }
 
-    const wasNotConfirmed = existing.status !== 'confirmado';
+    // Cambio de estado → contabilidad sincronizada (incluye revertir a estados inferiores)
+    if (data.status && data.status !== existing.status) {
+      const settings = await prisma.bookingSettings.findUnique({ where: { tenantId: existing.tenantId } });
+      const accounting = accountingForStatus({
+        status: data.status,
+        finalPrice,
+        depositPercentage: settings?.depositPercentage ?? 50,
+      });
+      data.amountPaid = accounting.amountPaid;
+      data.balanceDue = accounting.balanceDue;
+      data.amountTotal = accounting.amountTotal;
+      data.paymentType = accounting.paymentType;
+      if (accounting.confirmedAt !== undefined) data.confirmedAt = accounting.confirmedAt;
+      if (accounting.completedAt !== undefined) data.completedAt = accounting.completedAt;
+      if (accounting.cancelledAt !== undefined) data.cancelledAt = accounting.cancelledAt;
+    } else if (data.finalPrice != null || data.amountPaid != null) {
+      const amountPaid = data.amountPaid ?? Number(existing.amountPaid);
+      data.balanceDue = Math.max(0, finalPrice - amountPaid);
+    }
+
+    const wasNotBooked = !['confirmado', 'senado'].includes(existing.status);
     const appointment = await prisma.appointment.update({
       where: { id },
       data,
@@ -587,9 +607,15 @@ export async function bookingRoutes(app: FastifyInstance) {
         source: 'admin',
         changedByUserId: u?.userId || u?.id || null,
         changedByName: u?.name || u?.email || 'Admin',
+        note: `Estado → ${data.status} (contabilidad ajustada)`,
       });
     }
-    if (data.status === 'confirmado' && wasNotConfirmed && appointment.conversationId) {
+    if (
+      data.status &&
+      ['confirmado', 'senado'].includes(data.status) &&
+      wasNotBooked &&
+      appointment.conversationId
+    ) {
       void BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
     }
     return reply.send({ appointment });

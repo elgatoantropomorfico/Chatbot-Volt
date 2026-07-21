@@ -32,18 +32,18 @@ export function paymentBadge(apt: {
   const total = toNum(apt.finalPrice);
   const balance = toNum(apt.balanceDue);
 
-  if (apt.status === 'completado' || (total > 0 && paid >= total - 0.5)) {
+  if (total > 0 && paid >= total - 0.5) {
     return { key: 'paid_100', label: 'Cobrado 100%' };
   }
-  if (apt.paymentType === 'total' && paid > 0) {
-    return { key: 'paid_100', label: 'Cobrado 100%' };
-  }
-  if (apt.paymentType === 'sena' && paid > 0) {
+  if (apt.status === 'senado' || (apt.paymentType === 'sena' && paid > 0)) {
     return { key: 'paid_50', label: 'Cobrado 50% (seña)' };
   }
   if (paid > 0 && balance > 0) {
     const pct = total > 0 ? Math.round((paid / total) * 100) : 0;
     return { key: 'paid_partial', label: `Cobrado ${pct}%` };
+  }
+  if (apt.paymentType === 'total' && paid > 0) {
+    return { key: 'paid_100', label: 'Cobrado 100%' };
   }
   if (apt.status === 'confirmado') {
     return { key: 'confirmed', label: 'Confirmado' };
@@ -139,7 +139,7 @@ export class BookingSalesService {
   }) {
     const where: any = {
       tenantId: params.tenantId,
-      status: { in: ['confirmado', 'completado'] as AppointmentStatus[] },
+      status: { in: ['senado', 'confirmado', 'completado'] as AppointmentStatus[] },
     };
 
     if (params.dateFrom || params.dateTo) {
@@ -177,7 +177,7 @@ export class BookingSalesService {
       const badge = paymentBadge(r);
       if (badge.key === 'paid_50' || badge.key === 'paid_partial') paid50 += 1;
       if (badge.key === 'paid_100') paid100 += 1;
-      if (r.status === 'confirmado') confirmed += 1;
+      if (r.status === 'confirmado' || r.status === 'senado') confirmed += 1;
       if (r.status === 'completado') completed += 1;
     }
 
@@ -215,6 +215,7 @@ export class BookingSalesService {
         amountPaid: finalPrice,
         balanceDue: 0,
         amountTotal: finalPrice,
+        paymentType: 'total',
         completedAt: now,
         confirmedAt: existing.confirmedAt || now,
       },
@@ -247,11 +248,11 @@ export class BookingSalesService {
   }
 
   /**
-   * confirmado cuya fecha/hora ya pasó → completado.
-   * Usa timezone del tenant (default AR).
+   * confirmado/senado cuya fecha/hora ya pasó → completado.
+   * No toca amountPaid (un señado auto-completado sigue contando seña).
    */
   static async autoCompletePastConfirmed(tenantId?: string): Promise<number> {
-    const where: any = { status: 'confirmado' };
+    const where: any = { status: { in: ['confirmado', 'senado'] } };
     if (tenantId) where.tenantId = tenantId;
 
     const candidates = await prisma.appointment.findMany({
@@ -284,7 +285,6 @@ export class BookingSalesService {
       const tz = settingsByTenant.get(apt.tenantId) || 'America/Argentina/Cordoba';
       const ymd = apt.appointmentDate.toISOString().slice(0, 10);
       const time = (apt.appointmentTime || '00:00').slice(0, 5);
-      // Comparar instante local del turno vs ahora
       const endLocal = this.zonedDateTimeToUtc(ymd, time, tz);
       if (!endLocal || endLocal > now) continue;
 
@@ -294,16 +294,16 @@ export class BookingSalesService {
       });
       await AppointmentStatusHistoryService.record({
         appointmentId: apt.id,
-        fromStatus: 'confirmado',
+        fromStatus: apt.status,
         toStatus: 'completado',
         source: 'system',
         changedByName: 'Sistema',
-        note: 'Auto-completado: pasó la hora del turno',
+        note: 'Auto-completado: pasó la hora del turno (montos sin cambiar)',
       });
       updated += 1;
     }
 
-    if (updated) console.log(`✅ Auto-completados ${updated} turno(s) confirmados vencidos`);
+    if (updated) console.log(`✅ Auto-completados ${updated} turno(s) vencidos`);
     return updated;
   }
 
