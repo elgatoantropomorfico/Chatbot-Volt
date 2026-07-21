@@ -32,6 +32,18 @@ export class BookingExpiryService {
       data: { status: 'vencido' },
     });
 
+    const { AppointmentStatusHistoryService } = await import('./appointment-status-history.service');
+    for (const row of stale) {
+      await AppointmentStatusHistoryService.record({
+        appointmentId: row.id,
+        fromStatus: 'pendiente_pago',
+        toStatus: 'vencido',
+        source: 'system',
+        changedByName: 'Sistema',
+        note: 'Hold de pago vencido',
+      });
+    }
+
     const conversationIds = [...new Set(
       stale.map((a) => a.conversationId).filter((id): id is string => !!id),
     )];

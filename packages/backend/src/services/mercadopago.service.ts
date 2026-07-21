@@ -196,6 +196,16 @@ export class MercadoPagoService {
 
     if (confirmed.count === 0) return;
 
+    const { AppointmentStatusHistoryService } = await import('./appointment-status-history.service');
+    await AppointmentStatusHistoryService.record({
+      appointmentId: appointment.id,
+      fromStatus: appointment.status,
+      toStatus: 'confirmado',
+      source: 'mp',
+      changedByName: 'Mercado Pago',
+      note: paymentType === 'total' ? 'Pago 100% aprobado' : 'Seña aprobada',
+    });
+
     console.log(`✅ Turno ${appointment.id} confirmado por MP — disparando notificaciones`);
     try {
       await BookingNotificationService.sendPaymentConfirmation(appointment.id);

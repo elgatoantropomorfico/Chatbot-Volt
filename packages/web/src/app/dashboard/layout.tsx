@@ -186,6 +186,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 </Link>
               )}
 
+              {showBooking && (
+                <Link
+                  href="/dashboard/ventas-turnos"
+                  className={`${styles.navItem} ${pathname === '/dashboard/ventas-turnos' ? styles.navItemActive : ''}`}
+                >
+                  <DollarSign size={18} />
+                  {showSales ? 'Ventas turnos' : 'Ventas'}
+                </Link>
+              )}
+
               {showOffers && (
                 <Link
                   href="/dashboard/offers"

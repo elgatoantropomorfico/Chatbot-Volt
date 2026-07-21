@@ -7,6 +7,8 @@ import { BookingPricingService } from '../services/booking-pricing.service';
 import { WhatsAppService } from '../services/whatsapp.service';
 import { MercadoPagoService } from '../services/mercadopago.service';
 import { BookingNotificationService } from '../services/booking-notification.service';
+import { BookingSalesService } from '../services/booking-sales.service';
+import { AppointmentStatusHistoryService } from '../services/appointment-status-history.service';
 
 function resolveTenantId(user: any, queryTenantId?: string): string | null {
   if (user.role === 'superadmin' && queryTenantId) return queryTenantId;
@@ -576,10 +578,93 @@ export async function bookingRoutes(app: FastifyInstance) {
       data,
       include: { service: true, lead: { select: { id: true, name: true, phone: true } } },
     });
+    if (data.status && data.status !== existing.status) {
+      const u = request.user as any;
+      await AppointmentStatusHistoryService.record({
+        appointmentId: id,
+        fromStatus: existing.status,
+        toStatus: data.status,
+        source: 'admin',
+        changedByUserId: u?.userId || u?.id || null,
+        changedByName: u?.name || u?.email || 'Admin',
+      });
+    }
     if (data.status === 'confirmado' && wasNotConfirmed && appointment.conversationId) {
       void BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
     }
     return reply.send({ appointment });
+  });
+
+  // ── Ventas (agenda) ──
+  app.get('/sales', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const q = request.query as any;
+    const tenantId = resolveTenantId(request.user, q.tenantId);
+    if (!tenantId) return reply.status(400).send({ error: 'tenantId required' });
+
+    const result = await BookingSalesService.list({
+      tenantId,
+      year: q.year ? Number(q.year) : undefined,
+      month: q.month ? Number(q.month) : undefined,
+      dateFrom: q.dateFrom,
+      dateTo: q.dateTo,
+      status: q.status,
+      search: q.search,
+      page: q.page ? Number(q.page) : 1,
+      limit: q.limit ? Number(q.limit) : 20,
+    });
+    return reply.send(result);
+  });
+
+  app.get('/sales/stats', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const q = request.query as any;
+    const tenantId = resolveTenantId(request.user, q.tenantId);
+    if (!tenantId) return reply.status(400).send({ error: 'tenantId required' });
+
+    const stats = await BookingSalesService.stats({
+      tenantId,
+      year: q.year ? Number(q.year) : undefined,
+      month: q.month ? Number(q.month) : undefined,
+      dateFrom: q.dateFrom,
+      dateTo: q.dateTo,
+    });
+    return reply.send({ stats });
+  });
+
+  app.post('/sales/:id/confirm-payment', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const tenantId = resolveTenantId(request.user, (request.body as any)?.tenantId);
+    if (!tenantId) return reply.status(400).send({ error: 'tenantId required' });
+    try {
+      const u = request.user as any;
+      const sale = await BookingSalesService.confirmPayment({
+        tenantId,
+        appointmentId: id,
+        userId: u?.userId || u?.id,
+        userName: u?.name || u?.email || 'Admin',
+      });
+      return reply.send({ sale });
+    } catch (err: any) {
+      return reply.status(400).send({ error: err.message || 'No se pudo confirmar el pago' });
+    }
+  });
+
+  app.get('/appointments/:id/status-history', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const existing = await prisma.appointment.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ error: 'Not found' });
+    if (request.user.role !== 'superadmin' && request.user.tenantId !== existing.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+    const history = await AppointmentStatusHistoryService.list(id);
+    return reply.send({ history });
   });
 
   app.delete('/appointments/:id', {

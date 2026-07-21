@@ -657,9 +657,27 @@ model Appointment {
   conversation Conversation?     @relation(fields: [conversationId], references: [id], onDelete: SetNull)
   service      BookingService    @relation(fields: [serviceId], references: [id])
   priceRule    BookingPriceRule? @relation(fields: [priceRuleId], references: [id], onDelete: SetNull)
+  statusHistory AppointmentStatusHistory[]
 
   @@index([tenantId, appointmentDate, appointmentTime])
   @@index([tenantId, status])
   @@index([leadId])
   @@map("appointments")
+}
+
+model AppointmentStatusHistory {
+  id             String             @id @default(cuid())
+  appointmentId  String             @map("appointment_id")
+  fromStatus     AppointmentStatus? @map("from_status")
+  toStatus       AppointmentStatus  @map("to_status")
+  source         String             @default("system") // admin | mp | system | bot
+  changedByUserId String?           @map("changed_by_user_id")
+  changedByName  String?            @map("changed_by_name")
+  note           String?
+  createdAt      DateTime           @default(now()) @map("created_at")
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Cascade)
+
+  @@index([appointmentId, createdAt])
+  @@map("appointment_status_history")
 }

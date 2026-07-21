@@ -641,3 +641,17 @@ process.on('unhandledRejection', (reason) => {
 });
 
 console.log('🤖 Volt Worker started - listening for messages...');
+
+// Mantenimiento turnera: holds vencidos + confirmado→completado post-horario
+setInterval(() => {
+  void (async () => {
+    try {
+      const { BookingExpiryService } = await import('./services/booking-notification.service');
+      const { BookingSalesService } = await import('./services/booking-sales.service');
+      await BookingExpiryService.expireStaleHolds();
+      await BookingSalesService.autoCompletePastConfirmed();
+    } catch (err: any) {
+      console.warn('⚠️ Booking maintenance tick:', err.message || err);
+    }
+  })();
+}, 60_000);
