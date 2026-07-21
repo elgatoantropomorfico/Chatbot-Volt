@@ -250,11 +250,16 @@ export default function TurnosPage() {
     const hoy = appointments.filter(
       (a) => dateKey(a.appointmentDate) === today && !['cancelado', 'vencido'].includes(a.status),
     ).length;
+    const monthPrefix = `${monthCursor.year}-${String(monthCursor.month + 1).padStart(2, '0')}`;
     const ingresos = appointments
-      .filter((a) => ['confirmado', 'senado', 'completado'].includes(a.status))
+      .filter((a) => {
+        const key = dateKey(a.appointmentDate);
+        if (!key.startsWith(monthPrefix)) return false;
+        return ['confirmado', 'senado', 'completado'].includes(a.status);
+      })
       .reduce((sum, a) => sum + Number(a.amountPaid || 0), 0);
     return { confirmados, pendientesPago, hoy, ingresos };
-  }, [appointments]);
+  }, [appointments, monthCursor]);
 
   const slotTimes = useMemo(() => {
     const times = slots.map((s) => s.time);
@@ -436,7 +441,7 @@ export default function TurnosPage() {
         <div className={styles.statCard}>
           <div className={styles.statLabel}><TrendingUp size={14} /> Cobrado</div>
           <div className={styles.statValue}>{formatPrice(stats.ingresos)}</div>
-          <div className={styles.statSubtext}>Confirmados y completados</div>
+          <div className={styles.statSubtext}>Este mes</div>
         </div>
       </div>
 
