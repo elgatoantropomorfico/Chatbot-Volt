@@ -103,6 +103,16 @@ export function looksLikeServiceInfoQuery(q: string): boolean {
   return /\b(info|informaci[oó]n|contame|cu[eé]ntame|saber m[aá]s|qu[eé] es|c[oó]mo es|detalle|detalles|diferencia|compar|explica|explicame|explícame)\b/i.test(q);
 }
 
+/** Pregunta de precios / promos (no elegir horario) */
+export function looksLikePriceQuery(q: string): boolean {
+  return /\b(precio|precios|promo|promos|promoci[oó]n|promociones|cu[aá]nto\s+(sale|cuesta|vale|cobr)|valor(es)?|tarifa|costo|se[nñ]a)\b/i.test(q);
+}
+
+/** Texto libre que debe soltar menús sticky de horarios/días */
+export function looksLikeBrowseReleaseQuery(q: string): boolean {
+  return looksLikeServiceInfoQuery(q) || looksLikePriceQuery(q);
+}
+
 function scoreServiceTextMatch(q: string, text: string | null | undefined, tokenWeight: number): number {
   if (!text) return 0;
   const normalized = normalizeMatchText(text);

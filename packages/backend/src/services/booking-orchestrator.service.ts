@@ -13,6 +13,8 @@ import {
 } from './booking-recommender.service';
 import {
   formatServicePreviewBody,
+  looksLikeBrowseReleaseQuery,
+  looksLikePriceQuery,
   looksLikeServiceInfoQuery,
   matchServiceFromText,
 } from './booking-flow-nav.service';
@@ -192,10 +194,14 @@ export class BookingOrchestrator {
       }
     }
 
-    // Nombre / notas / entrar a pago — routing duro (no LLM)
     // Browse de horarios ANTES: con nm/notes listos, un tap "3" no debe ir a notas/pago
+    const hadBrowse = !!ctx.agentState.browsePhase;
     const browseHandled = await this.handleBrowseRouting(params, ctx, settings);
     if (browseHandled) return browseHandled;
+    // Texto libre soltó browse sticky en DB — refrescar ctx en memoria
+    if (hadBrowse) {
+      ctx = await BookingContextService.load(params.conversationId);
+    }
 
     const checkoutProgress = await this.tryHardCheckoutProgress(params, ctx, settings);
     if (checkoutProgress) return checkoutProgress;
@@ -825,7 +831,7 @@ export class BookingOrchestrator {
     // No interceptar taps numéricos del menú
     if (/^\d+$/.test(raw.trim())) return null;
     // Pregunta de info: no forzar ASAP; deja al agente explicar
-    if (looksLikeServiceInfoQuery(raw)) return null;
+    if (looksLikeServiceInfoQuery(raw) || looksLikePriceQuery(raw)) return null;
 
     const services = await prisma.bookingService.findMany({
       where: { tenantId: params.tenantId, isActive: true },
@@ -986,6 +992,13 @@ export class BookingOrchestrator {
         );
         return this.deliverFromCtx(params.conversationId, next);
       }
+      // Texto libre sobre more_menu → soltar y dejar al agente
+      if (looksLikeBrowseReleaseQuery(raw) || raw.length >= 3) {
+        await BookingContextService.save(params.conversationId, {
+          ...ctx,
+          agentState: { ...ctx.agentState, browsePhase: null, uiPresentation: null },
+        });
+      }
       return null;
     }
 
@@ -1036,6 +1049,12 @@ export class BookingOrchestrator {
         );
         return this.deliverFromCtx(params.conversationId, next);
       }
+      // Texto libre / tap inválido sobre lista de días → soltar browse
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: { ...ctx.agentState, browsePhase: null, uiPresentation: null },
+      });
+      return null;
     }
 
     if (phase === 'presenting_slots' || phase === 'day_slots') {
@@ -1087,7 +1106,28 @@ export class BookingOrchestrator {
           return this.deliverFromCtx(params.conversationId, checkoutCtx, result.error || undefined);
         }
       }
+      // Otra fecha/día mientras hay slots → buscar esa fecha (no re-spamear la lista vieja)
+      if (looksLikeDateQuery(raw)) {
+        const { ctx: next } = await BookingToolExecutor.execute(
+          'find_available_slots',
+          { mode: 'EXACT_DATE', date_query: raw, exclude_shown: false, limit: 3 },
+          ctx,
+          exec,
+        );
+        return this.deliverFromCtx(params.conversationId, next);
+      }
     }
+
+    // Info / precios / cualquier texto que no fue tap de slot: soltar browse sticky
+    // (mismo patrón que pendingRecommend — evita re-mandar "Estos son los primeros horarios...")
+    await BookingContextService.save(params.conversationId, {
+      ...ctx,
+      agentState: {
+        ...ctx.agentState,
+        browsePhase: null,
+        uiPresentation: null,
+      },
+    });
 
     return null;
   }
@@ -1155,6 +1195,7 @@ export class BookingOrchestrator {
       conversationId: string;
       leadId: string;
       phone: string;
+      text?: string;
     },
     ctx: BookingConversationContext,
     settings: any,
@@ -1168,6 +1209,10 @@ export class BookingOrchestrator {
     // more_menu + servicio confirmado distinto / sin UI → forzar ASAP (cambio de camino)
     if (a.browsePhase === 'more_menu' && a.uiPresentation?.options?.length) return next;
     if (a.uiPresentation?.options?.length) return next;
+
+    // Pregunta de info/precios: no pisar la respuesta del agente con ASAP
+    const raw = String(params.text || '').trim();
+    if (raw && looksLikeBrowseReleaseQuery(raw)) return next;
 
     // Servicio confirmado sin propuesta visible → ASAP obligatorio
     const { ctx: searched } = await BookingToolExecutor.execute(
@@ -1196,7 +1241,15 @@ export class BookingOrchestrator {
     await BookingContextService.save(conversationId, ctx);
 
     const ui = ctx.agentState.uiPresentation;
-    if (ui?.options?.length) {
+    const replyText = (reply || '').trim();
+    // Si el agente ya respondió (precios/info) y la UI es solo rebuild sticky, no pisar el texto
+    const stickyRebuild =
+      !!ui?.options?.length
+      && !nextCtx.agentState.uiPresentation?.options?.length
+      && !!replyText
+      && replyText.length > 20;
+
+    if (ui?.options?.length && !stickyRebuild) {
       await BookingContextService.save(conversationId, {
         ...ctx,
         agentState: { ...ctx.agentState, uiPresentation: null },
@@ -1204,7 +1257,14 @@ export class BookingOrchestrator {
       return BookingFlowService.buildOptionsReply(ui.body, ui.options);
     }
 
-    return { handled: true, text: reply || 'Contame en qué te ayudo 🌿' };
+    if (stickyRebuild) {
+      await BookingContextService.save(conversationId, {
+        ...ctx,
+        agentState: { ...ctx.agentState, browsePhase: null, uiPresentation: null },
+      });
+    }
+
+    return { handled: true, text: replyText || 'Contame en qué te ayudo 🌿' };
   }
 
   private static async runAgent(

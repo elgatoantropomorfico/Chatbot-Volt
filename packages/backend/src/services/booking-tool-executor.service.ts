@@ -188,7 +188,7 @@ export class BookingToolExecutor {
       ok: true,
       data: { text: lines.join('\n\n') },
       contextPatch: {
-        agentState: { ...ctx.agentState, pricePreviewShown: true, mode: 'booking', uiPresentation: null },
+        agentState: { ...ctx.agentState, pricePreviewShown: true, mode: 'booking', uiPresentation: null, browsePhase: null },
       },
     };
   }
