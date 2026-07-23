@@ -4,12 +4,12 @@ import { useEffect, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
+import { BookingFlagsProvider, useBookingFlags } from '@/context/BookingFlagsContext';
 import {
   MessageSquare,
   Users,
   Settings,
   Building2,
-  Phone,
   Bot,
   Plug,
   UserCircle,
@@ -49,14 +49,22 @@ const configItems = [
 ];
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <BookingFlagsProvider>
+      <DashboardLayoutInner>{children}</DashboardLayoutInner>
+    </BookingFlagsProvider>
+  );
+}
+
+function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
   const { user, loading, logout, isSuperAdmin } = useAuth();
+  const { bookingEnabled: showBooking } = useBookingFlags();
   const router = useRouter();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showSales, setShowSales] = useState(false);
   const [showOffers, setShowOffers] = useState(false);
   const [showPilot, setShowPilot] = useState(false);
-  const [showBooking, setShowBooking] = useState(false);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -86,10 +94,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         if (pilot) {
           setShowPilot(true);
         }
-        try {
-          const { settings } = await api.getBookingSettings();
-          if (settings?.bookingEnabled) setShowBooking(true);
-        } catch {}
       } catch {}
     })();
   }, [user]);

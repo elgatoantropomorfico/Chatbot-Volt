@@ -21,7 +21,7 @@ import {
   getTurneraTabs,
   type TurneraTab,
 } from '../turnera/TurneraConfigPanel';
-import { isCatalogConfigV2 } from '@/lib/catalog-config';
+import { useBookingFlags } from '@/context/BookingFlagsContext';
 import styles from '../turnera/page.module.css';
 
 type GeneralTab = 'cuenta' | 'negocio' | 'apariencia' | 'plataforma';
@@ -61,10 +61,13 @@ function SettingsPageContent() {
   const { user, isSuperAdmin, isTenantAdmin, refreshUser } = useAuth();
   const { theme, setTheme } = useTheme();
   const searchParams = useSearchParams();
+  const {
+    ready: bookingFlagsReady,
+    bookingEnabled: showBooking,
+    catalogConfigV2: catalogV2,
+  } = useBookingFlags();
 
   const [tab, setTab] = useState<ConfigTab>('cuenta');
-  const [showBooking, setShowBooking] = useState(false);
-  const [catalogV2, setCatalogV2] = useState(false);
   const [turneraStatus, setTurneraStatus] = useState({ msg: '', saving: false });
 
   const [editingProfile, setEditingProfile] = useState(false);
@@ -89,24 +92,17 @@ function SettingsPageContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (!user || user.role === 'superadmin') return;
-    api.getBookingSettings()
-      .then(({ settings }) => {
-        if (settings?.bookingEnabled) setShowBooking(true);
-        setCatalogV2(isCatalogConfigV2(settings));
-      })
-      .catch(() => {});
-  }, [user]);
-
-  useEffect(() => {
-    if (!showBooking && isTurneraTab(tab)) setTab('cuenta');
-  }, [showBooking, tab]);
+    if (bookingFlagsReady && !showBooking && isTurneraTab(tab)) setTab('cuenta');
+  }, [bookingFlagsReady, showBooking, tab]);
 
   const handleTurneraStatus = useCallback((status: { msg: string; saving: boolean }) => {
     setTurneraStatus(status);
   }, []);
 
-  const turneraTabs = useMemo(() => getTurneraTabs(catalogV2), [catalogV2]);
+  const turneraTabs = useMemo(
+    () => getTurneraTabs(catalogV2),
+    [catalogV2],
+  );
 
   const activeMeta = useMemo(() => {
     const general = GENERAL_TABS.find((t) => t.id === tab);
@@ -411,7 +407,7 @@ function SettingsPageContent() {
             );
           })}
 
-          {showBooking && (
+          {bookingFlagsReady && showBooking && (
             <>
               <div className={styles.sidebarGroupTitle}>Turnera</div>
               {turneraTabs.filter((t) => t.group === 'turnera').map((t) => {
@@ -448,6 +444,9 @@ function SettingsPageContent() {
                 </>
               )}
             </>
+          )}
+          {!bookingFlagsReady && !isSuperAdmin && (
+            <div className={styles.sidebarGroupTitle} style={{ opacity: 0.5 }}>Cargando…</div>
           )}
         </aside>
 
