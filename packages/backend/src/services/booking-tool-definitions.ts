@@ -205,7 +205,7 @@ export const BOOKING_AGENT_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
     type: 'function',
     function: {
       name: 'list_my_appointments',
-      description: 'Lista turnos activos del cliente para consulta o cancelación.',
+      description: 'Lista turnos activos del cliente para consulta, cancelación o reprogramación.',
       parameters: { type: 'object', properties: {}, additionalProperties: false },
     },
   },
@@ -240,6 +240,42 @@ export const BOOKING_AGENT_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
           confirm: { type: 'boolean', description: 'Debe ser true para ejecutar la cancelación' },
         },
         required: ['appointment_id', 'confirm'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'request_reschedule_appointment',
+      description:
+        'Inicia reprogramación de un turno confirmado/señado: muestra horarios libres. ' +
+        'Mueve el mismo turno (mismo cobro). No cancelar ni crear otro.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string' },
+          label: { type: 'string' },
+        },
+        required: ['appointment_id'],
+        additionalProperties: false,
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'apply_reschedule_appointment',
+      description:
+        'Aplica la nueva fecha/hora al turno (in place). Solo con date/time de listedSlots o disponibles.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string' },
+          date: { type: 'string', description: 'YYYY-MM-DD' },
+          time: { type: 'string', description: 'HH:MM' },
+        },
+        required: ['appointment_id', 'date', 'time'],
         additionalProperties: false,
       },
     },

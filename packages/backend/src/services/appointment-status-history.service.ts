@@ -12,9 +12,17 @@ export class AppointmentStatusHistoryService {
     changedByUserId?: string | null;
     changedByName?: string | null;
     note?: string | null;
+    /** Permite auditar cambios sin cambio de estado (ej. reprogramar fecha). */
+    allowSameStatus?: boolean;
   }): Promise<void> {
     if (!params.toStatus) return;
-    if (params.fromStatus && params.fromStatus === params.toStatus) return;
+    if (
+      params.fromStatus
+      && params.fromStatus === params.toStatus
+      && !params.allowSameStatus
+    ) {
+      return;
+    }
 
     try {
       await prisma.appointmentStatusHistory.create({

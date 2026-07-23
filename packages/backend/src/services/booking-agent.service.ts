@@ -194,6 +194,7 @@ INTEGRIDAD:
 - initiate_checkout es el único camino al pago; no simules links de Mercado Pago.
 - NUNCA digas que el turno está "confirmado" antes del pago/seña. Hasta entonces está pre-reservado / anotado.
 - Cancelar: list_my_appointments → request_cancel_appointment (NUNCA cancel_appointment directo). El sistema pide Sí/No.
+- Reprogramar (cambiar fecha de turno ya confirmado/señado): list_my_appointments → request_reschedule_appointment → el usuario elige horario → apply_reschedule_appointment. Mismo turno y mismo cobro; solo cambia fecha/hora. No canceles ni crees otro turno.
 - Si confirm_slot o initiate_checkout reportan horario ocupado, presentá las alternativas sin inventar.
 - menu / empezar de nuevo → reset_booking.
 - Si el usuario ya dijo servicio+fecha+franja en un mensaje, completá todo (match_service + confirm_service + find_available_slots con date_query/daypart) sin repetir preguntas.

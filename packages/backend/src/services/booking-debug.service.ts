@@ -82,6 +82,7 @@ function flagsFromV2Context(ctx: Record<string, unknown>): string[] {
     const pref = agent.datePreference as { mode?: string } | null;
     if (pref?.mode) push(flagPart('pref', pref.mode));
     if (agent.pendingCancel) parts.push('cx:pend');
+    if (agent.pendingReschedule) parts.push('rs:pend');
     const rec = agent.recommender as { step?: string } | null;
     if (rec?.step) push(flagPart('rec', rec.step));
     if (agent.pendingRecommend) {

@@ -46,6 +46,8 @@ export class BookingAvailabilityService {
       /** YYYY-MM-DD inclusive end (opcional) */
       toDateStr?: string;
       fromDateStr?: string;
+      /** Al reprogramar, no contar el propio turno como ocupación */
+      excludeAppointmentId?: string;
     } = {},
   ): Promise<AvailableSlot[]> {
     const limit = opts.limit ?? 5;
@@ -108,6 +110,7 @@ export class BookingAvailabilityService {
         if (blockedSlot) continue;
 
         const occupied = appointments.some((a) => {
+          if (opts.excludeAppointmentId && a.id === opts.excludeAppointmentId) return false;
           const aDate = a.appointmentDate.toISOString().slice(0, 10);
           if (aDate !== dateStr || a.appointmentTime !== slot.time) return false;
           if (a.status === AppointmentStatus.pendiente_pago && a.holdExpiresAt && a.holdExpiresAt < new Date()) {
@@ -185,8 +188,12 @@ export class BookingAvailabilityService {
     tenantId: string,
     dateStr: string,
     time: string,
+    excludeAppointmentId?: string,
   ): Promise<'available' | 'occupied' | 'not_offered'> {
-    const open = await this.getAvailableSlots(tenantId, { limit: 120 });
+    const open = await this.getAvailableSlots(tenantId, {
+      limit: 120,
+      excludeAppointmentId,
+    });
     if (open.some((s) => s.date === dateStr && s.time === time)) return 'available';
 
     const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
@@ -204,6 +211,7 @@ export class BookingAvailabilityService {
         appointmentDate: new Date(`${dateStr}T12:00:00`),
         appointmentTime: time,
         status: { in: OCCUPYING_STATUSES },
+        ...(excludeAppointmentId ? { id: { not: excludeAppointmentId } } : {}),
       },
     });
     if (occupying) {

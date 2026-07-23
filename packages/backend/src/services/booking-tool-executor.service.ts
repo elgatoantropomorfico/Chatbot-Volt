@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { BookingAvailabilityService } from './booking-availability.service';
 import { BookingPricingService } from './booking-pricing.service';
+import { BookingRescheduleService } from './booking-reschedule.service';
 import { BookingContextService } from './booking-context.service';
 import {
   filterSlotsByQuery,
@@ -89,6 +90,12 @@ export class BookingToolExecutor {
           break;
         case 'cancel_appointment':
           result = await this.cancelAppointment(ctx, exec, args);
+          break;
+        case 'request_reschedule_appointment':
+          result = await this.requestRescheduleAppointment(ctx, exec, args);
+          break;
+        case 'apply_reschedule_appointment':
+          result = await this.applyRescheduleAppointment(ctx, exec, args);
           break;
         case 'reset_booking':
           result = this.resetBooking();
@@ -967,6 +974,110 @@ export class BookingToolExecutor {
           ...ctx.agentState,
           pendingCancel: null,
           uiPresentation: null,
+        },
+      },
+    };
+  }
+
+  private static async requestRescheduleAppointment(
+    ctx: BookingConversationContext,
+    exec: ToolExecutionContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    const appointmentId = String(args.appointment_id || '');
+    if (!appointmentId) return { ok: false, error: 'appointment_id requerido' };
+
+    const active = await BookingRescheduleService.listActive({
+      tenantId: exec.tenantId,
+      leadId: exec.leadId,
+      timezone: exec.settings.timezone,
+    });
+    const apt = active.find((a) => a.id === appointmentId);
+    if (!apt) {
+      return { ok: false, error: 'Turno no encontrado o no se puede reprogramar (solo confirmado/señado)' };
+    }
+
+    const slots = await BookingRescheduleService.getAvailableSlotsForReschedule({
+      tenantId: exec.tenantId,
+      appointmentId: apt.id,
+      limit: 5,
+    });
+    const toShow = slots.map((s) => ({ date: s.date, time: s.time, label: s.label }));
+    if (!toShow.length) {
+      return {
+        ok: false,
+        error: 'No hay horarios libres para reprogramar ahora. Probá más tarde o escribí *humano*.',
+      };
+    }
+
+    const label = String(args.label || apt.label);
+    return {
+      ok: true,
+      data: { pending: true, appointment_id: apt.id, slots: toShow },
+      contextPatch: {
+        agentState: {
+          ...ctx.agentState,
+          pendingCancel: null,
+          pendingReschedule: {
+            appointmentId: apt.id,
+            label,
+            serviceId: apt.serviceId,
+            phase: 'pick_slot',
+          },
+          listedSlots: toShow,
+          shownSlotKeys: toShow.map((s) => slotKey(s.date, s.time)),
+          browsePhase: 'presenting_slots',
+          uiPresentation: {
+            type: 'quick_slots',
+            body: `Reprogramamos tu turno (mismo cobro):\n\n${label}\n\nElegí el nuevo horario:`,
+            options: [...toShow.map((s) => s.label), 'Ver más horarios', 'Dejar como está'],
+          },
+        },
+      },
+    };
+  }
+
+  private static async applyRescheduleAppointment(
+    ctx: BookingConversationContext,
+    exec: ToolExecutionContext,
+    args: Record<string, unknown>,
+  ): Promise<ToolResult> {
+    const appointmentId = String(args.appointment_id || '');
+    const date = String(args.date || '');
+    const time = String(args.time || '');
+    if (!appointmentId || !date || !time) {
+      return { ok: false, error: 'appointment_id, date y time requeridos' };
+    }
+
+    const result = await BookingRescheduleService.applyInPlace({
+      tenantId: exec.tenantId,
+      leadId: exec.leadId,
+      appointmentId,
+      date,
+      time,
+      source: 'bot',
+    });
+    if (!result.ok) {
+      return { ok: false, error: result.error };
+    }
+
+    return {
+      ok: true,
+      data: {
+        rescheduled: true,
+        old_label: result.oldLabel,
+        new_label: result.newLabel,
+        appointment_id: appointmentId,
+      },
+      contextPatch: {
+        agentState: {
+          ...ctx.agentState,
+          pendingReschedule: null,
+          listedSlots: [],
+          shownSlotKeys: [],
+          browsePhase: null,
+          uiPresentation: null,
+          offeredSlot: null,
         },
       },
     };

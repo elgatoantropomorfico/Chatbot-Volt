@@ -25,6 +25,7 @@ import {
   LayoutGrid,
   Trash2,
   Search,
+  CalendarClock,
 } from 'lucide-react';
 import { VoltDrawer } from '@/components/ui/VoltDrawer';
 import styles from './page.module.css';
@@ -162,6 +163,11 @@ export default function TurnosPage() {
   const [createForm, setCreateForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [rescheduleOpen, setRescheduleOpen] = useState(false);
+  const [rescheduleSlots, setRescheduleSlots] = useState<Array<{ date: string; time: string; label: string }>>([]);
+  const [reschedulePick, setReschedulePick] = useState('');
+  const [rescheduleError, setRescheduleError] = useState('');
+  const [rescheduleSaving, setRescheduleSaving] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -296,6 +302,40 @@ export default function TurnosPage() {
 
   async function handleStatusChange(id: string, status: string) {
     await updateAppointment(id, { status });
+  }
+
+  async function openReschedule(a: any) {
+    setRescheduleError('');
+    setReschedulePick('');
+    setRescheduleOpen(true);
+    try {
+      const data = await api.getBookingAvailability({
+        limit: '40',
+        excludeAppointmentId: a.id,
+      });
+      setRescheduleSlots(data.slots || []);
+    } catch (err: any) {
+      setRescheduleSlots([]);
+      setRescheduleError(err.message || 'No se pudieron cargar horarios libres');
+    }
+  }
+
+  async function handleReschedule() {
+    if (!selected || !reschedulePick) return;
+    const [date, time] = reschedulePick.split('|');
+    if (!date || !time) return;
+    setRescheduleSaving(true);
+    setRescheduleError('');
+    try {
+      const res = await api.rescheduleAppointment(selected.id, { date, time });
+      setSelected(res.appointment);
+      setRescheduleOpen(false);
+      await load();
+    } catch (err: any) {
+      setRescheduleError(err.message || 'No se pudo reprogramar');
+    } finally {
+      setRescheduleSaving(false);
+    }
   }
 
   async function handleDeleteAppointment(a: any) {
@@ -906,6 +946,15 @@ export default function TurnosPage() {
                   <CheckCircle size={14} /> Completar
                 </button>
               )}
+              {['confirmado', 'senado'].includes(selected.status) && (
+                <button
+                  type="button"
+                  className={styles.actionBtn}
+                  onClick={() => openReschedule(selected)}
+                >
+                  <CalendarClock size={14} /> Reprogramar
+                </button>
+              )}
               {!['cancelado', 'completado'].includes(selected.status) && (
                 <button
                   type="button"
@@ -916,6 +965,48 @@ export default function TurnosPage() {
                 </button>
               )}
             </div>
+
+            {rescheduleOpen && ['confirmado', 'senado'].includes(selected.status) && (
+              <div className={styles.detailSection} style={{ marginTop: 12 }}>
+                <h3><CalendarClock size={12} /> Nueva fecha (mismo cobro)</h3>
+                <p style={{ fontSize: 12, opacity: 0.75, marginBottom: 8 }}>
+                  Solo horarios libres. El turno se mueve in place; no se crea otro ni se toca el pago.
+                </p>
+                <select
+                  className={styles.filterSelect}
+                  value={reschedulePick}
+                  onChange={(e) => setReschedulePick(e.target.value)}
+                  style={{ width: '100%', marginBottom: 8 }}
+                >
+                  <option value="">Elegí horario…</option>
+                  {rescheduleSlots.map((s) => (
+                    <option key={`${s.date}|${s.time}`} value={`${s.date}|${s.time}`}>
+                      {s.label}
+                    </option>
+                  ))}
+                </select>
+                {rescheduleError && (
+                  <div style={{ color: '#c0392b', fontSize: 12, marginBottom: 8 }}>{rescheduleError}</div>
+                )}
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    type="button"
+                    className={`${styles.actionBtn} ${styles.actionBtnSuccess}`}
+                    disabled={!reschedulePick || rescheduleSaving}
+                    onClick={handleReschedule}
+                  >
+                    {rescheduleSaving ? 'Guardando…' : 'Confirmar fecha'}
+                  </button>
+                  <button
+                    type="button"
+                    className={styles.actionBtn}
+                    onClick={() => setRescheduleOpen(false)}
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
 
             <div className={styles.detailDangerZone}>
               <button

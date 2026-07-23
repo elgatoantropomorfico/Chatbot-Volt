@@ -65,6 +65,14 @@ export interface AgentState {
   uiPresentation: UiPresentation | null;
   /** Cancelación pendiente de confirmación dura */
   pendingCancel: { appointmentId: string; label: string } | null;
+  /** Reprogramación in place (mismo turno / mismo cobro) */
+  pendingReschedule: {
+    appointmentId: string;
+    label: string;
+    serviceId: string;
+    phase: 'pick_apt' | 'pick_slot';
+    options?: Array<{ id: string; label: string; serviceId: string }>;
+  } | null;
   /** Flujo "Ayudame a elegir" */
   recommender: RecommenderState | null;
   /** Tras Q1/Q2: camino recomendado, esperando confirmar reserva */
@@ -147,6 +155,7 @@ export function emptyAgentState(overrides?: Partial<AgentState>): AgentState {
     browsePhase: null,
     uiPresentation: null,
     pendingCancel: null,
+    pendingReschedule: null,
     recommender: null,
     pendingRecommend: null,
     customer: null,

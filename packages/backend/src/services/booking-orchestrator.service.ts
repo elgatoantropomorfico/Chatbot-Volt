@@ -20,7 +20,9 @@ import {
 } from './booking-flow-nav.service';
 import { BookingExpiryService } from './booking-notification.service';
 import { BookingToolExecutor } from './booking-tool-executor.service';
+import { BookingRescheduleService } from './booking-reschedule.service';
 import type { BookingConversationContext } from './booking-agent.types';
+import { slotKey } from './booking-agent.types';
 import { looksLikeDateQuery } from './booking-datetime.service';
 import { isCatalogConfigV2 } from './booking-catalog-config.service';
 
@@ -60,6 +62,19 @@ function looksLikeCancelIntent(input: string): boolean {
   if (/^(cancelar|anular)(\s+(mi|el|un))?\s*(turno|reserva|cita)?\s*$/.test(input)) return true;
   if (/quiero\s+cancelar/.test(input)) return true;
   if (/cancel(ar|ación|acion).*(turno|reserva|cita)/.test(input)) return true;
+  return false;
+}
+
+function looksLikeRescheduleIntent(input: string): boolean {
+  if (looksLikeCancelIntent(input)) return false;
+  if (/reprogramar|reagendar/.test(input)) return true;
+  if (/cambiar\s+(de\s+)?fecha/.test(input)) return true;
+  if (/mover\s+(el\s+)?turno/.test(input)) return true;
+  if (/cambiar\s+(el\s+)?turno/.test(input)) return true;
+  if (/otro\s+(d[ií]a|horario).*(turno|reserva)?/.test(input)) return true;
+  if (/quiero\s+cambiar\s+(la\s+)?(fecha|horario)/.test(input)) return true;
+  // "cambiar horario" fuera de checkout = reprogramar activo
+  if (/cambiar\s+horario/.test(input)) return true;
   return false;
 }
 
@@ -128,6 +143,13 @@ export class BookingOrchestrator {
       }
     }
 
+    // Reprogramación en curso: elegir turno o nuevo horario (sin LLM)
+    if (ctx.agentState.pendingReschedule) {
+      const rescheduleHandled = await this.handlePendingReschedule(params, ctx, settings);
+      if (rescheduleHandled) return rescheduleHandled;
+      ctx = await BookingContextService.load(params.conversationId);
+    }
+
     if (ctx.legacyV1) {
       return BookingFlowService.handle(params);
     }
@@ -155,6 +177,10 @@ export class BookingOrchestrator {
 
     if (looksLikeCancelIntent(input)) {
       return this.handleCancelIntent(params, ctx);
+    }
+
+    if (looksLikeRescheduleIntent(input) && !ctx.checkout) {
+      return this.startRescheduleFlow(params, ctx, settings!);
     }
 
     // Recomendador "Ayudame a elegir" (q1/q2) — deshabilitado en catalog v2
@@ -372,7 +398,7 @@ export class BookingOrchestrator {
     ctx: BookingConversationContext,
     settings: any,
   ): Promise<FlowHandleResult | null> {
-    if (ctx.checkout || ctx.agentState.pendingCancel || ctx.agentState.recommender) return null;
+    if (ctx.checkout || ctx.agentState.pendingCancel || ctx.agentState.pendingReschedule || ctx.agentState.recommender) return null;
     if (ctx.agentState.pendingRecommend) return null;
     if (ctx.agentState.pickingServiceList) return null;
     if (ctx.agentState.browsePhase) return null;
@@ -739,7 +765,7 @@ export class BookingOrchestrator {
     ctx: BookingConversationContext,
     settings: any,
   ): Promise<FlowHandleResult | null> {
-    if (ctx.checkout || ctx.agentState.pendingCancel) return null;
+    if (ctx.checkout || ctx.agentState.pendingCancel || ctx.agentState.pendingReschedule) return null;
     if (!ctx.agentState.service?.confirmed || !ctx.agentState.offeredSlot?.confirmed) return null;
 
     const raw = params.text.trim();
@@ -878,7 +904,7 @@ export class BookingOrchestrator {
     if (!match) return null;
 
     // No pisar checkout ni cancelación pendiente
-    if (ctx.checkout || ctx.agentState.pendingCancel) return null;
+    if (ctx.checkout || ctx.agentState.pendingCancel || ctx.agentState.pendingReschedule) return null;
 
     // Si ya hay horario confirmado del MISMO camino, dejar seguir nombre/notas
     if (
@@ -1348,6 +1374,286 @@ export class BookingOrchestrator {
     return this.deliverAgentResult(params.conversationId, reply, nextCtx);
   }
 
+  private static async startRescheduleFlow(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult> {
+    const apts = await BookingRescheduleService.listActive({
+      tenantId: params.tenantId,
+      leadId: params.leadId,
+      timezone: settings.timezone,
+    });
+
+    if (!apts.length) {
+      return {
+        handled: true,
+        text: 'No tenés turnos confirmados o señados para reprogramar. Si querés reservar uno nuevo, escribí *menu*.',
+      };
+    }
+
+    if (apts.length === 1) {
+      return this.presentRescheduleSlots(params.conversationId, params.tenantId, ctx, apts[0]);
+    }
+
+    const options = apts.map((a) => a.label);
+    const next: BookingConversationContext = {
+      ...ctx,
+      agentState: {
+        ...ctx.agentState,
+        pendingCancel: null,
+        pendingReschedule: {
+          appointmentId: '',
+          label: '',
+          serviceId: '',
+          phase: 'pick_apt',
+          options: apts.map((a) => ({ id: a.id, label: a.label, serviceId: a.serviceId })),
+        },
+        browsePhase: null,
+        uiPresentation: {
+          type: 'more_menu',
+          body: '¿Cuál turno querés reprogramar? (mismo cobro, solo cambia la fecha)',
+          options: [...options, 'Dejar como está'],
+        },
+      },
+    };
+    await BookingContextService.save(params.conversationId, next);
+    return BookingFlowService.buildOptionsReply(
+      next.agentState.uiPresentation!.body,
+      next.agentState.uiPresentation!.options,
+    );
+  }
+
+  private static async presentRescheduleSlots(
+    conversationId: string,
+    tenantId: string,
+    ctx: BookingConversationContext,
+    apt: { id: string; label: string; serviceId: string },
+    opts?: { more?: boolean },
+  ): Promise<FlowHandleResult> {
+    const shown = opts?.more ? (ctx.agentState.shownSlotKeys || []) : [];
+    const allSlots = await BookingRescheduleService.getAvailableSlotsForReschedule({
+      tenantId,
+      appointmentId: apt.id,
+      limit: opts?.more ? 20 : 8,
+    });
+
+    let filtered = allSlots;
+    if (shown.length) {
+      filtered = allSlots.filter((s) => !shown.includes(slotKey(s.date, s.time)));
+    }
+    const toShow = filtered.slice(0, 5).map((s) => ({ date: s.date, time: s.time, label: s.label }));
+    if (!toShow.length) {
+      await BookingContextService.save(conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          pendingReschedule: null,
+          browsePhase: null,
+          uiPresentation: null,
+        },
+      });
+      return {
+        handled: true,
+        text: opts?.more
+          ? 'No encontré más horarios libres por ahora. Escribí *humano* si necesitás ayuda.'
+          : 'No hay horarios libres para reprogramar ahora. Probá más tarde o escribí *humano*.',
+      };
+    }
+
+    const prevShown = opts?.more ? shown : [];
+    const nextShown = [...prevShown, ...toShow.map((s) => slotKey(s.date, s.time))];
+    const body = `Reprogramamos tu turno (mismo cobro):\n\n${apt.label}\n\nElegí el nuevo horario:`;
+    const options = [...toShow.map((s) => s.label), 'Ver más horarios', 'Dejar como está'];
+    await BookingContextService.save(conversationId, {
+      ...ctx,
+      agentState: {
+        ...ctx.agentState,
+        pendingCancel: null,
+        pendingReschedule: {
+          appointmentId: apt.id,
+          label: apt.label,
+          serviceId: apt.serviceId,
+          phase: 'pick_slot',
+        },
+        listedSlots: toShow,
+        shownSlotKeys: nextShown,
+        browsePhase: 'presenting_slots',
+        uiPresentation: null,
+      },
+    });
+    return BookingFlowService.buildOptionsReply(body, options);
+  }
+
+  private static async handlePendingReschedule(
+    params: {
+      tenantId: string;
+      conversationId: string;
+      leadId: string;
+      phone: string;
+      text: string;
+    },
+    ctx: BookingConversationContext,
+    settings: any,
+  ): Promise<FlowHandleResult | null> {
+    const pending = ctx.agentState.pendingReschedule;
+    if (!pending) return null;
+
+    const input = normalizeInput(params.text);
+    const abort =
+      /^(dejar como est[aá]|mejor no|no|cancelar|volver|menu|menú)$/i.test(input.trim())
+      || input.includes('dejar como esta')
+      || input.includes('dejar como está');
+
+    if (abort) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          pendingReschedule: null,
+          listedSlots: [],
+          browsePhase: null,
+          uiPresentation: null,
+        },
+      });
+      return { handled: true, text: 'Dale, dejamos el turno como está. ¿En qué más te ayudo?' };
+    }
+
+    if (pending.phase === 'pick_apt') {
+      const opts = pending.options || [];
+      const byIndex = /^\d+$/.test(input) ? opts[parseInt(input, 10) - 1] : null;
+      const byLabel = opts.find((o) => {
+        const n = normalizeInput(o.label);
+        return n === input || n.includes(input) || input.includes(n);
+      });
+      const pick = byIndex || byLabel;
+      if (!pick) {
+        return BookingFlowService.buildOptionsReply(
+          'Elegí uno de los turnos de la lista, o *Dejar como está*.',
+          [...opts.map((o) => o.label), 'Dejar como está'],
+        );
+      }
+      return this.presentRescheduleSlots(
+        params.conversationId,
+        params.tenantId,
+        ctx,
+        { id: pick.id, label: pick.label, serviceId: pick.serviceId },
+      );
+    }
+
+    // pick_slot
+    if (input === MORE_SLOTS_LABEL || input === 'ver mas horarios' || input.includes('ver más')) {
+      return this.presentRescheduleSlots(
+        params.conversationId,
+        params.tenantId,
+        ctx,
+        {
+          id: pending.appointmentId,
+          label: pending.label,
+          serviceId: pending.serviceId,
+        },
+        { more: true },
+      );
+    }
+
+    const slots = ctx.agentState.listedSlots || [];
+    const byIndex = /^\d+$/.test(input) ? slots[parseInt(input, 10) - 1] : null;
+    const byLabel = slots.find((s) => {
+      const n = normalizeInput(s.label);
+      return n === input || normalizeInput(s.time) === input || n.includes(input);
+    });
+    const pick = byIndex || byLabel;
+    if (!pick) {
+      // Fecha escrita → buscar ese día
+      if (looksLikeDateQuery(params.text)) {
+        const daySlots = await BookingRescheduleService.getAvailableSlotsForReschedule({
+          tenantId: params.tenantId,
+          appointmentId: pending.appointmentId,
+          limit: 40,
+        });
+        const { filterSlotsByQuery } = await import('./booking-datetime.service');
+        const tz = settings.timezone || 'America/Argentina/Cordoba';
+        const filtered = filterSlotsByQuery(params.text, tz, daySlots).slice(0, 5);
+        const toShow = (filtered.length ? filtered : daySlots.slice(0, 5)).map((s) => ({
+          date: s.date,
+          time: s.time,
+          label: s.label,
+        }));
+        if (!toShow.length) {
+          return {
+            handled: true,
+            text: 'No encontré horarios libres para esa fecha. Probá otro día o elegí de la lista.',
+          };
+        }
+        await BookingContextService.save(params.conversationId, {
+          ...ctx,
+          agentState: {
+            ...ctx.agentState,
+            listedSlots: toShow,
+            shownSlotKeys: [
+              ...(ctx.agentState.shownSlotKeys || []),
+              ...toShow.map((s) => slotKey(s.date, s.time)),
+            ],
+            browsePhase: 'presenting_slots',
+            uiPresentation: null,
+          },
+        });
+        return BookingFlowService.buildOptionsReply(
+          `Horarios libres cerca de lo que pediste:\n\nTurno a mover: ${pending.label}`,
+          [...toShow.map((s) => s.label), 'Ver más horarios', 'Dejar como está'],
+        );
+      }
+
+      if (slots.length) {
+        return BookingFlowService.buildOptionsReply(
+          `Elegí un horario de la lista para mover:\n\n${pending.label}`,
+          [...slots.map((s) => s.label), 'Ver más horarios', 'Dejar como está'],
+        );
+      }
+      return {
+        handled: true,
+        text: 'No hay horarios en la lista. Escribí *reprogramar* para intentar de nuevo, o *Dejar como está*.',
+      };
+    }
+
+    const result = await BookingRescheduleService.applyInPlace({
+      tenantId: params.tenantId,
+      leadId: params.leadId,
+      appointmentId: pending.appointmentId,
+      date: pick.date,
+      time: pick.time,
+      source: 'bot',
+    });
+
+    await BookingContextService.save(params.conversationId, {
+      ...ctx,
+      agentState: {
+        ...ctx.agentState,
+        pendingReschedule: null,
+        listedSlots: [],
+        shownSlotKeys: [],
+        browsePhase: null,
+        uiPresentation: null,
+        offeredSlot: null,
+      },
+    });
+
+    if (!result.ok) {
+      return { handled: true, text: result.error };
+    }
+
+    return {
+      handled: true,
+      text: `Listo, reprogramamos tu turno (mismo cobro):\n\nAntes: ${result.oldLabel}\nAhora: *${result.newLabel}*\n\n¿Necesitás algo más?`,
+    };
+  }
+
   private static async looksLikeSpecificIntent(
     tenantId: string,
     rawText: string,
@@ -1358,6 +1664,7 @@ export class BookingOrchestrator {
     if (BookingAiService.looksLikeAvailabilityQuestion(rawText)) return true;
     if (BookingAiService.looksLikeInfoRequest(rawText)) return true;
     if (looksLikeCancelIntent(input)) return true;
+    if (looksLikeRescheduleIntent(input)) return true;
     if (/reserv|turno|quiero|necesito|masaje|camino|sesión|sesion/.test(input)) return true;
 
     const services = await prisma.bookingService.findMany({

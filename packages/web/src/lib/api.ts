@@ -298,6 +298,13 @@ class ApiClient {
   async createAppointment(data: any) { return this.fetch<{ appointment: any }>('/booking/appointments', { method: 'POST', body: data }); }
   async updateAppointment(id: string, data: any) { return this.fetch<{ appointment: any }>(`/booking/appointments/${id}`, { method: 'PATCH', body: data }); }
   async deleteAppointment(id: string) { return this.fetch<{ message: string }>(`/booking/appointments/${id}`, { method: 'DELETE' }); }
+  async getBookingAvailability(params?: Record<string, string>) {
+    const qs = params ? '?' + new URLSearchParams(params).toString() : '';
+    return this.fetch<{ slots: Array<{ date: string; time: string; label: string }> }>(`/booking/availability${qs}`);
+  }
+  async rescheduleAppointment(id: string, data: { date: string; time: string }) {
+    return this.fetch<{ appointment: any; note?: string }>(`/booking/appointments/${id}/reschedule`, { method: 'POST', body: data });
+  }
 
   // Booking sales (turnos cobrados)
   async getBookingSales(params?: Record<string, string>) {

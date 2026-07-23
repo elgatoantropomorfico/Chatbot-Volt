@@ -10,6 +10,7 @@ import { BookingNotificationService } from '../services/booking-notification.ser
 import { BookingSalesService } from '../services/booking-sales.service';
 import { AppointmentStatusHistoryService } from '../services/appointment-status-history.service';
 import { accountingForStatus } from '../services/appointment-accounting.service';
+import { BookingRescheduleService } from '../services/booking-reschedule.service';
 
 function resolveTenantId(user: any, queryTenantId?: string): string | null {
   if (user.role === 'superadmin' && queryTenantId) return queryTenantId;
@@ -457,9 +458,14 @@ export async function bookingRoutes(app: FastifyInstance) {
   }, async (request: FastifyRequest, reply: FastifyReply) => {
     const tenantId = resolveTenantId(request.user, (request.query as any).tenantId);
     if (!tenantId) return reply.status(400).send({ error: 'tenantId required' });
-    const limit = Number((request.query as any).limit) || 5;
+    const q = request.query as any;
+    const limit = Number(q.limit) || 5;
+    const excludeAppointmentId = q.excludeAppointmentId ? String(q.excludeAppointmentId) : undefined;
 
-    const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit });
+    const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, {
+      limit,
+      excludeAppointmentId,
+    });
     return reply.send({ slots });
   });
 
@@ -648,6 +654,37 @@ export async function bookingRoutes(app: FastifyInstance) {
       void BookingNotificationService.sendStaffConfirmationEmail(appointment.id);
     }
     return reply.send({ appointment });
+  });
+
+  app.post('/appointments/:id/reschedule', {
+    preHandler: [requireRole('superadmin', 'tenant_admin', 'agent')],
+  }, async (request: FastifyRequest, reply: FastifyReply) => {
+    const { id } = request.params as { id: string };
+    const body = z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      time: z.string().regex(/^\d{2}:\d{2}$/),
+      tenantId: z.string().optional(),
+    }).safeParse(request.body);
+    if (!body.success) return reply.status(400).send({ error: 'date (YYYY-MM-DD) y time (HH:MM) requeridos' });
+
+    const existing = await prisma.appointment.findUnique({ where: { id } });
+    if (!existing) return reply.status(404).send({ error: 'Not found' });
+    if (request.user.role !== 'superadmin' && request.user.tenantId !== existing.tenantId) {
+      return reply.status(403).send({ error: 'Forbidden' });
+    }
+
+    const u = request.user as any;
+    const result = await BookingRescheduleService.applyInPlace({
+      tenantId: existing.tenantId,
+      appointmentId: id,
+      date: body.data.date,
+      time: body.data.time,
+      source: 'admin',
+      changedByUserId: u?.userId || u?.id || null,
+      changedByName: u?.name || u?.email || 'Admin',
+    });
+    if (!result.ok) return reply.status(409).send({ error: result.error });
+    return reply.send({ appointment: result.appointment, note: result.note });
   });
 
   // ── Ventas (agenda) ──
