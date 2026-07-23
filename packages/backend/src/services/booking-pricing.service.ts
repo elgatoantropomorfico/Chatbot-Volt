@@ -142,4 +142,30 @@ export class BookingPricingService {
 
     return `🎉 *Promos vigentes:*\n${lines.join('\n')}`;
   }
+
+  /** Lista de precios por servicio activo (catalog v2 / Ver precios). */
+  static async formatServicesPriceList(tenantId: string): Promise<string> {
+    const [settings, services, rule] = await Promise.all([
+      prisma.bookingSettings.findUnique({ where: { tenantId } }),
+      prisma.bookingService.findMany({
+        where: { tenantId, isActive: true },
+        orderBy: { sortOrder: 'asc' },
+      }),
+      this.getActivePriceRule(tenantId),
+    ]);
+    if (!settings || !services.length) {
+      return 'Consultá el precio al confirmar el servicio.';
+    }
+
+    const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
+    const lines = services.map((svc) => {
+      const listPrice = this.resolveServiceListPrice(svc, settings);
+      const resolved = this.applyRule(listPrice || 0, rule);
+      const dur = svc.durationMinutes || settings.sessionDurationMinutes || 80;
+      let line = `• *${svc.name}*: ${listPrice ? fmt(resolved.finalPrice) : 'consultar'} (${dur} min)`;
+      if (resolved.discountLabel && listPrice) line += ` — ${resolved.discountLabel}`;
+      return line;
+    });
+    return lines.join('\n');
+  }
 }

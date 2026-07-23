@@ -55,7 +55,8 @@ export class BookingCheckoutService {
       console.warn('⚠️ presentPaymentChoice: no se pudo resolver precio:', err.message || err);
     }
     const depositPct = settings.depositPercentage || 50;
-    const policyShort = (settings.cancellationPolicyJson as any)?.policy_short_text
+    const policyShort = (settings.cancellationPolicyJson as any)?.cancellation
+      || (settings.cancellationPolicyJson as any)?.policy_short_text
       || 'En caso de cancelación, la seña no es reembolsable.';
 
     const body = `Te dejo el resumen de tu turno:

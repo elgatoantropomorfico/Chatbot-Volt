@@ -39,6 +39,7 @@ const settingsUpdateSchema = z.object({
   cancelEnabled: z.boolean().optional(),
   confirmNotifyEnabled: z.boolean().optional(),
   confirmNotifyEmail: z.string().email().nullable().optional(),
+  catalogConfigV2: z.boolean().optional(),
 });
 
 const serviceSchema = z.object({
@@ -204,13 +205,21 @@ export async function bookingRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Validation failed', details: body.error.flatten() });
     }
 
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
+    const data: any = {
+      ...body.data,
+      recommendationTags: body.data.recommendationTags ?? [],
+      recommendedWhen: body.data.recommendedWhen ?? [],
+    };
+    if (settings?.catalogConfigV2) {
+      if (data.price == null || Number(data.price) <= 0) {
+        return reply.status(400).send({ error: 'El precio del servicio es obligatorio' });
+      }
+      data.usesBasePrice = false;
+    }
+
     const service = await prisma.bookingService.create({
-      data: {
-        tenantId,
-        ...body.data,
-        recommendationTags: body.data.recommendationTags ?? [],
-        recommendedWhen: body.data.recommendedWhen ?? [],
-      },
+      data: { tenantId, ...data },
     });
     return reply.status(201).send({ service });
   });
@@ -232,7 +241,17 @@ export async function bookingRoutes(app: FastifyInstance) {
       return reply.status(400).send({ error: 'Validation failed', details: body.error.flatten() });
     }
 
-    const service = await prisma.bookingService.update({ where: { id }, data: body.data });
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId: existing.tenantId } });
+    const data: any = { ...body.data };
+    if (settings?.catalogConfigV2) {
+      data.usesBasePrice = false;
+      const nextPrice = data.price !== undefined ? data.price : existing.price;
+      if (nextPrice == null || Number(nextPrice) <= 0) {
+        return reply.status(400).send({ error: 'El precio del servicio es obligatorio' });
+      }
+    }
+
+    const service = await prisma.bookingService.update({ where: { id }, data });
     return reply.send({ service });
   });
 

@@ -112,6 +112,11 @@ export interface BookingFlowContext {
 
 const MAIN_MENU_COMMANDS = ['menú', 'menu', 'empezar de nuevo', 'inicio'];
 const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
+const MAIN_MENU_OPTIONS_V2 = ['Ver todos los servicios', 'Ver precios'];
+
+function mainMenuOptionsFor(settings: any): string[] {
+  return settings?.catalogConfigV2 ? MAIN_MENU_OPTIONS_V2 : MAIN_MENU_OPTIONS;
+}
 const RECOMMENDER_Q1_OPTIONS = ['Soltar tensión', 'Descansar piernas', 'Calor profundo', 'Experiencia sensorial', 'Aflojar rigidez'];
 const RECOMMENDER_Q2_OPTIONS = ['Suave y relajante', 'Profunda y envolvente', 'Con calor', 'Con aromas/herbales', 'Más corporal'];
 const SERVICE_SELECTED_OPTIONS = ['Reservar este camino', 'Ver otros caminos', 'Hablar con persona'];
@@ -596,8 +601,8 @@ export class BookingFlowService {
     return prependToReply(next, answer);
   }
 
-  private static mainMenuOptionsReply(body: string): FlowHandleResult {
-    return flowReply(body, MAIN_MENU_OPTIONS);
+  private static mainMenuOptionsReply(body: string, settings?: any): FlowHandleResult {
+    return flowReply(body, mainMenuOptionsFor(settings));
   }
 
   /** Libera un hold de pago pendiente cuando el usuario abandona el checkout */
@@ -642,7 +647,7 @@ export class BookingFlowService {
       body = [body, bridge].filter(Boolean).join('\n\n');
     }
 
-    return this.mainMenuOptionsReply(body || 'Contame en qué te puedo ayudar 🌿');
+    return this.mainMenuOptionsReply(body || 'Contame en qué te puedo ayudar 🌿', settings);
   }
 
   private static async resumeWithBridge(
@@ -825,7 +830,8 @@ export class BookingFlowService {
   }
 
   private static cancelWarningReply(settings: any, apt: { appointmentDate: Date; appointmentTime: string; service: { name: string } }): FlowHandleResult {
-    const policy = (settings.cancellationPolicyJson as any)?.policy_short_text
+    const policy = (settings.cancellationPolicyJson as any)?.cancellation
+      || (settings.cancellationPolicyJson as any)?.policy_short_text
       || 'La seña abonada no es reembolsable.';
     const timezone = settings.timezone || 'America/Argentina/Cordoba';
     const slot = this.formatAppointmentSlot(apt, timezone);
@@ -1020,12 +1026,20 @@ export class BookingFlowService {
   }
 
   private static mainMenuReply(tenantId: string, settings: any): FlowHandleResult {
-    const welcome = msg(settings, 'welcome',
-      'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPuedo ayudarte a elegir el camino ideal o, si ya sabés cuál querés, avanzamos directo con la reserva.');
-    return flowReply(welcome, MAIN_MENU_OPTIONS);
+    const welcome = settings?.catalogConfigV2
+      ? msg(settings, 'welcome',
+        'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPodés ver todos los servicios o consultar precios y avanzar con la reserva.')
+      : msg(settings, 'welcome',
+        'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPuedo ayudarte a elegir el camino ideal o, si ya sabés cuál querés, avanzamos directo con la reserva.');
+    return flowReply(welcome, mainMenuOptionsFor(settings));
   }
 
   private static async renderMainMenu(tenantId: string, settings: any): Promise<string> {
+    if (settings?.catalogConfigV2) {
+      const welcome = msg(settings, 'welcome',
+        'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPodés ver todos los servicios o consultar precios y avanzar con la reserva.');
+      return `${welcome}\n\n1️⃣ Ver todos los servicios\n2️⃣ Ver precios`;
+    }
     const welcome = msg(settings, 'welcome',
       'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPuedo ayudarte a elegir el camino ideal o, si ya sabés cuál querés, avanzamos directo con la reserva.');
     return `${welcome}\n\n1️⃣ Ayudame a elegir\n2️⃣ Ya sé cuál quiero\n3️⃣ Ver precios y disponibilidad`;
@@ -1880,7 +1894,8 @@ export class BookingFlowService {
     }
 
     const pricing = await BookingPricingService.resolvePrice(tenantId, flow.serviceId);
-    const policyShort = (settings.cancellationPolicyJson as any)?.policy_short_text
+    const policyShort = (settings.cancellationPolicyJson as any)?.cancellation
+      || (settings.cancellationPolicyJson as any)?.policy_short_text
       || 'En caso de cancelación, la seña no es reembolsable.';
 
     const summary = msg(settings, 'payment_summary', `Te dejo el resumen de tu turno:

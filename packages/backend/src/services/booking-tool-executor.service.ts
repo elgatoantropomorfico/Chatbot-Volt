@@ -164,22 +164,26 @@ export class BookingToolExecutor {
     serviceId?: string,
   ): Promise<ToolResult> {
     const settings = exec.settings;
-    const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
     const depositPct = settings.depositPercentage || 50;
-    const promoBlock = await BookingPricingService.formatActivePromosSummary(exec.tenantId, basePrice);
+    const promoBlock = await BookingPricingService.formatActivePromosSummary(exec.tenantId);
+    const v2 = !!settings.catalogConfigV2;
 
     let serviceLine = '';
     const sid = serviceId || ctx.agentState.service?.id;
     if (sid) {
       const pricing = await BookingPricingService.resolvePrice(exec.tenantId, sid);
-      serviceLine = `Precio del camino elegido: $${pricing.finalPrice.toLocaleString('es-AR')} ARS`;
+      const noun = v2 ? 'servicio' : 'camino';
+      serviceLine = `Precio del ${noun} elegido: $${pricing.finalPrice.toLocaleString('es-AR')} ARS`;
       if (pricing.discountLabel) serviceLine += ` (${pricing.discountLabel})`;
-    } else if (basePrice) {
+    } else if (v2) {
+      serviceLine = await BookingPricingService.formatServicesPriceList(exec.tenantId);
+    } else if (settings.basePrice) {
+      const basePrice = Number(settings.basePrice);
       serviceLine = `Precio base de sesión: $${basePrice.toLocaleString('es-AR')} ARS`;
     }
 
     const lines = [
-      serviceLine || 'Consultá el precio al confirmar el camino.',
+      serviceLine || (v2 ? 'Consultá el precio al confirmar el servicio.' : 'Consultá el precio al confirmar el camino.'),
       `Seña para reservar: ${depositPct}% del valor de la sesión.`,
       promoBlock,
     ].filter(Boolean);
@@ -862,7 +866,8 @@ export class BookingToolExecutor {
     });
     const label = String(args.label || `${apt.service.name} — ${day} ${apt.appointmentTime}`);
 
-    const policy = (exec.settings.cancellationPolicyJson as any)?.policy_short_text
+    const policy = (exec.settings.cancellationPolicyJson as any)?.cancellation
+      || (exec.settings.cancellationPolicyJson as any)?.policy_short_text
       || 'En caso de cancelación, la seña no es reembolsable.';
 
     return {

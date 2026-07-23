@@ -532,6 +532,7 @@ model BookingSettings {
   cancelEnabled                Boolean  @default(true) @map("cancel_enabled")
   confirmNotifyEnabled         Boolean  @default(false) @map("confirm_notify_enabled")
   confirmNotifyEmail           String?  @map("confirm_notify_email")
+  catalogConfigV2              Boolean  @default(false) @map("catalog_config_v2")
   createdAt                    DateTime @default(now()) @map("created_at")
   updatedAt                    DateTime @updatedAt @map("updated_at")
 

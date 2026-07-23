@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '@/lib/api';
+import { isCatalogConfigV2 } from '@/lib/catalog-config';
 import {
   Sparkles,
   Clock,
@@ -16,20 +17,52 @@ import {
   Save,
   Power,
   Mail,
+  Tag,
+  Shield,
+  Package,
 } from 'lucide-react';
 import styles from './page.module.css';
 
-export type TurneraTab = 'servicios' | 'horarios' | 'bloqueos' | 'pagos' | 'avisos' | 'mensajes';
+export type TurneraTab =
+  | 'servicios'
+  | 'horarios'
+  | 'bloqueos'
+  | 'disponibilidad'
+  | 'promociones'
+  | 'pagos'
+  | 'politicas'
+  | 'avisos'
+  | 'mensajes';
+
 type ModalType = 'service' | 'slot' | 'rule' | null;
 
-export const TURNERA_TABS: { id: TurneraTab; label: string; icon: typeof Sparkles }[] = [
-  { id: 'servicios', label: 'Caminos', icon: Sparkles },
-  { id: 'horarios', label: 'Horarios', icon: Clock },
-  { id: 'bloqueos', label: 'Bloqueos', icon: CalendarX },
-  { id: 'pagos', label: 'Pagos', icon: CreditCard },
-  { id: 'avisos', label: 'Avisos', icon: Mail },
-  { id: 'mensajes', label: 'Mensajes', icon: MessageSquare },
+type TabDef = { id: TurneraTab; label: string; icon: typeof Sparkles; group: 'turnera' | 'catalogo' };
+
+/** Tabs legacy (otros tenants) */
+export const TURNERA_TABS: TabDef[] = [
+  { id: 'servicios', label: 'Caminos', icon: Sparkles, group: 'turnera' },
+  { id: 'horarios', label: 'Horarios', icon: Clock, group: 'turnera' },
+  { id: 'bloqueos', label: 'Bloqueos', icon: CalendarX, group: 'turnera' },
+  { id: 'pagos', label: 'Pagos', icon: CreditCard, group: 'turnera' },
+  { id: 'avisos', label: 'Avisos', icon: Mail, group: 'turnera' },
+  { id: 'mensajes', label: 'Mensajes', icon: MessageSquare, group: 'turnera' },
 ];
+
+/** Tabs catalog config v2 (Gabinete) */
+export const TURNERA_TABS_V2: TabDef[] = [
+  { id: 'horarios', label: 'Horarios', icon: Clock, group: 'turnera' },
+  { id: 'disponibilidad', label: 'Disponibilidad', icon: CalendarX, group: 'turnera' },
+  { id: 'avisos', label: 'Avisos', icon: Mail, group: 'turnera' },
+  { id: 'mensajes', label: 'Mensajes', icon: MessageSquare, group: 'turnera' },
+  { id: 'servicios', label: 'Productos / servicios', icon: Package, group: 'catalogo' },
+  { id: 'promociones', label: 'Promociones', icon: Tag, group: 'catalogo' },
+  { id: 'pagos', label: 'Pagos', icon: CreditCard, group: 'catalogo' },
+  { id: 'politicas', label: 'Políticas', icon: Shield, group: 'catalogo' },
+];
+
+export function getTurneraTabs(catalogV2: boolean): TabDef[] {
+  return catalogV2 ? TURNERA_TABS_V2 : TURNERA_TABS;
+}
 
 const MESSAGE_LABELS: Record<string, string> = {
   welcome: 'Bienvenida (menú principal)',
@@ -57,6 +90,7 @@ const EMPTY_SERVICE = {
   shortDescription: '',
   longDescription: '',
   durationMinutes: 80,
+  price: '',
   isActive: true,
   sortOrder: 0,
   botRecommendationText: '',
@@ -134,8 +168,11 @@ export function TurneraConfigPanel({
     workingDays: [1, 2, 3, 4, 5] as number[],
   });
   const [policyText, setPolicyText] = useState('');
+  const [policyForm, setPolicyForm] = useState({ cancellation: '', returns: '', exchanges: '' });
   const [hasResend, setHasResend] = useState(false);
   const [notifyEmail, setNotifyEmail] = useState('');
+
+  const catalogV2 = isCatalogConfigV2(settings);
 
   useEffect(() => { loadAll(); }, []);
 
@@ -176,7 +213,15 @@ export function TurneraConfigPanel({
           paymentLinkExpirationMinutes: st.paymentLinkExpirationMinutes,
           workingDays: (st.workingDaysJson as number[]) || [1, 2, 3, 4, 5],
         });
-        setPolicyText((st.cancellationPolicyJson as any)?.policy_short_text || '');
+        setPolicyText((st.cancellationPolicyJson as any)?.policy_short_text
+          || (st.cancellationPolicyJson as any)?.cancellation
+          || '');
+        const pol = (st.cancellationPolicyJson as any) || {};
+        setPolicyForm({
+          cancellation: pol.cancellation || pol.policy_short_text || '',
+          returns: pol.returns || '',
+          exchanges: pol.exchanges || '',
+        });
       }
     } catch (e) {
       console.error(e);
@@ -213,6 +258,19 @@ export function TurneraConfigPanel({
       cancellationPolicyJson: {
         ...(settings?.cancellationPolicyJson || {}),
         policy_short_text: policyText,
+        cancellation: policyText,
+      },
+    });
+  }
+
+  async function savePolicyForm() {
+    await saveSettings({
+      cancellationPolicyJson: {
+        ...(settings?.cancellationPolicyJson || {}),
+        cancellation: policyForm.cancellation,
+        returns: policyForm.returns,
+        exchanges: policyForm.exchanges,
+        policy_short_text: policyForm.cancellation,
       },
     });
   }
@@ -227,6 +285,7 @@ export function TurneraConfigPanel({
         shortDescription: service.shortDescription || '',
         longDescription: service.longDescription || service.botSummary || '',
         durationMinutes: service.durationMinutes || 80,
+        price: service.price != null ? String(Number(service.price)) : '',
         isActive: service.isActive,
         sortOrder: service.sortOrder || 0,
         botRecommendationText: service.botRecommendationText || '',
@@ -241,9 +300,12 @@ export function TurneraConfigPanel({
 
   async function saveService() {
     if (!serviceForm.name.trim()) return alert('El nombre es obligatorio');
+    if (catalogV2 && (!serviceForm.price || Number(serviceForm.price) <= 0)) {
+      return alert('El precio del servicio es obligatorio');
+    }
     setSaving(true);
     try {
-      const payload = {
+      const payload: any = {
         slug: serviceForm.slug || slugify(serviceForm.name),
         name: serviceForm.name,
         serviceType: serviceForm.serviceType || null,
@@ -253,10 +315,11 @@ export function TurneraConfigPanel({
         isActive: serviceForm.isActive,
         sortOrder: serviceForm.sortOrder,
         botSummary: null,
-        botRecommendationText: serviceForm.botRecommendationText || null,
-        recommendedWhen: linesToArray(serviceForm.recommendedWhen),
-        usesBasePrice: true,
+        botRecommendationText: catalogV2 ? null : (serviceForm.botRecommendationText || null),
+        recommendedWhen: catalogV2 ? [] : linesToArray(serviceForm.recommendedWhen),
+        usesBasePrice: !catalogV2,
       };
+      if (catalogV2) payload.price = Number(serviceForm.price);
       if (editingId) {
         await api.updateBookingService(editingId, payload);
       } else {
@@ -264,7 +327,7 @@ export function TurneraConfigPanel({
       }
       setModal(null);
       await loadAll();
-      flash('Camino guardado');
+      flash(catalogV2 ? 'Servicio guardado' : 'Camino guardado');
     } catch (e: any) {
       alert(e.message);
     } finally {
@@ -278,7 +341,7 @@ export function TurneraConfigPanel({
   }
 
   async function deleteService(id: string) {
-    if (!confirm('¿Eliminar este camino?')) return;
+    if (!confirm(catalogV2 ? '¿Eliminar este servicio?' : '¿Eliminar este camino?')) return;
     await api.deleteBookingService(id);
     await loadAll();
     flash('Eliminado');
@@ -433,7 +496,7 @@ export function TurneraConfigPanel({
         <>
           <div className={styles.modalBackdrop} onClick={() => setModal(null)} />
           <div className={styles.modal}>
-            <h2>{editingId ? 'Editar camino' : 'Nuevo camino'}</h2>
+            <h2>{editingId ? (catalogV2 ? 'Editar servicio' : 'Editar camino') : (catalogV2 ? 'Nuevo servicio' : 'Nuevo camino')}</h2>
             <div className={styles.formGroup}>
               <label>Nombre</label>
               <input className={styles.formInput} value={serviceForm.name}
@@ -454,15 +517,15 @@ export function TurneraConfigPanel({
             <div className={styles.formGroup}>
               <label>Descripción corta</label>
               <p className={styles.sectionHint} style={{ marginTop: 0, marginBottom: 8 }}>
-                Una línea para la lista de caminos en WhatsApp.
+                Una línea para la lista en WhatsApp.
               </p>
               <textarea className={styles.formTextarea} rows={2} value={serviceForm.shortDescription}
                 onChange={(e) => setServiceForm((f) => ({ ...f, shortDescription: e.target.value }))} />
             </div>
             <div className={styles.formGroup}>
-              <label>Información del camino</label>
+              <label>{catalogV2 ? 'Información del servicio' : 'Información del camino'}</label>
               <p className={styles.sectionHint} style={{ marginTop: 0, marginBottom: 8 }}>
-                La IA de turnera usa solo este texto para responder consultas (técnicas, bambú, beneficios, etc.).
+                La IA de turnera usa solo este texto para responder consultas.
               </p>
               <textarea className={styles.formTextarea} rows={5} value={serviceForm.longDescription}
                 onChange={(e) => setServiceForm((f) => ({ ...f, longDescription: e.target.value }))} />
@@ -473,22 +536,41 @@ export function TurneraConfigPanel({
                 <input className={styles.formInput} type="number" value={serviceForm.durationMinutes}
                   onChange={(e) => setServiceForm((f) => ({ ...f, durationMinutes: Number(e.target.value) }))} />
               </div>
+              {catalogV2 ? (
+                <div className={styles.formGroup}>
+                  <label>Precio (ARS)</label>
+                  <input className={styles.formInput} type="number" value={serviceForm.price}
+                    onChange={(e) => setServiceForm((f) => ({ ...f, price: e.target.value }))} placeholder="60000" />
+                </div>
+              ) : (
+                <div className={styles.formGroup}>
+                  <label>Orden</label>
+                  <input className={styles.formInput} type="number" value={serviceForm.sortOrder}
+                    onChange={(e) => setServiceForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))} />
+                </div>
+              )}
+            </div>
+            {catalogV2 && (
               <div className={styles.formGroup}>
                 <label>Orden</label>
                 <input className={styles.formInput} type="number" value={serviceForm.sortOrder}
                   onChange={(e) => setServiceForm((f) => ({ ...f, sortOrder: Number(e.target.value) }))} />
               </div>
-            </div>
-            <div className={styles.formGroup}>
-              <label>Texto de recomendación</label>
-              <textarea className={styles.formTextarea} rows={2} value={serviceForm.botRecommendationText}
-                onChange={(e) => setServiceForm((f) => ({ ...f, botRecommendationText: e.target.value }))} />
-            </div>
-            <div className={styles.formGroup}>
-              <label>Recomendado cuando (una línea por ítem)</label>
-              <textarea className={styles.formTextarea} rows={3} value={serviceForm.recommendedWhen}
-                onChange={(e) => setServiceForm((f) => ({ ...f, recommendedWhen: e.target.value }))} />
-            </div>
+            )}
+            {!catalogV2 && (
+              <>
+                <div className={styles.formGroup}>
+                  <label>Texto de recomendación</label>
+                  <textarea className={styles.formTextarea} rows={2} value={serviceForm.botRecommendationText}
+                    onChange={(e) => setServiceForm((f) => ({ ...f, botRecommendationText: e.target.value }))} />
+                </div>
+                <div className={styles.formGroup}>
+                  <label>Recomendado cuando (una línea por ítem)</label>
+                  <textarea className={styles.formTextarea} rows={3} value={serviceForm.recommendedWhen}
+                    onChange={(e) => setServiceForm((f) => ({ ...f, recommendedWhen: e.target.value }))} />
+                </div>
+              </>
+            )}
             <div className={styles.checkboxGroup}>
               <input type="checkbox" id="svcActive" checked={serviceForm.isActive}
                 onChange={(e) => setServiceForm((f) => ({ ...f, isActive: e.target.checked }))} />
@@ -625,13 +707,15 @@ export function TurneraConfigPanel({
           <>
             <div className={styles.sectionHeader}>
               <div>
-                <h2 className={styles.sectionTitle}>Caminos / servicios</h2>
+                <h2 className={styles.sectionTitle}>{catalogV2 ? 'Productos / servicios' : 'Caminos / servicios'}</h2>
                 <p className={styles.sectionHint} style={{ marginBottom: 0 }}>
-                  Editá los caminos que el bot ofrece en WhatsApp.
+                  {catalogV2
+                    ? 'Servicios que el bot ofrece en WhatsApp. Cada uno tiene su propio precio.'
+                    : 'Editá los caminos que el bot ofrece en WhatsApp.'}
                 </p>
               </div>
               <button type="button" className={styles.addBtn} onClick={() => openServiceModal()}>
-                <Plus size={14} /> Nuevo camino
+                <Plus size={14} /> {catalogV2 ? 'Nuevo servicio' : 'Nuevo camino'}
               </button>
             </div>
             {services.length === 0 ? (
@@ -669,6 +753,11 @@ export function TurneraConfigPanel({
                     <span className={styles.badge} style={{ background: 'var(--color-bg-secondary)', color: 'var(--color-text-muted)' }}>
                       {s.durationMinutes} min
                     </span>
+                    {catalogV2 && s.price != null && (
+                      <span className={styles.badge} style={{ background: 'rgba(34, 197, 94, 0.12)', color: '#22c55e' }}>
+                        ${Number(s.price).toLocaleString('es-AR')}
+                      </span>
+                    )}
                   </div>
                 </div>
               ))
@@ -771,9 +860,10 @@ export function TurneraConfigPanel({
         );
 
       case 'bloqueos':
+      case 'disponibilidad':
         return (
           <>
-            <h2 className={styles.sectionTitle}>Bloqueos manuales</h2>
+            <h2 className={styles.sectionTitle}>{catalogV2 ? 'Disponibilidad' : 'Bloqueos manuales'}</h2>
             <p className={styles.sectionHint}>
               Bloqueá fechas o horarios puntuales donde no se ofrecen turnos.
             </p>
@@ -802,7 +892,7 @@ export function TurneraConfigPanel({
             {blocks.length === 0 ? (
               <div className={styles.emptyState}>
                 <CalendarX size={32} style={{ opacity: 0.35 }} />
-                <p>Sin bloqueos activos</p>
+                <p>{catalogV2 ? 'Sin bloqueos de disponibilidad' : 'Sin bloqueos activos'}</p>
               </div>
             ) : (
               blocks.map((b) => (
@@ -824,20 +914,101 @@ export function TurneraConfigPanel({
           </>
         );
 
+      case 'promociones':
+        return (
+          <>
+            <div className={styles.sectionHeader}>
+              <div>
+                <h2 className={styles.sectionTitle}>Promociones</h2>
+                <p className={styles.sectionHint} style={{ marginBottom: 0 }}>
+                  Reglas de descuento aplicables a los precios de los servicios. La primera vigente (por orden) es la que se aplica al cobrar.
+                </p>
+              </div>
+              <button type="button" className={styles.addBtn} onClick={() => openRuleModal()}>
+                <Plus size={14} /> Nueva promo
+              </button>
+            </div>
+            {rules.length === 0 ? (
+              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Sin promos — aplica el precio de cada servicio</p>
+            ) : (
+              rules.map((r) => (
+                <div key={r.id} className={styles.card}>
+                  <div className={styles.cardHeader}>
+                    <div>
+                      <div className={styles.cardTitle}>{r.label}</div>
+                      <div className={styles.cardSubtitle}>
+                        {r.ruleType === 'percentage_discount' ? `${r.value}% de descuento` : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
+                        {r.validFrom && ` · desde ${r.validFrom.slice(0, 10)}`}
+                        {r.validUntil && ` · hasta ${r.validUntil.slice(0, 10)}`}
+                      </div>
+                    </div>
+                    <div className={styles.cardActions}>
+                      <button type="button" className={styles.iconBtn} onClick={() => toggleRuleActive(r)}>
+                        <Power size={14} />
+                      </button>
+                      <button type="button" className={styles.iconBtn} onClick={() => openRuleModal(r)}>
+                        <Edit2 size={14} />
+                      </button>
+                      <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => deleteRule(r.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                  <span className={`${styles.badge} ${r.isActive ? styles.badgePromo : styles.badgeInactive}`} style={{ marginTop: 10 }}>
+                    {r.isActive ? 'Vigente' : 'Inactiva'}
+                  </span>
+                </div>
+              ))
+            )}
+          </>
+        );
+
+      case 'politicas':
+        return (
+          <>
+            <h2 className={styles.sectionTitle}>Políticas</h2>
+            <p className={styles.sectionHint}>
+              Textos que el bot y el checkout pueden usar para cancelaciones, devoluciones y cambios.
+            </p>
+            <div className={styles.formGroup}>
+              <label>Cancelaciones</label>
+              <textarea className={styles.formTextarea} rows={3} value={policyForm.cancellation}
+                onChange={(e) => setPolicyForm((f) => ({ ...f, cancellation: e.target.value }))} />
+            </div>
+            <div className={styles.formGroup}>
+              <label>Devoluciones</label>
+              <textarea className={styles.formTextarea} rows={3} value={policyForm.returns}
+                onChange={(e) => setPolicyForm((f) => ({ ...f, returns: e.target.value }))} />
+            </div>
+            <div className={styles.formGroup}>
+              <label>Cambios</label>
+              <textarea className={styles.formTextarea} rows={3} value={policyForm.exchanges}
+                onChange={(e) => setPolicyForm((f) => ({ ...f, exchanges: e.target.value }))} />
+            </div>
+            <button type="button" className={styles.saveBtn} onClick={savePolicyForm} disabled={saving}>
+              <Save size={14} /> Guardar políticas
+            </button>
+          </>
+        );
+
       case 'pagos':
         return (
           <>
-            <h2 className={styles.sectionTitle}>Precios y pagos</h2>
+            <h2 className={styles.sectionTitle}>{catalogV2 ? 'Pagos' : 'Precios y pagos'}</h2>
             <p className={styles.sectionHint}>
-              Los cambios impactan los montos de Mercado Pago en tiempo real para nuevos turnos.
+              {catalogV2
+                ? 'Seña y condiciones de cobro. El precio de cada servicio se configura en Productos / servicios.'
+                : 'Los cambios impactan los montos de Mercado Pago en tiempo real para nuevos turnos.'}
             </p>
 
-            <div className={styles.formGroup}>
-              <label>Precio base (ARS)</label>
-              <input className={styles.formInput} type="number" value={Number(settings.basePrice || 0)}
-                onChange={(e) => setSettings((s: any) => ({ ...s, basePrice: Number(e.target.value) }))}
-                onBlur={(e) => saveSettings({ basePrice: Number(e.target.value) })} />
-            </div>
+            {!catalogV2 && (
+              <div className={styles.formGroup}>
+                <label>Precio base (ARS)</label>
+                <input className={styles.formInput} type="number" value={Number(settings.basePrice || 0)}
+                  onChange={(e) => setSettings((s: any) => ({ ...s, basePrice: Number(e.target.value) }))}
+                  onBlur={(e) => saveSettings({ basePrice: Number(e.target.value) })} />
+              </div>
+            )}
 
             <div className={styles.formGroup}>
               <label>Seña (%)</label>
@@ -878,60 +1049,64 @@ export function TurneraConfigPanel({
                 style={{ accentColor: '#8b5cf6', width: 18, height: 18 }} />
             </div>
 
-            <div className={styles.formGroup}>
-              <label>Política de cancelación (texto corto)</label>
-              <textarea className={styles.formTextarea} rows={2} value={policyText}
-                onChange={(e) => setPolicyText(e.target.value)} onBlur={savePolicy} />
-            </div>
-
-            <div className={styles.sectionHeader} style={{ marginTop: 24 }}>
-              <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>Reglas promocionales</h3>
-              <button type="button" className={styles.addBtn} onClick={() => openRuleModal()}>
-                <Plus size={14} /> Nueva promo
-              </button>
-            </div>
-
-            {rules.length === 0 ? (
-              <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Sin promos — el precio base aplica siempre</p>
-            ) : (
-              rules.map((r) => (
-                <div key={r.id} className={styles.card}>
-                  <div className={styles.cardHeader}>
-                    <div>
-                      <div className={styles.cardTitle}>{r.label}</div>
-                      <div className={styles.cardSubtitle}>
-                        {r.ruleType === 'percentage_discount' ? `${r.value}% de descuento` : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
-                        {r.validFrom && ` · desde ${r.validFrom.slice(0, 10)}`}
-                        {r.validUntil && ` · hasta ${r.validUntil.slice(0, 10)}`}
-                      </div>
-                    </div>
-                    <div className={styles.cardActions}>
-                      <button type="button" className={styles.iconBtn} onClick={() => toggleRuleActive(r)}>
-                        <Power size={14} />
-                      </button>
-                      <button type="button" className={styles.iconBtn} onClick={() => openRuleModal(r)}>
-                        <Edit2 size={14} />
-                      </button>
-                      <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => deleteRule(r.id)}>
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </div>
-                  <span className={`${styles.badge} ${r.isActive ? styles.badgePromo : styles.badgeInactive}`} style={{ marginTop: 10 }}>
-                    {r.isActive ? 'Vigente' : 'Inactiva'}
-                  </span>
+            {!catalogV2 && (
+              <>
+                <div className={styles.formGroup}>
+                  <label>Política de cancelación (texto corto)</label>
+                  <textarea className={styles.formTextarea} rows={2} value={policyText}
+                    onChange={(e) => setPolicyText(e.target.value)} onBlur={savePolicy} />
                 </div>
-              ))
-            )}
 
-            <div className={styles.pricePreview}>
-              <div className={styles.pricePreviewLabel}>Precio efectivo hoy</div>
-              <div className={styles.pricePreviewValue}>${effectivePrice.toLocaleString('es-AR')}</div>
-              <div className={styles.pricePreviewNote}>
-                Base ${Number(settings.basePrice || 0).toLocaleString('es-AR')}
-                {effectivePrice < Number(settings.basePrice || 0) && ' · promo aplicada'}
-              </div>
-            </div>
+                <div className={styles.sectionHeader} style={{ marginTop: 24 }}>
+                  <h3 style={{ fontSize: 14, fontWeight: 600, color: 'var(--color-text)' }}>Reglas promocionales</h3>
+                  <button type="button" className={styles.addBtn} onClick={() => openRuleModal()}>
+                    <Plus size={14} /> Nueva promo
+                  </button>
+                </div>
+
+                {rules.length === 0 ? (
+                  <p style={{ fontSize: 13, color: 'var(--color-text-muted)' }}>Sin promos — el precio base aplica siempre</p>
+                ) : (
+                  rules.map((r) => (
+                    <div key={r.id} className={styles.card}>
+                      <div className={styles.cardHeader}>
+                        <div>
+                          <div className={styles.cardTitle}>{r.label}</div>
+                          <div className={styles.cardSubtitle}>
+                            {r.ruleType === 'percentage_discount' ? `${r.value}% de descuento` : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
+                            {r.validFrom && ` · desde ${r.validFrom.slice(0, 10)}`}
+                            {r.validUntil && ` · hasta ${r.validUntil.slice(0, 10)}`}
+                          </div>
+                        </div>
+                        <div className={styles.cardActions}>
+                          <button type="button" className={styles.iconBtn} onClick={() => toggleRuleActive(r)}>
+                            <Power size={14} />
+                          </button>
+                          <button type="button" className={styles.iconBtn} onClick={() => openRuleModal(r)}>
+                            <Edit2 size={14} />
+                          </button>
+                          <button type="button" className={`${styles.iconBtn} ${styles.iconBtnDanger}`} onClick={() => deleteRule(r.id)}>
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <span className={`${styles.badge} ${r.isActive ? styles.badgePromo : styles.badgeInactive}`} style={{ marginTop: 10 }}>
+                        {r.isActive ? 'Vigente' : 'Inactiva'}
+                      </span>
+                    </div>
+                  ))
+                )}
+
+                <div className={styles.pricePreview}>
+                  <div className={styles.pricePreviewLabel}>Precio efectivo hoy</div>
+                  <div className={styles.pricePreviewValue}>${effectivePrice.toLocaleString('es-AR')}</div>
+                  <div className={styles.pricePreviewNote}>
+                    Base ${Number(settings.basePrice || 0).toLocaleString('es-AR')}
+                    {effectivePrice < Number(settings.basePrice || 0) && ' · promo aplicada'}
+                  </div>
+                </div>
+              </>
+            )}
           </>
         );
 

@@ -18,8 +18,10 @@ import {
 import {
   TurneraConfigPanel,
   TURNERA_TABS,
+  getTurneraTabs,
   type TurneraTab,
 } from '../turnera/TurneraConfigPanel';
+import { isCatalogConfigV2 } from '@/lib/catalog-config';
 import styles from '../turnera/page.module.css';
 
 type GeneralTab = 'cuenta' | 'negocio' | 'apariencia' | 'plataforma';
@@ -32,10 +34,15 @@ const GENERAL_TABS: { id: GeneralTab; label: string; icon: typeof UserCircle }[]
   { id: 'plataforma', label: 'Plataforma', icon: Info },
 ];
 
-const TURNERA_TAB_IDS = new Set<string>(TURNERA_TABS.map((t) => t.id));
+const ALL_TURNERA_TAB_IDS = new Set<string>([
+  ...TURNERA_TABS.map((t) => t.id),
+  'disponibilidad',
+  'promociones',
+  'politicas',
+]);
 
 function isTurneraTab(tab: string): tab is TurneraTab {
-  return TURNERA_TAB_IDS.has(tab);
+  return ALL_TURNERA_TAB_IDS.has(tab);
 }
 
 function isGeneralTab(tab: string): tab is GeneralTab {
@@ -57,6 +64,7 @@ function SettingsPageContent() {
 
   const [tab, setTab] = useState<ConfigTab>('cuenta');
   const [showBooking, setShowBooking] = useState(false);
+  const [catalogV2, setCatalogV2] = useState(false);
   const [turneraStatus, setTurneraStatus] = useState({ msg: '', saving: false });
 
   const [editingProfile, setEditingProfile] = useState(false);
@@ -85,6 +93,7 @@ function SettingsPageContent() {
     api.getBookingSettings()
       .then(({ settings }) => {
         if (settings?.bookingEnabled) setShowBooking(true);
+        setCatalogV2(isCatalogConfigV2(settings));
       })
       .catch(() => {});
   }, [user]);
@@ -97,13 +106,21 @@ function SettingsPageContent() {
     setTurneraStatus(status);
   }, []);
 
+  const turneraTabs = useMemo(() => getTurneraTabs(catalogV2), [catalogV2]);
+
   const activeMeta = useMemo(() => {
     const general = GENERAL_TABS.find((t) => t.id === tab);
     if (general) return { label: general.label, icon: general.icon, group: 'General' };
-    const turnera = TURNERA_TABS.find((t) => t.id === tab);
-    if (turnera) return { label: turnera.label, icon: turnera.icon, group: 'Turnera' };
+    const turnera = turneraTabs.find((t) => t.id === tab);
+    if (turnera) {
+      return {
+        label: turnera.label,
+        icon: turnera.icon,
+        group: turnera.group === 'catalogo' ? 'Catálogo' : 'Turnera',
+      };
+    }
     return { label: 'Configuración', icon: Settings, group: 'General' };
-  }, [tab]);
+  }, [tab, turneraTabs]);
 
   const ActiveIcon = activeMeta.icon;
   const isTurneraActive = isTurneraTab(tab);
@@ -397,7 +414,7 @@ function SettingsPageContent() {
           {showBooking && (
             <>
               <div className={styles.sidebarGroupTitle}>Turnera</div>
-              {TURNERA_TABS.map((t) => {
+              {turneraTabs.filter((t) => t.group === 'turnera').map((t) => {
                 const Icon = t.icon;
                 return (
                   <button
@@ -411,6 +428,25 @@ function SettingsPageContent() {
                   </button>
                 );
               })}
+              {catalogV2 && (
+                <>
+                  <div className={styles.sidebarGroupTitle}>Catálogo</div>
+                  {turneraTabs.filter((t) => t.group === 'catalogo').map((t) => {
+                    const Icon = t.icon;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        className={`${styles.tabBtn} ${tab === t.id ? styles.tabBtnActive : ''}`}
+                        onClick={() => setTab(t.id)}
+                      >
+                        <Icon size={15} />
+                        {t.label}
+                      </button>
+                    );
+                  })}
+                </>
+              )}
             </>
           )}
         </aside>

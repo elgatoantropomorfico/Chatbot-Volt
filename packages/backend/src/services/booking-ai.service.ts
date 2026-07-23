@@ -173,7 +173,7 @@ export class BookingAiService {
 Sesiones de ${duration} min.
 Precio base: ${basePrice ? `$${basePrice.toLocaleString('es-AR')} ARS` : 'consultar en reserva'}.
 Seña: ${settings.depositPercentage || 50}%. ${settings.depositRefundable ? 'Reembolsable' : 'No reembolsable'}.
-Política cancelación: ${(settings.cancellationPolicyJson as any)?.policy_short_text || 'consultar'}.
+Política cancelación: ${(settings.cancellationPolicyJson as any)?.cancellation || (settings.cancellationPolicyJson as any)?.policy_short_text || 'consultar'}.
 Días con turnos online: ${workingDays.map((d) => dayNames[d] ?? d).join(', ')}.
 Horarios de sesión ofrecidos en la turnera: ${slots.map((s) => s.time).join(', ') || 'consultar'}.
 

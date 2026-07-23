@@ -22,10 +22,16 @@ import { BookingExpiryService } from './booking-notification.service';
 import { BookingToolExecutor } from './booking-tool-executor.service';
 import type { BookingConversationContext } from './booking-agent.types';
 import { looksLikeDateQuery } from './booking-datetime.service';
+import { isCatalogConfigV2 } from './booking-catalog-config.service';
 
 const AUDIO_BLOCK_MSG = '🎤 Por ahora la turnera funciona solo con mensajes de *texto*. Escribime lo que necesitás y te ayudo con la reserva 🌿';
 
 const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
+const MAIN_MENU_OPTIONS_V2 = ['Ver todos los servicios', 'Ver precios'];
+
+function mainMenuOptions(settings: any): string[] {
+  return isCatalogConfigV2(settings) ? MAIN_MENU_OPTIONS_V2 : MAIN_MENU_OPTIONS;
+}
 const MORE_SLOTS_LABEL = 'ver más horarios';
 const MORE_MENU = {
   thisWeek: 'esta semana',
@@ -151,24 +157,26 @@ export class BookingOrchestrator {
       return this.handleCancelIntent(params, ctx);
     }
 
-    // Recomendador "Ayudame a elegir" (q1/q2)
-    const reco = await this.tryHardRecommender(params, ctx, settings);
-    if (reco) return reco;
+    // Recomendador "Ayudame a elegir" (q1/q2) — deshabilitado en catalog v2
+    if (!isCatalogConfigV2(settings)) {
+      const reco = await this.tryHardRecommender(params, ctx, settings);
+      if (reco) return reco;
 
-    // Tras Q1/Q2: confirmar / reservar el camino recomendado
-    const hadPendingRecommend = !!ctx.agentState.pendingRecommend;
-    const recoConfirm = await this.tryHardRecommendConfirm(params, ctx, settings);
-    if (recoConfirm) return recoConfirm;
-    // Texto libre limpió pendingRecommend en DB — refrescar ctx en memoria
-    if (hadPendingRecommend) {
-      ctx = await BookingContextService.load(params.conversationId);
+      // Tras Q1/Q2: confirmar / reservar el camino recomendado
+      const hadPendingRecommend = !!ctx.agentState.pendingRecommend;
+      const recoConfirm = await this.tryHardRecommendConfirm(params, ctx, settings);
+      if (recoConfirm) return recoConfirm;
+      // Texto libre limpió pendingRecommend en DB — refrescar ctx en memoria
+      if (hadPendingRecommend) {
+        ctx = await BookingContextService.load(params.conversationId);
+      }
     }
 
-    // Lista "Ya sé cuál quiero"
+    // Lista "Ya sé cuál quiero" / "Ver todos los servicios"
     const serviceListPick = await this.tryHardServiceListPick(params, ctx, settings);
     if (serviceListPick) return serviceListPick;
 
-    // Menú principal: Ayudame / Ya sé / Ver precios
+    // Menú principal
     const mainMenu = await this.tryHardMainMenu(params, ctx, settings);
     if (mainMenu) return mainMenu;
 
@@ -374,19 +382,30 @@ export class BookingOrchestrator {
 
     const raw = params.text.trim();
     const t = normalizeInput(raw);
+    const v2 = isCatalogConfigV2(settings);
     let pick: 1 | 2 | 3 | null = null;
-    if (t === '1' || t.includes('ayudame') || t === 'ayudame a elegir') pick = 1;
-    if (t === '2' || t.includes('ya se') || t.includes('cual quiero') || t.includes('se cual')) pick = 2;
-    if (t === '3' || t.includes('precio') || t.includes('ver precio')) pick = 3;
-    // Evitar falsos positivos en texto libre largo
-    if (pick && raw.length > 40 && !/^\d+$/.test(t)) {
-      if (pick === 1 && !/ayudame|elegir/.test(t)) pick = null;
-      if (pick === 2 && !/ya se|cual quiero/.test(t)) pick = null;
-      if (pick === 3 && !/precio/.test(t)) pick = null;
+
+    if (v2) {
+      if (t === '1' || t === 'ver todos los servicios' || /^ver todos\b/.test(t)) pick = 1;
+      if (t === '2' || t.includes('precio') || t.includes('ver precio')) pick = 2;
+      if (pick && raw.length > 40 && !/^\d+$/.test(t)) {
+        if (pick === 1 && !/ver todos|servicios/.test(t)) pick = null;
+        if (pick === 2 && !/precio/.test(t)) pick = null;
+      }
+    } else {
+      if (t === '1' || t.includes('ayudame') || t === 'ayudame a elegir') pick = 1;
+      if (t === '2' || t.includes('ya se') || t.includes('cual quiero') || t.includes('se cual')) pick = 2;
+      if (t === '3' || t.includes('precio') || t.includes('ver precio')) pick = 3;
+      if (pick && raw.length > 40 && !/^\d+$/.test(t)) {
+        if (pick === 1 && !/ayudame|elegir/.test(t)) pick = null;
+        if (pick === 2 && !/ya se|cual quiero/.test(t)) pick = null;
+        if (pick === 3 && !/precio/.test(t)) pick = null;
+      }
     }
     if (!pick) return null;
 
-    if (pick === 1) {
+    // v2 pick 1 = lista servicios; v1 pick 1 = recomendador
+    if (pick === 1 && !v2) {
       await BookingContextService.save(params.conversationId, {
         ...ctx,
         agentState: {
@@ -410,14 +429,19 @@ export class BookingOrchestrator {
       );
     }
 
-    if (pick === 2) {
+    if ((pick === 1 && v2) || (pick === 2 && !v2)) {
       const services = await prisma.bookingService.findMany({
         where: { tenantId: params.tenantId, isActive: true },
         orderBy: { sortOrder: 'asc' },
         select: { name: true },
       });
       if (!services.length) {
-        return { handled: true, text: 'Por ahora no hay caminos cargados. Escribí *humano*.' };
+        return {
+          handled: true,
+          text: v2
+            ? 'Por ahora no hay servicios cargados. Escribí *humano*.'
+            : 'Por ahora no hay caminos cargados. Escribí *humano*.',
+        };
       }
       await BookingContextService.save(params.conversationId, {
         ...ctx,
@@ -432,18 +456,15 @@ export class BookingOrchestrator {
         },
       });
       return BookingFlowService.buildOptionsReply(
-        'Estos son nuestros caminos. Elegí el que querés:',
+        v2 ? 'Estos son nuestros servicios. Elegí el que querés:' : 'Estos son nuestros caminos. Elegí el que querés:',
         services.map((s) => s.name),
         true,
       );
     }
 
-    // pick === 3 Ver precios (solo texto + CTA, sin lista de slots)
-    const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
-    const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
+    // Ver precios
     const depositPct = settings.depositPercentage || 50;
-    const duration = settings.sessionDurationMinutes || 80;
-    const promoBlock = await BookingPricingService.formatActivePromosSummary(params.tenantId, basePrice);
+    const promoBlock = await BookingPricingService.formatActivePromosSummary(params.tenantId);
     const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
     await BookingContextService.save(params.conversationId, {
       ...ctx,
@@ -454,9 +475,23 @@ export class BookingOrchestrator {
         mode: 'booking',
       },
     });
+
+    if (v2) {
+      const list = await BookingPricingService.formatServicesPriceList(params.tenantId);
+      return {
+        handled: true,
+        text: `💆‍♀️ *Precios de servicios*\n\n${list}${promoSection}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nEscribí *1* para ver todos los servicios o decime cuál querés.`,
+      };
+    }
+
+    const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
+    const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
+    const duration = settings.sessionDurationMinutes || 80;
+    const promoWithBase = await BookingPricingService.formatActivePromosSummary(params.tenantId, basePrice);
+    const promoLegacy = promoWithBase ? `\n\n${promoWithBase}` : '';
     return {
       handled: true,
-      text: `💆‍♀️ *Valor de sesión* (${duration} min): ${price}${promoSection}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nDecime qué camino querés o escribí *1* si preferís que te ayude a elegir.`,
+      text: `💆‍♀️ *Valor de sesión* (${duration} min): ${price}${promoLegacy}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nDecime qué camino querés o escribí *1* si preferís que te ayude a elegir.`,
     };
   }
 
@@ -1331,7 +1366,7 @@ export class BookingOrchestrator {
     });
     if (matchServiceFromText(rawText, services)) return true;
 
-    for (const opt of MAIN_MENU_OPTIONS) {
+    for (const opt of [...MAIN_MENU_OPTIONS, ...MAIN_MENU_OPTIONS_V2]) {
       if (input.includes(opt.toLowerCase().slice(0, 8))) return true;
     }
 

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
+import { isCatalogConfigV2 } from '@/lib/catalog-config';
 import {
   Save, Building2, MapPin, Clock, Phone, Package, Truck,
   Tag, Shield, HelpCircle, Sparkles, Bot, Brain, ShieldCheck, PhoneForwarded, Plus, Trash2,
@@ -64,6 +65,8 @@ const TABS: { id: TabId; label: string; icon: any; group: string }[] = [
   { id: 'handoff', label: 'Derivación', icon: PhoneForwarded, group: 'Configuración Técnica' },
 ];
 
+const HIDDEN_WHEN_CATALOG_V2: TabId[] = ['products', 'shipping', 'promotions', 'policies'];
+
 export default function BotSettingsPage() {
   const { user, isSuperAdmin, isTenantAdmin } = useAuth();
   const [settings, setSettings] = useState<any>(null);
@@ -77,6 +80,7 @@ export default function BotSettingsPage() {
   const [generatingField, setGeneratingField] = useState<string | null>(null);
   const [flowPreview, setFlowPreview] = useState<any>(null);
   const [hasPilot, setHasPilot] = useState(false);
+  const [catalogV2, setCatalogV2] = useState(false);
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768);
@@ -124,11 +128,17 @@ export default function BotSettingsPage() {
   async function loadSettings(tenantId: string) {
     setLoading(true);
     try {
-      const [data, integrationsRes] = await Promise.all([
+      const [data, integrationsRes, bookingRes] = await Promise.all([
         api.getBotSettings(tenantId),
         api.getIntegrations().catch(() => ({ integrations: [] })),
+        api.getBookingSettings().catch(() => ({ settings: null })),
       ]);
       setSettings(data.settings);
+      const v2 = isCatalogConfigV2(bookingRes.settings);
+      setCatalogV2(v2);
+      if (v2 && HIDDEN_WHEN_CATALOG_V2.includes(activeTab)) {
+        setActiveTab('business');
+      }
       const pilot = integrationsRes.integrations?.find((i: any) => i.type === 'pilot_crm' && i.status === 'active');
       setHasPilot(!!pilot);
       try {
@@ -775,8 +785,12 @@ export default function BotSettingsPage() {
     }
   }
 
-  const groups = [...new Set(TABS.map((t) => t.group))];
-  const activeTabData = TABS.find((t) => t.id === activeTab);
+  const visibleTabs = useMemo(
+    () => (catalogV2 ? TABS.filter((t) => !HIDDEN_WHEN_CATALOG_V2.includes(t.id)) : TABS),
+    [catalogV2],
+  );
+  const groups = [...new Set(visibleTabs.map((t) => t.group))];
+  const activeTabData = visibleTabs.find((t) => t.id === activeTab) || TABS.find((t) => t.id === activeTab);
   const ActiveIcon = activeTabData?.icon;
 
   /* ─── Mobile Layout ─── */
@@ -834,7 +848,7 @@ export default function BotSettingsPage() {
                   {groups.map((group) => (
                     <div key={group}>
                       <div className="volt-bot-nav-group">{group}</div>
-                      {TABS.filter((t) => t.group === group).map((tab) => {
+                      {visibleTabs.filter((t) => t.group === group).map((tab) => {
                         const Icon = tab.icon;
                         const isActive = activeTab === tab.id;
                         const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
@@ -879,7 +893,7 @@ export default function BotSettingsPage() {
           {groups.map((group) => (
             <div key={group}>
               <div className="volt-bot-nav-group">{group}</div>
-              {TABS.filter((t) => t.group === group).map((tab) => {
+              {visibleTabs.filter((t) => t.group === group).map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
                 const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
