@@ -96,6 +96,7 @@ export interface BookingFlowContext {
   isFirstTime?: boolean;
   customerNotes?: string;
   paymentType?: 'sena' | 'total';
+  priceRuleId?: string | null;
   slotPage?: number;
   slotBrowse?: 'more_menu' | 'pick_day';
   tempSlots?: Array<{ date: string; time: string; label: string }>;
@@ -1893,17 +1894,24 @@ export class BookingFlowService {
       return { handled: true, text: 'Hubo un error. Escribí *menu* para empezar de nuevo.' };
     }
 
-    const pricing = await BookingPricingService.resolvePrice(tenantId, flow.serviceId);
+    const pricing = await BookingPricingService.resolvePrice(
+      tenantId,
+      flow.serviceId,
+      new Date(),
+      flow.priceRuleId,
+    );
     const policyShort = (settings.cancellationPolicyJson as any)?.cancellation
       || (settings.cancellationPolicyJson as any)?.policy_short_text
       || 'En caso de cancelación, la seña no es reembolsable.';
+
+    const promoLine = pricing.discountLabel ? `\nPromo: ${pricing.discountLabel}` : '';
 
     const summary = msg(settings, 'payment_summary', `Te dejo el resumen de tu turno:
 
 Camino: {{service}}
 Día y horario: {{slot}}
 Duración: {{duration}} minutos
-Valor de la sesión: \${{price}}
+Valor de la sesión: \${{price}}${promoLine}
 
 Para confirmar el turno se abona una seña del {{deposit}}%.
 También podés abonar el 100% ahora.
@@ -1997,7 +2005,12 @@ Importante: ${policyShort}
       };
     }
 
-    const pricing = await BookingPricingService.resolvePrice(tenantId, flow.serviceId);
+    const pricing = await BookingPricingService.resolvePrice(
+      tenantId,
+      flow.serviceId,
+      new Date(),
+      flow.priceRuleId,
+    );
     const payAmount = BookingPricingService.computePaymentAmount(
       pricing.finalPrice,
       paymentType,

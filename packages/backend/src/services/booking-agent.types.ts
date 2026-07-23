@@ -79,7 +79,7 @@ export interface AgentState {
   pricePreviewShown?: boolean;
 }
 
-export type CheckoutPhase = 'payment_choice' | 'waiting_payment' | 'confirmed';
+export type CheckoutPhase = 'promo_choice' | 'payment_choice' | 'waiting_payment' | 'confirmed';
 
 export interface CheckoutPayload {
   phase: CheckoutPhase;
@@ -93,6 +93,9 @@ export interface CheckoutPayload {
   isFirstTime?: boolean;
   paymentType?: 'sena' | 'total';
   appointmentId?: string;
+  /** Promo elegida o auto-aplicada */
+  priceRuleId?: string | null;
+  discountLabel?: string | null;
 }
 
 export interface AiWindow {
@@ -121,7 +124,7 @@ export interface AgentRunResult {
   iterations: number;
 }
 
-export const CHECKOUT_PHASES: CheckoutPhase[] = ['payment_choice', 'waiting_payment', 'confirmed'];
+export const CHECKOUT_PHASES: CheckoutPhase[] = ['promo_choice', 'payment_choice', 'waiting_payment', 'confirmed'];
 
 export const V1_CHECKOUT_STATES: BookingFlowState[] = ['payment_choice', 'waiting_payment', 'confirmed'];
 

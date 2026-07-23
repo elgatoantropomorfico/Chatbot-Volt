@@ -237,8 +237,8 @@ export class BookingOrchestrator {
 
     const { reply, ctx: nextCtx, checkoutStarted } = await this.runAgent(params, ctx, settings);
     if (checkoutStarted) {
-      // Nunca interpretar el mensaje de notas como opción de pago
-      return BookingCheckoutService.presentPaymentChoice({
+      // Nunca interpretar el mensaje de notas como opción de pago/promo
+      return BookingCheckoutService.presentAfterCheckoutStarted({
         tenantId: params.tenantId,
         conversationId: params.conversationId,
       });
@@ -821,12 +821,12 @@ export class BookingOrchestrator {
       };
     }
     try {
-      return await BookingCheckoutService.presentPaymentChoice({
+      return await BookingCheckoutService.presentAfterCheckoutStarted({
         tenantId: params.tenantId,
         conversationId: params.conversationId,
       });
     } catch (err: any) {
-      console.error('⚠️ forceInitiateCheckout presentPaymentChoice:', err.message || err);
+      console.error('⚠️ forceInitiateCheckout presentAfterCheckoutStarted:', err.message || err);
       return {
         handled: true,
         text: 'Tu turno quedó armado. Escribí *1* para seña, *2* para pagar 100%, o *Cambiar horario*.',
@@ -1133,7 +1133,7 @@ export class BookingOrchestrator {
           );
           if (result.ok && checkoutCtx.checkout) {
             // NUNCA reenviar el tap del slot a handle() — "3" se confunde con "Cambiar horario"
-            return BookingCheckoutService.presentPaymentChoice({
+            return BookingCheckoutService.presentAfterCheckoutStarted({
               tenantId: params.tenantId,
               conversationId: params.conversationId,
             });

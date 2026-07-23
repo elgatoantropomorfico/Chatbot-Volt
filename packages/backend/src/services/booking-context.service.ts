@@ -26,12 +26,13 @@ function checkoutFromV1(flow: BookingFlowContext): CheckoutPayload | null {
     isFirstTime: flow.isFirstTime,
     paymentType: flow.paymentType,
     appointmentId: flow.appointmentId,
+    priceRuleId: flow.priceRuleId ?? null,
   };
 }
 
 export function v1FlowFromCheckout(checkout: CheckoutPayload): BookingFlowContext {
   return {
-    state: checkout.phase,
+    state: checkout.phase as BookingFlowContext['state'],
     serviceId: checkout.serviceId,
     serviceName: checkout.serviceName,
     slotDate: checkout.slotDate,
@@ -42,6 +43,7 @@ export function v1FlowFromCheckout(checkout: CheckoutPayload): BookingFlowContex
     isFirstTime: checkout.isFirstTime,
     paymentType: checkout.paymentType,
     appointmentId: checkout.appointmentId,
+    priceRuleId: checkout.priceRuleId ?? null,
     notesStepDone: true,
   };
 }

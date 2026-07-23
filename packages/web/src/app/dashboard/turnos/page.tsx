@@ -863,9 +863,15 @@ export default function TurnosPage() {
             <div className={styles.detailSection}>
               <h3><CreditCard size={12} /> Pago</h3>
               <div className={styles.detailRow}>
-                <span className={styles.detailLabel}>Precio final</span>
+                <span className={styles.detailLabel}>Precio cobrado</span>
                 <span className={styles.detailValue}>{formatPrice(Number(selected.finalPrice || 0))}</span>
               </div>
+              {selected.discountLabel && (
+                <div className={styles.detailRow}>
+                  <span className={styles.detailLabel}>Promo aplicada</span>
+                  <span className={styles.detailValue}>{selected.discountLabel}</span>
+                </div>
+              )}
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Pagado</span>
                 <span className={styles.detailValue}>{formatPrice(Number(selected.amountPaid || 0))}</span>

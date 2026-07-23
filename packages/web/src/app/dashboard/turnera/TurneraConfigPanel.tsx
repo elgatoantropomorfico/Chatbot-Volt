@@ -101,7 +101,7 @@ const EMPTY_SLOT = { time: '16:30', durationMinutes: 80, isActive: true, sortOrd
 
 const EMPTY_RULE = {
   label: '',
-  ruleType: 'percentage_discount' as 'percentage_discount' | 'fixed_price',
+  ruleType: 'percentage_discount' as 'percentage_discount' | 'fixed_price' | 'label_only',
   value: 10,
   validFrom: '',
   validUntil: '',
@@ -134,6 +134,8 @@ function computeEffectivePrice(basePrice: number, rules: any[]) {
     } else if (r.ruleType === 'fixed_price') {
       price = Number(r.value);
     }
+    // label_only: no cambia el precio cobrado
+    break; // primera promo activa (mismo criterio que el motor)
   }
   return Math.round(price);
 }
@@ -641,15 +643,25 @@ export function TurneraConfigPanel({
               <div className={styles.formGroup}>
                 <label>Tipo</label>
                 <select className={styles.formInput} value={ruleForm.ruleType}
-                  onChange={(e) => setRuleForm((f) => ({ ...f, ruleType: e.target.value as any }))}>
+                  onChange={(e) => setRuleForm((f) => ({
+                    ...f,
+                    ruleType: e.target.value as any,
+                    value: e.target.value === 'label_only' ? 0 : f.value,
+                  }))}>
                   <option value="percentage_discount">% descuento</option>
                   <option value="fixed_price">Precio fijo</option>
+                  <option value="label_only">Solo etiqueta (ej. 2x1)</option>
                 </select>
               </div>
               <div className={styles.formGroup}>
                 <label>Valor</label>
-                <input className={styles.formInput} type="number" value={ruleForm.value}
-                  onChange={(e) => setRuleForm((f) => ({ ...f, value: Number(e.target.value) }))} />
+                <input
+                  className={styles.formInput}
+                  type="number"
+                  value={ruleForm.value}
+                  disabled={ruleForm.ruleType === 'label_only'}
+                  onChange={(e) => setRuleForm((f) => ({ ...f, value: Number(e.target.value) }))}
+                />
               </div>
             </div>
             <div className={styles.formRow}>
@@ -937,7 +949,11 @@ export function TurneraConfigPanel({
                     <div>
                       <div className={styles.cardTitle}>{r.label}</div>
                       <div className={styles.cardSubtitle}>
-                        {r.ruleType === 'percentage_discount' ? `${r.value}% de descuento` : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
+                        {r.ruleType === 'percentage_discount'
+                          ? `${r.value}% de descuento`
+                          : r.ruleType === 'label_only'
+                            ? 'Solo etiqueta (precio lista)'
+                            : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
                         {r.validFrom && ` · desde ${r.validFrom.slice(0, 10)}`}
                         {r.validUntil && ` · hasta ${r.validUntil.slice(0, 10)}`}
                       </div>
@@ -1073,7 +1089,11 @@ export function TurneraConfigPanel({
                         <div>
                           <div className={styles.cardTitle}>{r.label}</div>
                           <div className={styles.cardSubtitle}>
-                            {r.ruleType === 'percentage_discount' ? `${r.value}% de descuento` : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
+                            {r.ruleType === 'percentage_discount'
+                          ? `${r.value}% de descuento`
+                          : r.ruleType === 'label_only'
+                            ? 'Solo etiqueta (precio lista)'
+                            : `Precio fijo $${Number(r.value).toLocaleString('es-AR')}`}
                             {r.validFrom && ` · desde ${r.validFrom.slice(0, 10)}`}
                             {r.validUntil && ` · hasta ${r.validUntil.slice(0, 10)}`}
                           </div>

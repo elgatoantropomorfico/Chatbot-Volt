@@ -194,8 +194,8 @@ Saldo pendiente: $${Number(appointment.balanceDue).toLocaleString('es-AR')}`;
     if (appointment.customerNotes) {
       rows.push(['Notas del cliente', appointment.customerNotes]);
     }
-    if (appointment.discountLabel) {
-      rows.push(['Descuento', appointment.discountLabel]);
+      if (appointment.discountLabel) {
+      rows.push(['Promo', appointment.discountLabel]);
     }
 
     const tableRows = rows.map(([label, value]) => `

@@ -148,6 +148,9 @@ export class BookingAiService {
       const fmtDate = (d: Date) => d.toLocaleDateString('es-AR');
       const promoLines = activeRules.map((rule) => {
         const until = rule.validUntil ? ` (hasta ${fmtDate(rule.validUntil)})` : '';
+        if (rule.ruleType === 'label_only') {
+          return `- ${rule.label}: etiqueta en el turno (se cobra precio de lista)${until}`;
+        }
         if (basePrice) {
           const resolved = BookingPricingService.applyRule(basePrice, rule);
           if (rule.ruleType === 'percentage_discount') {

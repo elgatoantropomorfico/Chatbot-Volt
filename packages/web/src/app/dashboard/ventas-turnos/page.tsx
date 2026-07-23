@@ -358,7 +358,8 @@ export default function BookingSalesPage() {
                         <td colSpan={8}>
                           <div style={{ padding: '8px 12px 14px', display: 'grid', gap: 10 }}>
                             <div className={styles.statSubtext}>
-                              Total sesión {formatPrice(sale.finalPrice)}
+                              Precio cobrado {formatPrice(sale.finalPrice)}
+                              {sale.discountLabel ? ` · Promo: ${sale.discountLabel}` : ''}
                               {sale.paymentType ? ` · Tipo MP: ${sale.paymentType === 'total' ? '100%' : 'seña'}` : ''}
                               {sale.mpPaymentId ? ` · MP #${sale.mpPaymentId}` : ''}
                             </div>

@@ -72,14 +72,24 @@ const blockSchema = z.object({
   reason: z.string().nullable().optional(),
 });
 
-const priceRuleSchema = z.object({
+const priceRuleBaseSchema = z.object({
   label: z.string().min(1),
-  ruleType: z.enum(['percentage_discount', 'fixed_price']),
-  value: z.number().positive(),
+  ruleType: z.enum(['percentage_discount', 'fixed_price', 'label_only']),
+  value: z.number().min(0),
   validFrom: z.string().datetime().nullable().optional(),
   validUntil: z.string().datetime().nullable().optional(),
   isActive: z.boolean().optional(),
   sortOrder: z.number().int().optional(),
+});
+
+const priceRuleSchema = priceRuleBaseSchema.superRefine((data, ctx) => {
+  if (data.ruleType !== 'label_only' && data.value <= 0) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'value must be positive for discount/fixed rules',
+      path: ['value'],
+    });
+  }
 });
 
 const appointmentCreateSchema = z.object({
@@ -419,7 +429,7 @@ export async function bookingRoutes(app: FastifyInstance) {
     if (request.user.role === 'tenant_admin' && request.user.tenantId !== existing.tenantId) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
-    const body = priceRuleSchema.partial().safeParse(request.body);
+    const body = priceRuleBaseSchema.partial().safeParse(request.body);
     if (!body.success) return reply.status(400).send({ error: 'Validation failed' });
     const data: any = { ...body.data };
     if (data.validFrom !== undefined) data.validFrom = data.validFrom ? new Date(data.validFrom) : null;

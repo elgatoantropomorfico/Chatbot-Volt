@@ -783,8 +783,19 @@ export class BookingToolExecutor {
       where: { leadId: exec.leadId, status: { in: ['confirmado', 'senado', 'completado'] } },
     });
 
+    const rules = await BookingPricingService.getActivePriceRules(exec.tenantId);
+    let phase: 'promo_choice' | 'payment_choice' = 'payment_choice';
+    let priceRuleId: string | null = null;
+    let discountLabel: string | null = null;
+    if (rules.length === 1) {
+      priceRuleId = rules[0].id;
+      discountLabel = rules[0].label;
+    } else if (rules.length >= 2) {
+      phase = 'promo_choice';
+    }
+
     const checkout = {
-      phase: 'payment_choice' as const,
+      phase,
       serviceId,
       serviceName,
       slotDate: offeredSlot.date,
@@ -793,11 +804,13 @@ export class BookingToolExecutor {
       customerName: customer.fullName,
       customerNotes: customer.notes ?? null,
       isFirstTime: prior === 0,
+      priceRuleId,
+      discountLabel,
     };
 
     return {
       ok: true,
-      data: { checkout_started: true, phase: 'payment_choice' },
+      data: { checkout_started: true, phase },
       contextPatch: {
         checkout,
         agentState: {

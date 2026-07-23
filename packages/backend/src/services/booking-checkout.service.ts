@@ -18,10 +18,12 @@ function isChangeScheduleChoice(text: string): boolean {
   const t = normalize(text);
   // Texto explícito (incluye título de botón / list row)
   if (t.includes('cambiar horario')) return true;
-  // Índice 3 del menú de pago SOLO si el mensaje es únicamente "3"
-  // (no "3\n..." de debounce, ni etiquetas de horario)
-  if (t === '3') return true;
   return false;
+}
+
+function isPaymentChangeScheduleIndex(text: string): boolean {
+  // Índice 3 del menú de pago SOLO si el mensaje es únicamente "3"
+  return normalize(text) === '3';
 }
 
 function isPaymentHomeChoice(text: string): boolean {
@@ -34,6 +36,62 @@ function isPaymentHomeChoice(text: string): boolean {
 }
 
 export class BookingCheckoutService {
+  /** Tras iniciar checkout: promo (si hay 2+) o menú de pago. */
+  static async presentAfterCheckoutStarted(params: {
+    tenantId: string;
+    conversationId: string;
+  }): Promise<FlowHandleResult> {
+    const ctx = await BookingContextService.load(params.conversationId);
+    if (!ctx.checkout) return { handled: false };
+    if (ctx.checkout.phase === 'promo_choice') {
+      return this.presentPromoChoice(params);
+    }
+    return this.presentPaymentChoice(params);
+  }
+
+  static async presentPromoChoice(params: {
+    tenantId: string;
+    conversationId: string;
+  }): Promise<FlowHandleResult> {
+    const settings = await prisma.bookingSettings.findUnique({ where: { tenantId: params.tenantId } });
+    if (!settings?.bookingEnabled) return { handled: false };
+
+    const ctx = await BookingContextService.load(params.conversationId);
+    if (!ctx.checkout || ctx.checkout.phase !== 'promo_choice') return { handled: false };
+
+    const rules = await BookingPricingService.getActivePriceRules(params.tenantId);
+    if (rules.length === 0) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        checkout: { ...ctx.checkout, phase: 'payment_choice', priceRuleId: null, discountLabel: null },
+      });
+      return this.presentPaymentChoice(params);
+    }
+    if (rules.length === 1) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        checkout: {
+          ...ctx.checkout,
+          phase: 'payment_choice',
+          priceRuleId: rules[0].id,
+          discountLabel: rules[0].label,
+        },
+      });
+      return this.presentPaymentChoice(params);
+    }
+
+    const checkout = ctx.checkout;
+    const body = `Antes de pagar, elegí la promo para tu sesión:
+
+Camino: ${checkout.serviceName}
+Día y horario: ${checkout.slotLabel}
+
+Elegí una opción:`;
+
+    const options = [...rules.map((r) => r.label), 'Cambiar horario'];
+    return BookingFlowService.buildOptionsReply(body, options, true);
+  }
+
   /** Solo muestra opciones de pago (sin interpretar el mensaje del usuario). */
   static async presentPaymentChoice(params: {
     tenantId: string;
@@ -48,9 +106,16 @@ export class BookingCheckoutService {
     const checkout = ctx.checkout;
     // Mantener v2 en DB; no pisar con FSM salvo al tomar seña/100%
     let priceLabel = 'consultá en sala';
+    let promoLine = '';
     try {
-      const pricing = await BookingPricingService.resolvePrice(params.tenantId, checkout.serviceId);
+      const pricing = await BookingPricingService.resolvePrice(
+        params.tenantId,
+        checkout.serviceId,
+        new Date(),
+        checkout.priceRuleId ?? null,
+      );
       priceLabel = `$${pricing.finalPrice.toLocaleString('es-AR')}`;
+      if (pricing.discountLabel) promoLine = `\nPromo: ${pricing.discountLabel}`;
     } catch (err: any) {
       console.warn('⚠️ presentPaymentChoice: no se pudo resolver precio:', err.message || err);
     }
@@ -63,7 +128,7 @@ export class BookingCheckoutService {
 
 Camino: ${checkout.serviceName}
 Día y horario: ${checkout.slotLabel}
-Valor de la sesión: ${priceLabel}
+Valor de la sesión: ${priceLabel}${promoLine}
 
 Para confirmar se abona una seña del ${depositPct}%. También podés abonar el 100% ahora.
 
@@ -186,7 +251,10 @@ Elegí cómo querés pagar:`;
     }
 
     // "Cambiar horario" no pasa por el FSM v1 (rompe el contexto v2)
-    if (isChangeScheduleChoice(params.text)) {
+    if (
+      isChangeScheduleChoice(params.text)
+      || (ctx.checkout.phase === 'payment_choice' && isPaymentChangeScheduleIndex(params.text))
+    ) {
       return this.changeSchedule({
         tenantId: params.tenantId,
         conversationId: params.conversationId,
@@ -210,6 +278,47 @@ Elegí cómo querés pagar:`;
       const keepName = ctx.agentState.customer?.fullName || ctx.checkout.customerName;
       await BookingContextService.resetAfterBooking(params.conversationId, keepName);
       return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
+    }
+
+    // Elegir promo (2+ activas)
+    if (ctx.checkout.phase === 'promo_choice') {
+      const rules = await BookingPricingService.getActivePriceRules(params.tenantId);
+      const t = normalize(params.text);
+      // Última opción del menú = Cambiar horario
+      if (t === String(rules.length + 1)) {
+        return this.changeSchedule({
+          tenantId: params.tenantId,
+          conversationId: params.conversationId,
+          leadId: params.leadId,
+          phone: params.phone,
+        });
+      }
+      let picked = rules.find((r) => normalize(r.label) === t) ?? null;
+      if (!picked) {
+        const idx = Number.parseInt(t, 10);
+        if (Number.isFinite(idx) && idx >= 1 && idx <= rules.length) {
+          picked = rules[idx - 1];
+        }
+      }
+      if (!picked) {
+        return this.presentPromoChoice({
+          tenantId: params.tenantId,
+          conversationId: params.conversationId,
+        });
+      }
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        checkout: {
+          ...ctx.checkout,
+          phase: 'payment_choice',
+          priceRuleId: picked.id,
+          discountLabel: picked.label,
+        },
+      });
+      return this.presentPaymentChoice({
+        tenantId: params.tenantId,
+        conversationId: params.conversationId,
+      });
     }
 
     // En payment_choice solo 1/2 (seña/100%) siguen al cobro.

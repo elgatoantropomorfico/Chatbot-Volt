@@ -60,6 +60,9 @@ export class BookingPricingService {
       finalPrice = Math.round(listPrice * (1 - value / 100));
     } else if (rule.ruleType === 'fixed_price') {
       finalPrice = value;
+    } else if (rule.ruleType === 'label_only') {
+      // 2x1 y similares: se cobra el precio de lista; la promo queda en la etiqueta
+      finalPrice = listPrice;
     }
 
     return {
@@ -70,15 +73,21 @@ export class BookingPricingService {
     };
   }
 
+  /**
+   * Resuelve precio de un servicio.
+   * Si `priceRuleId` viene, usa esa promo (si sigue vigente).
+   * Si no, aplica la primera promo activa (sortOrder).
+   */
   static async resolvePrice(
     tenantId: string,
     serviceId: string,
     at: Date = new Date(),
+    priceRuleId?: string | null,
   ): Promise<ResolvedPrice> {
-    const [settings, byId, rule] = await Promise.all([
+    const [settings, byId, activeRules] = await Promise.all([
       prisma.bookingSettings.findUnique({ where: { tenantId } }),
       prisma.bookingService.findFirst({ where: { id: serviceId, tenantId } }),
-      this.getActivePriceRule(tenantId, at),
+      this.getActivePriceRules(tenantId, at),
     ]);
 
     // Fallback: a veces llegó el nombre del camino en lugar del id
@@ -102,11 +111,19 @@ export class BookingPricingService {
       throw new Error('No price configured for service');
     }
 
-    const resolved = this.applyRule(listPrice, rule);
-    return {
-      ...resolved,
-      priceRuleId: rule?.id ?? null,
-    };
+    let rule = null as (typeof activeRules)[number] | null;
+    if (priceRuleId) {
+      rule = activeRules.find((r) => r.id === priceRuleId) ?? null;
+      if (!rule) {
+        // Promo elegida ya no vigente: no aplicar otra automáticamente en checkout
+        return { listPrice, finalPrice: listPrice, priceRuleId: null, discountLabel: null };
+      }
+    } else if (priceRuleId === undefined) {
+      rule = activeRules[0] ?? null;
+    }
+    // priceRuleId === null → sin promo
+
+    return this.applyRule(listPrice, rule);
   }
 
   static computePaymentAmount(
@@ -127,6 +144,9 @@ export class BookingPricingService {
     const fmtDate = (d: Date) => d.toLocaleDateString('es-AR');
     const lines = rules.map((rule) => {
       const until = rule.validUntil ? ` (hasta ${fmtDate(rule.validUntil)})` : '';
+      if (rule.ruleType === 'label_only') {
+        return `• ${rule.label}${until}`;
+      }
       if (basePrice) {
         const resolved = this.applyRule(basePrice, rule);
         if (rule.ruleType === 'percentage_discount') {
