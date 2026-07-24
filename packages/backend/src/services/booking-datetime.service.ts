@@ -42,6 +42,15 @@ export function weekRangeInTz(
   };
 }
 
+export function wantsNextWeek(query: string): boolean {
+  const q = query.toLowerCase();
+  return /semana\s+que\s+viene|pr[oó]xima\s+semana|semana\s+pr[oó]xima|la\s+semana\s+siguiente/.test(q);
+}
+
+export function wantsThisWeek(query: string): boolean {
+  return /\besta\s+semana\b/.test(query.toLowerCase());
+}
+
 export function matchesDaypart(time: string, daypart: 'ANY' | 'MORNING' | 'AFTERNOON' | 'EVENING' = 'ANY'): boolean {
   if (daypart === 'ANY') return true;
   const h = parseInt(time.split(':')[0], 10);
@@ -67,7 +76,7 @@ export function looksLikeDateQuery(text: string): boolean {
   if (/\b(pasado\s+mañana|pasado\s+manana|mañana|manana|hoy)\b/.test(t)) return true;
   if (/\b(lunes|martes|miércoles|miercoles|jueves|viernes|sábado|sabado|domingo)\b/.test(t)) return true;
   if (/\b\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?\b/.test(t)) return true;
-  if (/\b(esta semana|semana)\b/.test(t)) return true;
+  if (/\b(esta semana|semana que viene|pr[oó]xima semana|semana pr[oó]xima)\b/.test(t)) return true;
   if (/\b(?:a las|las)\s+\d{1,2}(?::\d{2})?\s*(?:hs?)?\b/.test(t)) return true;
   if (/\b\d{1,2}\s*(?:hs|h)\b/.test(t)) return true;
   if (/\b(por la tarde|a la tarde|en la tarde|por la mañana|a la mañana|en la mañana)\b/.test(t)) return true;
@@ -85,6 +94,25 @@ export function looksLikeSlotPickQuery(text: string): boolean {
   if (hasTime && (hasRelativeDay || hasWeekday || hasDateNum)) return true;
   if (hasDayPart && (hasRelativeDay || hasWeekday || hasDateNum)) return true;
   return false;
+}
+
+function findWeekdayInRange(
+  dow: number,
+  timezone: string,
+  dateFrom: string,
+  dateTo: string,
+): string | null {
+  for (let i = 0; i < 14; i++) {
+    const [y, m, d] = dateFrom.split('-').map(Number);
+    const dateStr = new Date(Date.UTC(y, m - 1, d + i)).toISOString().slice(0, 10);
+    if (dateStr > dateTo) break;
+    const short = new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
+      weekday: 'short',
+      timeZone: timezone,
+    });
+    if (DOW_SHORT[short] === dow) return dateStr;
+  }
+  return null;
 }
 
 export function resolveTargetDateStr(query: string, timezone: string): string | null {
@@ -110,11 +138,30 @@ export function resolveTargetDateStr(query: string, timezone: string): string | 
     return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   }
 
+  const nextWeek = wantsNextWeek(q);
+  const thisWeek = wantsThisWeek(q);
+
   for (const [name, dow] of Object.entries(DAY_NAMES)) {
     if (!new RegExp(`\\b${name}\\b`).test(q)) continue;
+
+    if (nextWeek) {
+      const wr = weekRangeInTz(timezone, 'next');
+      return findWeekdayInRange(dow, timezone, wr.dateFrom, wr.dateTo);
+    }
+    if (thisWeek) {
+      const wr = weekRangeInTz(timezone, 'this');
+      const hit = findWeekdayInRange(dow, timezone, wr.dateFrom, wr.dateTo);
+      if (hit && hit >= calendarDateInTz(timezone, 0)) return hit;
+      // Si el día de esta semana ya pasó, caer al próximo de ese día
+    }
+
+    // Próxima ocurrencia en los próximos 7 días (incluye hoy)
     for (let i = 0; i < 7; i++) {
       const dateStr = calendarDateInTz(timezone, i);
-      const short = new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
+      const short = new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', {
+        weekday: 'short',
+        timeZone: timezone,
+      });
       if (DOW_SHORT[short] === dow) return dateStr;
     }
     break;
@@ -188,10 +235,8 @@ export function filterSlotsByQuery(
   all: SlotRef[],
 ): SlotRef[] {
   const q = query.toLowerCase();
-
-  if (q.includes('esta semana') || (q.includes('semana') && !q.includes('fin de semana'))) {
-    return all;
-  }
+  const nextWeek = wantsNextWeek(q);
+  const thisWeek = wantsThisWeek(q);
 
   let targetDateStr = resolveTargetDateStr(query, timezone);
   let targetDow: number | null = null;
@@ -205,14 +250,34 @@ export function filterSlotsByQuery(
     }
   }
 
+  // Solo rango de semana (sin día concreto)
+  if (!targetDateStr && targetDow == null && (nextWeek || thisWeek)) {
+    const wr = weekRangeInTz(timezone, nextWeek ? 'next' : 'this');
+    const today = calendarDateInTz(timezone, 0);
+    return all.filter((s) => {
+      if (s.date < wr.dateFrom || s.date > wr.dateTo) return false;
+      if (thisWeek && s.date < today) return false;
+      return true;
+    });
+  }
+
   const targetTime = parseTargetTime(query);
   const wantsAfternoon = /\b(por la tarde|a la tarde|en la tarde|noche)\b/.test(q);
   const wantsMorning = /\b(por la mañana|a la mañana|en la mañana|temprano)\b/.test(q);
 
+  // Si pidió "semana que viene" + día, acotar al rango aunque haya targetDate
+  let range: { dateFrom: string; dateTo: string } | null = null;
+  if (nextWeek) range = weekRangeInTz(timezone, 'next');
+  else if (thisWeek) range = weekRangeInTz(timezone, 'this');
+
   return all.filter((s) => {
+    if (range && (s.date < range.dateFrom || s.date > range.dateTo)) return false;
     if (targetDateStr && s.date !== targetDateStr) return false;
     if (targetDow != null) {
-      const short = new Date(`${s.date}T12:00:00`).toLocaleDateString('en-US', { weekday: 'short', timeZone: timezone });
+      const short = new Date(`${s.date}T12:00:00`).toLocaleDateString('en-US', {
+        weekday: 'short',
+        timeZone: timezone,
+      });
       if (DOW_SHORT[short] !== targetDow) return false;
     }
     if (targetTime && s.time !== targetTime) return false;

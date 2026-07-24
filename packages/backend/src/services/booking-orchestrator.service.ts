@@ -31,6 +31,38 @@ const AUDIO_BLOCK_MSG = '🎤 Por ahora la turnera funciona solo con mensajes de
 const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
 const MAIN_MENU_OPTIONS_V2 = ['Ver todos los servicios', 'Ver precios'];
 
+/** Ecos de UI del bot que WhatsApp a veces mete al citar/responder un mensaje interactivo */
+const BOT_UI_ECHO =
+  /^(estos son los primeros horarios|cómo preferís buscar|como preferis buscar|horarios disponibles:|no encontré lugar|elegí el nuevo horario|reprogramamos tu turno)/i;
+
+function extractUserIntentText(rawFull: string): string {
+  const lines = rawFull.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+  if (lines.length <= 1) return rawFull.trim();
+
+  const meaningful = lines.filter((l) => !BOT_UI_ECHO.test(l));
+  const dateLines = meaningful.filter((l) => looksLikeDateQuery(l));
+  if (dateLines.length) return dateLines.join(' ');
+
+  if (meaningful.length) {
+    // Preferir la línea más reciente que no sea eco del bot
+    return meaningful[meaningful.length - 1];
+  }
+  return lines[lines.length - 1] || rawFull.trim();
+}
+
+function looksLikeFarewell(text: string): boolean {
+  const t = text
+    .trim()
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '');
+  if (!t || t.length > 80) return false;
+  if (/^(chau|chao|adios|hasta luego|nos vemos|bye)([!!.\s]*)$/.test(t)) return true;
+  if (/^(gracias[,.]?\s+)?(chau|hasta luego|nos vemos)\b/.test(t)) return true;
+  if (/^buenas noches([!!.\s]*)$/.test(t)) return true;
+  return false;
+}
+
 function mainMenuOptions(settings: any): string[] {
   return isCatalogConfigV2(settings) ? MAIN_MENU_OPTIONS_V2 : MAIN_MENU_OPTIONS;
 }
@@ -103,6 +135,29 @@ export class BookingOrchestrator {
 
     const input = normalizeInput(params.text);
     let ctx = await BookingContextService.reconcileCheckoutWithAppointment(params.conversationId);
+
+    // Despedida: no re-spamear horarios ni pasar por browse sticky
+    if (looksLikeFarewell(params.text) || looksLikeFarewell(input)) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          browsePhase: null,
+          uiPresentation: null,
+          listedSlots: [],
+          offeredSlot: null,
+          pendingCancel: null,
+          pendingReschedule: null,
+          greetingPending: false,
+          mode: 'idle',
+        },
+        checkout: ctx.checkout,
+      });
+      const farewell =
+        ((settings as any)?.messagesJson?.farewell as string)
+        || '¡Que tengas un lindo día! Cuando quieras retomar, escribime 🌿';
+      return { handled: true, text: farewell };
+    }
 
     // Cancelación pendiente: botones Sí/No sin pasar por el LLM
     if (ctx.agentState.pendingCancel) {
@@ -206,7 +261,7 @@ export class BookingOrchestrator {
     const mainMenu = await this.tryHardMainMenu(params, ctx, settings);
     if (mainMenu) return mainMenu;
 
-    // Saludo puro con browse colgado → soltar el menú viejo y saludar limpio
+    // Saludo puro con browse colgado → soltar menú viejo y mostrar saludo configurado
     if (BookingAiService.looksLikeGreeting(params.text) && params.text.trim().length < 60) {
       const soft = {
         ...ctx,
@@ -214,17 +269,17 @@ export class BookingOrchestrator {
           ...ctx.agentState,
           browsePhase: null,
           uiPresentation: null,
+          listedSlots: [],
+          offeredSlot: null,
           greetingPending: false,
+          mode: 'idle' as const,
         },
       };
       await BookingContextService.save(params.conversationId, soft);
       ctx = soft;
       // no return: si además pide reserva en el mismo debounce, sigue abajo
       if (!/reserv|turno|quiero|necesito|camino|masaje|sesi[oó]n/.test(input)) {
-        return {
-          handled: true,
-          text: '¡Hola de nuevo! 😊 Contame qué camino querés reservar o qué necesitás.',
-        };
+        return BookingFlowService.buildWelcomeReply(params.tenantId, settings!);
       }
     }
 
@@ -977,7 +1032,7 @@ export class BookingOrchestrator {
 
     // Debounce a veces pega el menú del bot + la opción; usar la última línea no vacía
     const rawFull = params.text.trim();
-    const lastLine = rawFull.split(/\n+/).map((l) => l.trim()).filter(Boolean).pop() || rawFull;
+    const lastLine = extractUserIntentText(rawFull);
     const raw = lastLine;
     const input = normalizeInput(raw);
     const exec = this.toolExec(params, settings);
@@ -1271,9 +1326,10 @@ export class BookingOrchestrator {
     if (a.browsePhase === 'more_menu' && a.uiPresentation?.options?.length) return next;
     if (a.uiPresentation?.options?.length) return next;
 
-    // Pregunta de info/precios: no pisar la respuesta del agente con ASAP
+    // Pregunta de info/precios / saludo / despedida: no pisar la respuesta con ASAP
     const raw = String(params.text || '').trim();
     if (raw && looksLikeBrowseReleaseQuery(raw)) return next;
+    if (raw && (BookingAiService.looksLikeGreeting(raw) || looksLikeFarewell(raw))) return next;
 
     // Servicio confirmado sin propuesta visible → ASAP obligatorio
     const { ctx: searched } = await BookingToolExecutor.execute(
