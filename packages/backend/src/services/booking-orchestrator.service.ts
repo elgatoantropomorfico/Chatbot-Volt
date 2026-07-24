@@ -22,14 +22,14 @@ import { BookingExpiryService } from './booking-notification.service';
 import { BookingToolExecutor } from './booking-tool-executor.service';
 import { BookingRescheduleService } from './booking-reschedule.service';
 import type { BookingConversationContext } from './booking-agent.types';
-import { slotKey } from './booking-agent.types';
+import { emptyAgentState, slotKey } from './booking-agent.types';
 import { looksLikeDateQuery } from './booking-datetime.service';
 import { isCatalogConfigV2 } from './booking-catalog-config.service';
 
 const AUDIO_BLOCK_MSG = '🎤 Por ahora la turnera funciona solo con mensajes de *texto*. Escribime lo que necesitás y te ayudo con la reserva 🌿';
 
 const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
-const MAIN_MENU_OPTIONS_V2 = ['Ver todos los servicios', 'Ver precios'];
+const MAIN_MENU_OPTIONS_V2 = ['Ver servicios', 'Ver precios'];
 
 /** Ecos de UI del bot que WhatsApp a veces mete al citar/responder un mensaje interactivo */
 const BOT_UI_ECHO =
@@ -141,17 +141,20 @@ export class BookingOrchestrator {
       await BookingContextService.save(params.conversationId, {
         ...ctx,
         agentState: {
-          ...ctx.agentState,
-          browsePhase: null,
-          uiPresentation: null,
-          listedSlots: [],
-          offeredSlot: null,
-          pendingCancel: null,
-          pendingReschedule: null,
-          greetingPending: false,
+          ...emptyAgentState({
+            greetingPending: false,
+            customer: ctx.agentState.customer?.fullName
+              ? {
+                  fullName: ctx.agentState.customer.fullName,
+                  nameConfirmed: !!ctx.agentState.customer.nameConfirmed,
+                  notes: ctx.agentState.customer.notes ?? null,
+                  notesCollected: false,
+                }
+              : null,
+          }),
           mode: 'idle',
         },
-        checkout: ctx.checkout,
+        checkout: null,
       });
       const farewell =
         ((settings as any)?.messagesJson?.farewell as string)
@@ -253,7 +256,7 @@ export class BookingOrchestrator {
       }
     }
 
-    // Lista "Ya sé cuál quiero" / "Ver todos los servicios"
+    // Lista "Ya sé cuál quiero" / "Ver servicios"
     const serviceListPick = await this.tryHardServiceListPick(params, ctx, settings);
     if (serviceListPick) return serviceListPick;
 
@@ -263,17 +266,22 @@ export class BookingOrchestrator {
 
     // Saludo puro con browse colgado → soltar menú viejo y mostrar saludo configurado
     if (BookingAiService.looksLikeGreeting(params.text) && params.text.trim().length < 60) {
+      const keepName = ctx.agentState.customer?.fullName;
       const soft = {
         ...ctx,
-        agentState: {
-          ...ctx.agentState,
-          browsePhase: null,
-          uiPresentation: null,
-          listedSlots: [],
-          offeredSlot: null,
+        checkout: null,
+        agentState: emptyAgentState({
           greetingPending: false,
-          mode: 'idle' as const,
-        },
+          mode: 'idle',
+          customer: keepName
+            ? {
+                fullName: keepName,
+                nameConfirmed: !!ctx.agentState.customer?.nameConfirmed,
+                notes: null,
+                notesCollected: false,
+              }
+            : null,
+        }),
       };
       await BookingContextService.save(params.conversationId, soft);
       ctx = soft;
@@ -467,10 +475,19 @@ export class BookingOrchestrator {
     let pick: 1 | 2 | 3 | null = null;
 
     if (v2) {
-      if (t === '1' || t === 'ver todos los servicios' || /^ver todos\b/.test(t)) pick = 1;
+      if (
+        t === '1'
+        || t === 'ver servicios'
+        || t === 'ver todos los servicios'
+        || /^ver servicios\b/.test(t)
+        || /^ver todos\b/.test(t)
+        || /^1\.\s*ver\s+(todos\s+)?ser/.test(t)
+      ) {
+        pick = 1;
+      }
       if (t === '2' || t.includes('precio') || t.includes('ver precio')) pick = 2;
       if (pick && raw.length > 40 && !/^\d+$/.test(t)) {
-        if (pick === 1 && !/ver todos|servicios/.test(t)) pick = null;
+        if (pick === 1 && !/ver (todos )?servicios|ver todos|servicios/.test(t)) pick = null;
         if (pick === 2 && !/precio/.test(t)) pick = null;
       }
     } else {
@@ -534,6 +551,11 @@ export class BookingOrchestrator {
           pendingRecommend: null,
           pickingServiceList: true,
           browsePhase: null,
+          uiPresentation: null,
+          listedSlots: [],
+          shownSlotKeys: [],
+          offeredSlot: null,
+          service: null,
         },
       });
       return BookingFlowService.buildOptionsReply(

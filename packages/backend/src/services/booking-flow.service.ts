@@ -113,7 +113,7 @@ export interface BookingFlowContext {
 
 const MAIN_MENU_COMMANDS = ['menú', 'menu', 'empezar de nuevo', 'inicio'];
 const MAIN_MENU_OPTIONS = ['Ayudame a elegir', 'Ya sé cuál quiero', 'Ver precios'];
-const MAIN_MENU_OPTIONS_V2 = ['Ver todos los servicios', 'Ver precios'];
+const MAIN_MENU_OPTIONS_V2 = ['Ver servicios', 'Ver precios'];
 
 function mainMenuOptionsFor(settings: any): string[] {
   return settings?.catalogConfigV2 ? MAIN_MENU_OPTIONS_V2 : MAIN_MENU_OPTIONS;
@@ -300,7 +300,10 @@ function flowReply(body: string, options: string[], includeHome = false): FlowHa
         body,
         buttons: opts.map((title, i) => ({
           id: `opt_${i + 1}`,
-          title: title.length > 20 ? `${i + 1}. ${title}`.slice(0, 20) : title,
+          // WhatsApp hard-cap 20 chars: nunca numerar si entra; si no, acortar el texto limpio
+          title: title.length <= 20
+            ? title
+            : title.slice(0, 20),
         })),
       },
     };
@@ -1039,7 +1042,7 @@ export class BookingFlowService {
     if (settings?.catalogConfigV2) {
       const welcome = msg(settings, 'welcome',
         'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPodés ver todos los servicios o consultar precios y avanzar con la reserva.');
-      return `${welcome}\n\n1️⃣ Ver todos los servicios\n2️⃣ Ver precios`;
+      return `${welcome}\n\n1️⃣ Ver servicios\n2️⃣ Ver precios`;
     }
     const welcome = msg(settings, 'welcome',
       'Hola 🌿 Qué lindo que quieras regalarte un momento para vos.\nPuedo ayudarte a elegir el camino ideal o, si ya sabés cuál querés, avanzamos directo con la reserva.');
