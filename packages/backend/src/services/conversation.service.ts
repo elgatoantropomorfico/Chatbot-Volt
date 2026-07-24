@@ -103,7 +103,7 @@ export class ConversationService {
     });
 
     const now = new Date();
-    // 5. Update lead + marcar conversación como pendiente de revisión en dashboard
+    // Timestamp de actividad del cliente (NO prende alerta de dashboard)
     await Promise.all([
       prisma.lead.update({
         where: { id: lead.id },
@@ -112,7 +112,6 @@ export class ConversationService {
       prisma.conversation.update({
         where: { id: conversation.id },
         data: {
-          needsAttention: true,
           lastCustomerMessageAt: now,
           updatedAt: now,
         },

@@ -54,6 +54,7 @@ export class HandoffService {
     conversationId: string,
     reason: string,
     customMessage?: string,
+    opts?: { source?: 'auto' | 'manual' },
   ) {
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
@@ -100,14 +101,16 @@ export class HandoffService {
       waMeLink,
     });
 
-    // Update conversation status — alerta dashboard hasta que alguien abra el chat
+    // Solo handoff automático del bot prende alerta en dashboard.
+    // Manual (panel) no: el usuario ya lo está haciendo a propósito.
+    const source = opts?.source || 'auto';
     await prisma.conversation.update({
       where: { id: conversationId },
       data: {
         status: 'pending_human',
         handoffReason: reason,
         handoffAt: new Date(),
-        needsAttention: true,
+        ...(source === 'auto' ? { needsAttention: true } : {}),
       },
     });
 

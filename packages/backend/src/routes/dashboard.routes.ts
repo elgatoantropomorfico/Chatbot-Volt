@@ -284,7 +284,7 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // 3. Conversations pending human attention (solo no leídas)
+      // 3. Conversations pending human attention (solo handoff automático sin revisar)
       const pendingHuman = await prisma.conversation.count({
         where: { tenantId, status: 'pending_human', needsAttention: true, isArchived: false },
       });
@@ -294,21 +294,6 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           type: 'urgent',
           title: 'Atención humana requerida',
           description: `${pendingHuman} conversación${pendingHuman > 1 ? 'es' : ''} sin revisar esperando un agente.`,
-          link: '/dashboard/inbox',
-          linkLabel: 'Ir a Inbox',
-        });
-      }
-
-      // 3b. Mensajes con la IA sin revisar (modo open, cliente habló y nadie abrió)
-      const unreadAi = await prisma.conversation.count({
-        where: { tenantId, status: 'open', needsAttention: true, isArchived: false },
-      });
-      if (unreadAi > 0) {
-        actions.push({
-          id: 'unread_messages',
-          type: 'info',
-          title: 'Mensajes sin leer',
-          description: `${unreadAi} conversación${unreadAi > 1 ? 'es' : ''} con actividad del cliente que todavía no revisaste.`,
           link: '/dashboard/inbox',
           linkLabel: 'Ir a Inbox',
         });
@@ -424,11 +409,9 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           subtitle: c.lead?.phone || preview,
           badge: c.status === 'pending_human' && c.needsAttention
             ? 'Atención humana'
-            : c.needsAttention
-              ? 'Sin leer'
-              : c.status === 'pending_human'
-                ? 'Modo humano'
-                : c.status,
+            : c.status === 'pending_human'
+              ? 'Modo humano'
+              : c.status,
           href: `/dashboard/inbox?c=${c.id}`,
         });
       }

@@ -126,6 +126,7 @@ export async function conversationRoutes(app: FastifyInstance) {
         request.params.id,
         body.reason || 'Manual handoff from panel',
         body.customMessage,
+        { source: 'manual' },
       );
       return reply.send(result);
     } catch (err: any) {

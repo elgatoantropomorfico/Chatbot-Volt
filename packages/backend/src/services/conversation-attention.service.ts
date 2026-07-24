@@ -6,19 +6,11 @@ export function canMarkConversationRead(role: string | undefined | null): boolea
   return !!role && VIEWER_ROLES.has(role);
 }
 
-/** Marca actividad del cliente (o handoff bot) como pendiente de revisión en dashboard/inbox. */
-export async function flagConversationNeedsAttention(
-  conversationId: string,
-  opts?: { lastCustomerMessageAt?: Date },
-): Promise<void> {
+/** Solo handoff automatico del bot prende alerta de dashboard. */
+export async function flagConversationNeedsAttention(conversationId: string): Promise<void> {
   await prisma.conversation.update({
     where: { id: conversationId },
-    data: {
-      needsAttention: true,
-      ...(opts?.lastCustomerMessageAt
-        ? { lastCustomerMessageAt: opts.lastCustomerMessageAt }
-        : {}),
-    },
+    data: { needsAttention: true },
   });
 }
 

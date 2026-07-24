@@ -270,7 +270,7 @@ model Conversation {
   handoffAt            DateTime?          @map("handoff_at")
   isArchived           Boolean            @default(false) @map("is_archived")
   bookingFlowJson       Json?              @map("booking_flow_json")
-  // Cliente hablo / handoff: pendiente de revision en dashboard hasta abrir inbox
+  // Cliente hablo / handoff: needsAttention solo se prende en handoff AUTOMATICO del bot
   needsAttention        Boolean            @default(false) @map("needs_attention")
   attentionReadAt       DateTime?          @map("attention_read_at")
   lastCustomerMessageAt DateTime?          @map("last_customer_message_at")
