@@ -100,13 +100,14 @@ export class HandoffService {
       waMeLink,
     });
 
-    // Update conversation status
+    // Update conversation status — alerta dashboard hasta que alguien abra el chat
     await prisma.conversation.update({
       where: { id: conversationId },
       data: {
         status: 'pending_human',
         handoffReason: reason,
         handoffAt: new Date(),
+        needsAttention: true,
       },
     });
 

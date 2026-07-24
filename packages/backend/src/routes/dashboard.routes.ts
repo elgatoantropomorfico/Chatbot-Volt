@@ -15,7 +15,10 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
       const [totalConversations, activeConversations, pendingHumanConversations] = await Promise.all([
         prisma.conversation.count({ where: baseWhere }),
         prisma.conversation.count({ where: { ...baseWhere, status: 'open' } }),
-        prisma.conversation.count({ where: { ...baseWhere, status: 'pending_human' } }),
+        // Solo las de atención humana que todavía no abrió nadie del tenant
+        prisma.conversation.count({
+          where: { ...baseWhere, status: 'pending_human', needsAttention: true, isArchived: false },
+        }),
       ]);
 
       // Leads stats
@@ -281,16 +284,31 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
         });
       }
 
-      // 3. Conversations pending human attention
+      // 3. Conversations pending human attention (solo no leídas)
       const pendingHuman = await prisma.conversation.count({
-        where: { tenantId, status: 'pending_human' },
+        where: { tenantId, status: 'pending_human', needsAttention: true, isArchived: false },
       });
       if (pendingHuman > 0) {
         actions.push({
           id: 'pending_human',
           type: 'urgent',
           title: 'Atención humana requerida',
-          description: `${pendingHuman} conversación${pendingHuman > 1 ? 'es' : ''} esperando respuesta de un agente.`,
+          description: `${pendingHuman} conversación${pendingHuman > 1 ? 'es' : ''} sin revisar esperando un agente.`,
+          link: '/dashboard/inbox',
+          linkLabel: 'Ir a Inbox',
+        });
+      }
+
+      // 3b. Mensajes con la IA sin revisar (modo open, cliente habló y nadie abrió)
+      const unreadAi = await prisma.conversation.count({
+        where: { tenantId, status: 'open', needsAttention: true, isArchived: false },
+      });
+      if (unreadAi > 0) {
+        actions.push({
+          id: 'unread_messages',
+          type: 'info',
+          title: 'Mensajes sin leer',
+          description: `${unreadAi} conversación${unreadAi > 1 ? 'es' : ''} con actividad del cliente que todavía no revisaste.`,
           link: '/dashboard/inbox',
           linkLabel: 'Ir a Inbox',
         });
@@ -404,7 +422,13 @@ export async function dashboardRoutes(fastify: FastifyInstance) {
           id: c.id,
           title: c.lead?.name || c.lead?.phone || 'Conversación',
           subtitle: c.lead?.phone || preview,
-          badge: c.status === 'pending_human' ? 'Atención humana' : c.status,
+          badge: c.status === 'pending_human' && c.needsAttention
+            ? 'Atención humana'
+            : c.needsAttention
+              ? 'Sin leer'
+              : c.status === 'pending_human'
+                ? 'Modo humano'
+                : c.status,
           href: `/dashboard/inbox?c=${c.id}`,
         });
       }

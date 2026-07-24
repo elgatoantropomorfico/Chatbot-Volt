@@ -102,17 +102,32 @@ export class ConversationService {
       },
     });
 
-    // 5. Update lead's last message timestamp
-    await prisma.lead.update({
-      where: { id: lead.id },
-      data: { lastMessageAt: new Date() },
+    const now = new Date();
+    // 5. Update lead + marcar conversación como pendiente de revisión en dashboard
+    await Promise.all([
+      prisma.lead.update({
+        where: { id: lead.id },
+        data: { lastMessageAt: now },
+      }),
+      prisma.conversation.update({
+        where: { id: conversation.id },
+        data: {
+          needsAttention: true,
+          lastCustomerMessageAt: now,
+          updatedAt: now,
+        },
+      }),
+    ]);
+
+    const refreshed = await prisma.conversation.findUniqueOrThrow({
+      where: { id: conversation.id },
     });
 
     return {
       channel,
       tenant: channel.tenant,
       lead,
-      conversation,
+      conversation: refreshed,
       message,
     };
   }

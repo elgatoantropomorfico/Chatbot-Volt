@@ -260,18 +260,22 @@ model LeadNote {
 }
 
 model Conversation {
-  id              String             @id @default(cuid())
-  tenantId        String             @map("tenant_id")
-  leadId          String             @map("lead_id")
-  channelId       String             @map("channel_id")
-  status          ConversationStatus @default(open)
-  summary         String?
-  handoffReason   String?            @map("handoff_reason")
-  handoffAt       DateTime?          @map("handoff_at")
-  isArchived      Boolean            @default(false) @map("is_archived")
-  bookingFlowJson Json?              @map("booking_flow_json")
-  createdAt       DateTime           @default(now()) @map("created_at")
-  updatedAt       DateTime           @updatedAt @map("updated_at")
+  id                   String             @id @default(cuid())
+  tenantId             String             @map("tenant_id")
+  leadId               String             @map("lead_id")
+  channelId            String             @map("channel_id")
+  status               ConversationStatus @default(open)
+  summary              String?
+  handoffReason        String?            @map("handoff_reason")
+  handoffAt            DateTime?          @map("handoff_at")
+  isArchived           Boolean            @default(false) @map("is_archived")
+  bookingFlowJson       Json?              @map("booking_flow_json")
+  // Cliente hablo / handoff: pendiente de revision en dashboard hasta abrir inbox
+  needsAttention        Boolean            @default(false) @map("needs_attention")
+  attentionReadAt       DateTime?          @map("attention_read_at")
+  lastCustomerMessageAt DateTime?          @map("last_customer_message_at")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
 
   tenant          Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   lead            Lead               @relation(fields: [leadId], references: [id], onDelete: Cascade)
@@ -279,6 +283,8 @@ model Conversation {
   messages        Message[]
   appointments    Appointment[]
 
+  @@index([tenantId, needsAttention])
+  @@index([tenantId, status, needsAttention])
   @@map("conversations")
 }
 

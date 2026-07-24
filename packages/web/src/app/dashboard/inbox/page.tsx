@@ -84,6 +84,13 @@ export default function InboxPage() {
       setConvStatus(data.conversation.status);
       const lastMsg = data.conversation.messages[data.conversation.messages.length - 1];
       lastMessageTimeRef.current = lastMsg?.createdAt || null;
+      // Al abrir, el backend marca leído → sincronizar lista local
+      setAllConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, hasUnread: false, needsAttention: false } : c)),
+      );
+      setArchivedConversations((prev) =>
+        prev.map((c) => (c.id === conversationId ? { ...c, hasUnread: false, needsAttention: false } : c)),
+      );
     } catch (err) {
       console.error('Error loading messages:', err);
     }
@@ -298,11 +305,12 @@ export default function InboxPage() {
           {conversations.map((conv) => (
             <div
               key={conv.id}
-              className={`${styles.conversationItem} ${selectedId === conv.id ? styles.conversationItemActive : ''}`}
+              className={`${styles.conversationItem} ${selectedId === conv.id ? styles.conversationItemActive : ''} ${conv.hasUnread || conv.needsAttention ? styles.conversationItemUnread : ''}`}
               onClick={() => setSelectedId(conv.id)}
             >
               <div className={styles.avatar}>
                 {(conv.lead?.name || conv.lead?.phone || '?')[0].toUpperCase()}
+                {(conv.hasUnread || conv.needsAttention) && <span className={styles.unreadDot} />}
               </div>
               <div className={styles.convInfo}>
                 <div className={styles.convHeader}>

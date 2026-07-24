@@ -4,6 +4,10 @@ import { prisma } from '../config/database';
 import { HandoffService } from '../services/handoff.service';
 import { WhatsAppService } from '../services/whatsapp.service';
 import { ConversationService } from '../services/conversation.service';
+import {
+  canMarkConversationRead,
+  markConversationAttentionRead,
+} from '../services/conversation-attention.service';
 
 function getTenantFilter(user: any) {
   return user.role === 'superadmin' ? {} : { tenantId: user.tenantId! };
@@ -72,7 +76,12 @@ export async function conversationRoutes(app: FastifyInstance) {
         })
       : [];
 
-    return reply.send({ conversations, total, page, limit, totalPages: Math.ceil(total / limit) });
+    const withUnread = conversations.map((c) => ({
+      ...c,
+      hasUnread: !!c.needsAttention,
+    }));
+
+    return reply.send({ conversations: withUnread, total, page, limit, totalPages: Math.ceil(total / limit) });
   });
 
   // Get conversation with messages
@@ -93,7 +102,19 @@ export async function conversationRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    return reply.send({ conversation });
+    // Cualquier rol con acceso a inbox marca como leído (quita alerta dashboard)
+    if (canMarkConversationRead(user.role) && conversation.needsAttention) {
+      await markConversationAttentionRead(conversation.id);
+      conversation.needsAttention = false;
+      conversation.attentionReadAt = new Date();
+    }
+
+    return reply.send({
+      conversation: {
+        ...conversation,
+        hasUnread: false,
+      },
+    });
   });
 
   // Handoff to human
@@ -278,6 +299,11 @@ export async function conversationRoutes(app: FastifyInstance) {
       where,
       orderBy: { createdAt: 'asc' },
     });
+
+    // Si el agente tiene el chat abierto, los mensajes nuevos no deben rearmar la alerta
+    if (canMarkConversationRead(user.role) && conversation.needsAttention) {
+      await markConversationAttentionRead(conversation.id);
+    }
 
     return reply.send({ messages, status: conversation.status });
   });
