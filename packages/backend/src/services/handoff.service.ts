@@ -1,6 +1,7 @@
 import { prisma } from '../config/database';
 import { WhatsAppService } from './whatsapp.service';
 import { tenantDisplayName } from '../utils/tenant';
+import { touchConversationLastMessage } from './conversation-attention.service';
 
 interface HandoffTriggers {
   keywords?: string[];
@@ -101,18 +102,32 @@ export class HandoffService {
       waMeLink,
     });
 
-    // Solo handoff automático del bot prende alerta en dashboard.
-    // Manual (panel) no: el usuario ya lo está haciendo a propósito.
+    // Solo handoff automatico del bot prende alerta en dashboard.
+    // Manual (panel) no: el usuario ya lo esta haciendo a proposito.
+    // Raw SQL: no depender de @updatedAt para el orden del inbox.
     const source = opts?.source || 'auto';
-    await prisma.conversation.update({
-      where: { id: conversationId },
-      data: {
-        status: 'pending_human',
-        handoffReason: reason,
-        handoffAt: new Date(),
-        ...(source === 'auto' ? { needsAttention: true } : {}),
-      },
-    });
+    if (source === 'auto') {
+      await prisma.$executeRawUnsafe(
+        `UPDATE conversations
+         SET status = 'pending_human',
+             handoff_reason = $2,
+             handoff_at = NOW(),
+             needs_attention = true
+         WHERE id = $1`,
+        conversationId,
+        reason,
+      );
+    } else {
+      await prisma.$executeRawUnsafe(
+        `UPDATE conversations
+         SET status = 'pending_human',
+             handoff_reason = $2,
+             handoff_at = NOW()
+         WHERE id = $1`,
+        conversationId,
+        reason,
+      );
+    }
 
     // Send WhatsApp message with wa.me link
     const providerMessageId = await WhatsAppService.sendTextMessage({
@@ -130,6 +145,7 @@ export class HandoffService {
         providerMessageId,
       },
     });
+    await touchConversationLastMessage(conversationId);
 
     return {
       status: 'pending_human',

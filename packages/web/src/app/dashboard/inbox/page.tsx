@@ -86,10 +86,10 @@ export default function InboxPage() {
       lastMessageTimeRef.current = lastMsg?.createdAt || null;
       // Al abrir, el backend marca leído → sincronizar lista local
       setAllConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, hasUnread: false, needsAttention: false } : c)),
+        prev.map((c) => (c.id === conversationId ? { ...c, hasUnread: false, needsAttention: false, unreadCount: 0 } : c)),
       );
       setArchivedConversations((prev) =>
-        prev.map((c) => (c.id === conversationId ? { ...c, hasUnread: false, needsAttention: false } : c)),
+        prev.map((c) => (c.id === conversationId ? { ...c, hasUnread: false, needsAttention: false, unreadCount: 0 } : c)),
       );
     } catch (err) {
       console.error('Error loading messages:', err);
@@ -302,15 +302,22 @@ export default function InboxPage() {
           {!loading && conversations.length === 0 && (
             <div className={styles.emptyState}><p>Sin conversaciones</p></div>
           )}
-          {conversations.map((conv) => (
+          {conversations.map((conv) => {
+            const unread = Number(conv.unreadCount || 0);
+            const showUnread = unread > 0 || !!conv.needsAttention;
+            return (
             <div
               key={conv.id}
-              className={`${styles.conversationItem} ${selectedId === conv.id ? styles.conversationItemActive : ''} ${conv.hasUnread || conv.needsAttention ? styles.conversationItemUnread : ''}`}
+              className={`${styles.conversationItem} ${selectedId === conv.id ? styles.conversationItemActive : ''} ${showUnread ? styles.conversationItemUnread : ''}`}
               onClick={() => setSelectedId(conv.id)}
             >
               <div className={styles.avatar}>
                 {(conv.lead?.name || conv.lead?.phone || '?')[0].toUpperCase()}
-                {(conv.hasUnread || conv.needsAttention) && <span className={styles.unreadDot} />}
+                {showUnread && (
+                  <span className={styles.unreadBadge}>
+                    {unread > 0 ? (unread > 99 ? '99+' : unread) : '!'}
+                  </span>
+                )}
               </div>
               <div className={styles.convInfo}>
                 <div className={styles.convHeader}>
@@ -327,7 +334,8 @@ export default function InboxPage() {
                 </span>
               </div>
             </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 

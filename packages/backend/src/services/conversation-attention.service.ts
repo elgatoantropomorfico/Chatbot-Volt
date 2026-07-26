@@ -8,25 +8,53 @@ export function canMarkConversationRead(role: string | undefined | null): boolea
 
 /** Solo handoff automatico del bot prende alerta de dashboard. */
 export async function flagConversationNeedsAttention(conversationId: string): Promise<void> {
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: { needsAttention: true },
-  });
+  // Raw: no tocar updated_at (el orden del inbox no debe moverse por flags)
+  await prisma.$executeRawUnsafe(
+    `UPDATE conversations SET needs_attention = true WHERE id = $1`,
+    conversationId,
+  );
 }
 
-/** Cualquier usuario con permiso de ver mensajes abre el chat → deja de alertar. */
+/**
+ * Marca leido: limpia alerta dashboard + contador de no leidos.
+ * Raw SQL a proposito: no bumpa updated_at ni last_message_at (orden estable como WhatsApp).
+ */
 export async function markConversationAttentionRead(conversationId: string): Promise<void> {
-  await prisma.conversation.update({
-    where: { id: conversationId },
-    data: {
-      needsAttention: false,
-      attentionReadAt: new Date(),
-    },
-  });
+  await prisma.$executeRawUnsafe(
+    `UPDATE conversations
+     SET needs_attention = false,
+         unread_count = 0,
+         attention_read_at = NOW()
+     WHERE id = $1`,
+    conversationId,
+  );
+}
+
+/** Mensaje entrante del cliente: suma al globito (sin prender alerta dashboard). */
+export async function registerInboundUnread(conversationId: string, at: Date = new Date()): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE conversations
+     SET unread_count = unread_count + 1,
+         last_customer_message_at = $2,
+         last_message_at = $2
+     WHERE id = $1`,
+    conversationId,
+    at,
+  );
+}
+
+/** Cualquier mensaje (in/out/system) mueve el chat arriba como WhatsApp. */
+export async function touchConversationLastMessage(conversationId: string, at: Date = new Date()): Promise<void> {
+  await prisma.$executeRawUnsafe(
+    `UPDATE conversations SET last_message_at = $2 WHERE id = $1`,
+    conversationId,
+    at,
+  );
 }
 
 export function conversationHasUnread(conv: {
+  unreadCount?: number | null;
   needsAttention?: boolean | null;
 }): boolean {
-  return !!conv.needsAttention;
+  return (conv.unreadCount ?? 0) > 0 || !!conv.needsAttention;
 }

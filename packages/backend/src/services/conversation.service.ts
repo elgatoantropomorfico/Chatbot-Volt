@@ -1,4 +1,5 @@
 import { prisma } from '../config/database';
+import { registerInboundUnread, touchConversationLastMessage } from './conversation-attention.service';
 
 interface IncomingMessageData {
   phoneNumberId: string;
@@ -103,19 +104,13 @@ export class ConversationService {
     });
 
     const now = new Date();
-    // Timestamp de actividad del cliente (NO prende alerta de dashboard)
     await Promise.all([
       prisma.lead.update({
         where: { id: lead.id },
         data: { lastMessageAt: now },
       }),
-      prisma.conversation.update({
-        where: { id: conversation.id },
-        data: {
-          lastCustomerMessageAt: now,
-          updatedAt: now,
-        },
-      }),
+      // Globito + orden (no prende alerta de dashboard)
+      registerInboundUnread(conversation.id, now),
     ]);
 
     const refreshed = await prisma.conversation.findUniqueOrThrow({
@@ -132,7 +127,7 @@ export class ConversationService {
   }
 
   static async saveOutgoingMessage(conversationId: string, text: string, providerMessageId?: string | null) {
-    return prisma.message.create({
+    const message = await prisma.message.create({
       data: {
         conversationId,
         direction: 'out',
@@ -140,6 +135,8 @@ export class ConversationService {
         providerMessageId: providerMessageId || null,
       },
     });
+    await touchConversationLastMessage(conversationId);
+    return message;
   }
 
   static async updateSummary(conversationId: string, summary: string) {

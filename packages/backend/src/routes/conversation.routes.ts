@@ -7,6 +7,7 @@ import { ConversationService } from '../services/conversation.service';
 import {
   canMarkConversationRead,
   markConversationAttentionRead,
+  touchConversationLastMessage,
 } from '../services/conversation-attention.service';
 
 function getTenantFilter(user: any) {
@@ -51,9 +52,13 @@ export async function conversationRoutes(app: FastifyInstance) {
     const tenantCondition = user.role === 'superadmin' ? '' : ` AND tenant_id = '${user.tenantId}'`;
     const statusCondition = query.status ? ` AND status = '${query.status}'` : '';
 
-    // Get IDs of matching conversations using raw SQL (is_archived may not be in Prisma client yet)
+    // Get IDs ordenados por ultima actividad de mensaje (estilo WhatsApp).
+    // Leer un chat NO debe mover el orden → mark-read no toca last_message_at.
     const rawRows: any[] = await prisma.$queryRawUnsafe(
-      `SELECT id FROM conversations WHERE is_archived = $1${tenantCondition}${statusCondition} ORDER BY updated_at DESC LIMIT $2 OFFSET $3`,
+      `SELECT id FROM conversations
+       WHERE is_archived = $1${tenantCondition}${statusCondition}
+       ORDER BY COALESCE(last_message_at, updated_at) DESC NULLS LAST
+       LIMIT $2 OFFSET $3`,
       isArchived, limit, skip
     );
     const ids = rawRows.map((r: any) => r.id);
@@ -72,13 +77,17 @@ export async function conversationRoutes(app: FastifyInstance) {
             channel: { select: { id: true, displayPhone: true } },
             messages: { orderBy: { createdAt: 'desc' }, take: 1 },
           },
-          orderBy: { updatedAt: 'desc' },
         })
       : [];
 
-    const withUnread = conversations.map((c) => ({
+    // Preservar orden del SQL (findMany no garantiza ORDER BY IN)
+    const byId = new Map(conversations.map((c) => [c.id, c]));
+    const ordered = ids.map((id: string) => byId.get(id)).filter(Boolean) as typeof conversations;
+
+    const withUnread = ordered.map((c) => ({
       ...c,
-      hasUnread: !!c.needsAttention,
+      hasUnread: (c.unreadCount ?? 0) > 0 || !!c.needsAttention,
+      unreadCount: c.unreadCount ?? 0,
     }));
 
     return reply.send({ conversations: withUnread, total, page, limit, totalPages: Math.ceil(total / limit) });
@@ -102,10 +111,11 @@ export async function conversationRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
-    // Cualquier rol con acceso a inbox marca como leído (quita alerta dashboard)
-    if (canMarkConversationRead(user.role) && conversation.needsAttention) {
+    // Cualquier rol con acceso a inbox marca como leído (quita alerta + globito; no reordena)
+    if (canMarkConversationRead(user.role) && (conversation.needsAttention || (conversation.unreadCount ?? 0) > 0)) {
       await markConversationAttentionRead(conversation.id);
       conversation.needsAttention = false;
+      conversation.unreadCount = 0;
       conversation.attentionReadAt = new Date();
     }
 
@@ -113,6 +123,7 @@ export async function conversationRoutes(app: FastifyInstance) {
       conversation: {
         ...conversation,
         hasUnread: false,
+        unreadCount: 0,
       },
     });
   });
@@ -211,13 +222,15 @@ export async function conversationRoutes(app: FastifyInstance) {
         providerMessageId,
       },
     });
+    await touchConversationLastMessage(conversation.id);
 
-    // Auto-pause AI when agent intervenes
+    // Auto-pause AI when agent intervenes (sin alerta dashboard: es accion manual)
     if (conversation.status === 'open') {
-      await prisma.conversation.update({
-        where: { id: conversation.id },
-        data: { status: 'pending_human', handoffReason: 'Agent intervention from panel' },
-      });
+      await prisma.$executeRawUnsafe(
+        `UPDATE conversations SET status = 'pending_human', handoff_reason = $2 WHERE id = $1`,
+        conversation.id,
+        'Agent intervention from panel',
+      );
     }
 
     return reply.send({ message, aiPaused: true });
@@ -301,8 +314,8 @@ export async function conversationRoutes(app: FastifyInstance) {
       orderBy: { createdAt: 'asc' },
     });
 
-    // Si el agente tiene el chat abierto, los mensajes nuevos no deben rearmar la alerta
-    if (canMarkConversationRead(user.role) && conversation.needsAttention) {
+    // Si el agente tiene el chat abierto, los mensajes nuevos no deben rearmar globito/alerta
+    if (canMarkConversationRead(user.role) && (conversation.needsAttention || (conversation.unreadCount ?? 0) > 0)) {
       await markConversationAttentionRead(conversation.id);
     }
 
