@@ -6,6 +6,9 @@ import { BookingContextService } from './booking-context.service';
 import {
   filterSlotsByQuery,
   matchesDaypart,
+  resolveTargetDateStr,
+  wantsNextWeek,
+  wantsThisWeek,
   weekRangeInTz,
 } from './booking-datetime.service';
 import { formatServicePreviewBody, matchServiceFromText } from './booking-flow-nav.service';
@@ -284,11 +287,29 @@ export class BookingToolExecutor {
     const options = toShow.map((s) => s.label);
     if (toShow.length > 0) options.push(MORE_SLOTS_LABEL);
 
-    const body = picked.length > 0
-      ? 'Estos son los primeros horarios disponibles:'
-      : nearestFallback.length > 0
-        ? 'No encontré lugar en ese momento. Lo más cercano que tengo es:'
-        : 'No encontré horarios libres con ese filtro.';
+    let body = 'Estos son los primeros horarios disponibles:';
+    if (picked.length > 0 && dateQuery) {
+      const resolved = resolveTargetDateStr(dateQuery, tz);
+      if (resolved) {
+        const nice = new Date(`${resolved}T12:00:00`).toLocaleDateString('es-AR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'numeric',
+          timeZone: tz,
+        });
+        body = `Horarios para el ${nice}:`;
+      } else if (wantsNextWeek(dateQuery)) {
+        body = 'Horarios de la semana que viene:';
+      } else if (wantsThisWeek(dateQuery)) {
+        body = 'Horarios de esta semana:';
+      } else {
+        body = 'Estos son los horarios que encontré:';
+      }
+    } else if (picked.length === 0 && nearestFallback.length > 0) {
+      body = 'No encontré lugar en ese momento. Lo más cercano que tengo es:';
+    } else if (picked.length === 0) {
+      body = 'No encontré horarios libres con ese filtro.';
+    }
 
     const preference: DatePreference = {
       mode,

@@ -100,7 +100,8 @@ export function formatServicePreviewBody(
 }
 
 export function looksLikeServiceInfoQuery(q: string): boolean {
-  return /\b(info|informaci[oó]n|contame|cu[eé]ntame|saber m[aá]s|qu[eé] es|c[oó]mo es|detalle|detalles|diferencia|compar|explica|explicame|explícame)\b/i.test(q);
+  return /\b(info|informaci[oó]n|contame|cu[eé]ntame|saber m[aá]s|qu[eé] es|c[oó]mo es|detalle|detalles|diferencia|compar|explica|explicame|explícame)\b/i.test(q)
+    || /\b(qu[eé]\s+otras?\s+cosas|otras?\s+cosas|otros?\s+servicios|otros?\s+caminos|qu[eé]\s+m[aá]s\s+ofrec|qu[eé]\s+ofrecen|qu[eé]\s+tienen|qu[eé]\s+m[aá]s\s+tienen|ver\s+otros|cambiar\s+(de\s+)?(servicio|camino))\b/i.test(q);
 }
 
 /** Pregunta de precios / promos (no elegir horario) */

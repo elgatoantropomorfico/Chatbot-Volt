@@ -23,7 +23,7 @@ import { BookingToolExecutor } from './booking-tool-executor.service';
 import { BookingRescheduleService } from './booking-reschedule.service';
 import type { BookingConversationContext } from './booking-agent.types';
 import { emptyAgentState, slotKey } from './booking-agent.types';
-import { looksLikeDateQuery } from './booking-datetime.service';
+import { looksLikeDateQuery, wantsNextWeek, wantsThisWeek } from './booking-datetime.service';
 import { isCatalogConfigV2 } from './booking-catalog-config.service';
 
 const AUDIO_BLOCK_MSG = '🎤 Por ahora la turnera funciona solo con mensajes de *texto*. Escribime lo que necesitás y te ayudo con la reserva 🌿';
@@ -33,7 +33,7 @@ const MAIN_MENU_OPTIONS_V2 = ['Ver servicios', 'Ver precios'];
 
 /** Ecos de UI del bot que WhatsApp a veces mete al citar/responder un mensaje interactivo */
 const BOT_UI_ECHO =
-  /^(estos son los primeros horarios|cómo preferís buscar|como preferis buscar|horarios disponibles:|no encontré lugar|elegí el nuevo horario|reprogramamos tu turno)/i;
+  /^(estos son los primeros horarios|cómo preferís buscar|como preferis buscar|horarios disponibles:?|no encontré lugar|elegí el nuevo horario|reprogramamos tu turno|estos son nuestros servicios|estos son nuestros caminos|tengo disponibilidad|¿cómo preferís buscar)/i;
 
 function extractUserIntentText(rawFull: string): string {
   const lines = rawFull.split(/\n+/).map((l) => l.trim()).filter(Boolean);
@@ -43,11 +43,22 @@ function extractUserIntentText(rawFull: string): string {
   const dateLines = meaningful.filter((l) => looksLikeDateQuery(l));
   if (dateLines.length) return dateLines.join(' ');
 
-  if (meaningful.length) {
-    // Preferir la línea más reciente que no sea eco del bot
-    return meaningful[meaningful.length - 1];
-  }
+  // Preferir líneas cortas de intención (evita quotes enormes del mensaje anterior)
+  const shortIntent = [...meaningful].reverse().find((l) => l.length <= 120);
+  if (shortIntent) return shortIntent;
+
+  if (meaningful.length) return meaningful[meaningful.length - 1];
   return lines[lines.length - 1] || rawFull.trim();
+}
+
+function clearBrowseState(agentState: BookingConversationContext['agentState']) {
+  return {
+    ...agentState,
+    browsePhase: null as null,
+    uiPresentation: null,
+    listedSlots: [] as Array<{ date: string; time: string; label: string }>,
+    availableDays: [] as Array<{ date: string; label: string; count: number }>,
+  };
 }
 
 function looksLikeFarewell(text: string): boolean {
@@ -1087,7 +1098,9 @@ export class BookingOrchestrator {
     }
 
     if (phase === 'more_menu') {
-      if (input === MORE_MENU.thisWeek || input === '1') {
+      const hasWeekday = /\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/.test(input);
+      if (input === MORE_MENU.thisWeek || input === '1'
+        || (wantsThisWeek(raw) && !hasWeekday)) {
         const { ctx: next } = await BookingToolExecutor.execute(
           'get_available_days',
           { range: 'this_week' },
@@ -1096,7 +1109,10 @@ export class BookingOrchestrator {
         );
         return this.deliverFromCtx(params.conversationId, next);
       }
-      if (input === MORE_MENU.nextWeek || input === '2' || input === 'proxima semana' || input === 'la semana proxima') {
+      if (input === MORE_MENU.nextWeek || input === '2'
+        || input === 'proxima semana' || input === 'la semana proxima'
+        || input === 'semana que viene' || input === 'la semana que viene'
+        || (wantsNextWeek(raw) && !hasWeekday)) {
         const { ctx: next } = await BookingToolExecutor.execute(
           'get_available_days',
           { range: 'next_week' },
@@ -1134,7 +1150,7 @@ export class BookingOrchestrator {
       if (looksLikeBrowseReleaseQuery(raw) || raw.length >= 3) {
         await BookingContextService.save(params.conversationId, {
           ...ctx,
-          agentState: { ...ctx.agentState, browsePhase: null, uiPresentation: null },
+          agentState: clearBrowseState(ctx.agentState),
         });
       }
       return null;
@@ -1190,7 +1206,7 @@ export class BookingOrchestrator {
       // Texto libre / tap inválido sobre lista de días → soltar browse
       await BookingContextService.save(params.conversationId, {
         ...ctx,
-        agentState: { ...ctx.agentState, browsePhase: null, uiPresentation: null },
+        agentState: clearBrowseState(ctx.agentState),
       });
       return null;
     }
@@ -1198,11 +1214,18 @@ export class BookingOrchestrator {
     if (phase === 'presenting_slots' || phase === 'day_slots') {
       const slots = ctx.agentState.listedSlots || [];
       const byIndex = /^\d+$/.test(input) ? slots[parseInt(input, 10) - 1] : null;
-      const byLabel = slots.find((s) => {
+      const byExactLabel = slots.find((s) => {
         const n = normalizeInput(s.label);
-        return n === input || normalizeInput(s.time) === input || n.includes(input);
+        return n === input || normalizeInput(s.time) === input;
       });
-      const pick = byIndex || byLabel;
+      // Fuzzy solo si no es pedido de otra fecha ("viernes de la semana que viene")
+      const byFuzzyLabel = !looksLikeDateQuery(raw)
+        ? slots.find((s) => {
+            const n = normalizeInput(s.label);
+            return input.length >= 4 && (n.includes(input) || input.includes(n));
+          })
+        : null;
+      const pick = byIndex || byExactLabel || byFuzzyLabel;
       if (pick) {
         const { ctx: next } = await BookingToolExecutor.execute(
           'confirm_slot',
@@ -1260,11 +1283,7 @@ export class BookingOrchestrator {
     // (mismo patrón que pendingRecommend — evita re-mandar "Estos son los primeros horarios...")
     await BookingContextService.save(params.conversationId, {
       ...ctx,
-      agentState: {
-        ...ctx.agentState,
-        browsePhase: null,
-        uiPresentation: null,
-      },
+      agentState: clearBrowseState(ctx.agentState),
     });
 
     return null;
@@ -1348,16 +1367,18 @@ export class BookingOrchestrator {
     if (a.browsePhase === 'more_menu' && a.uiPresentation?.options?.length) return next;
     if (a.uiPresentation?.options?.length) return next;
 
-    // Pregunta de info/precios / saludo / despedida: no pisar la respuesta con ASAP
-    const raw = String(params.text || '').trim();
+    // Pregunta de info/precios / saludo / despedida / fecha: no pisar con ASAP
+    const rawFull = String(params.text || '').trim();
+    const raw = extractUserIntentText(rawFull);
     if (raw && looksLikeBrowseReleaseQuery(raw)) return next;
+    if (raw && looksLikeDateQuery(raw)) return next;
     if (raw && (BookingAiService.looksLikeGreeting(raw) || looksLikeFarewell(raw))) return next;
 
     // Servicio confirmado sin propuesta visible → ASAP obligatorio
     const { ctx: searched } = await BookingToolExecutor.execute(
       'find_available_slots',
       { mode: 'ASAP', limit: 2, exclude_shown: false },
-      { ...next, agentState: { ...a, browsePhase: null, uiPresentation: null } },
+      { ...next, agentState: clearBrowseState(a) },
       this.toolExec(params, settings),
     );
     return searched;
