@@ -1269,6 +1269,26 @@ export class BookingOrchestrator {
       }
       // Otra fecha/día mientras hay slots → buscar esa fecha (no re-spamear la lista vieja)
       if (looksLikeDateQuery(raw)) {
+        const hasWeekday = /\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/.test(input);
+        // Solo rango de semana → días con cupo (evita reetiquetar la misma lista ASAP)
+        if (!hasWeekday && wantsNextWeek(raw)) {
+          const { ctx: next } = await BookingToolExecutor.execute(
+            'get_available_days',
+            { range: 'next_week' },
+            ctx,
+            exec,
+          );
+          return this.deliverFromCtx(params.conversationId, next);
+        }
+        if (!hasWeekday && wantsThisWeek(raw)) {
+          const { ctx: next } = await BookingToolExecutor.execute(
+            'get_available_days',
+            { range: 'this_week' },
+            ctx,
+            exec,
+          );
+          return this.deliverFromCtx(params.conversationId, next);
+        }
         const { ctx: next } = await BookingToolExecutor.execute(
           'find_available_slots',
           { mode: 'EXACT_DATE', date_query: raw, exclude_shown: false, limit: 3 },

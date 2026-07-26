@@ -219,6 +219,19 @@ export class BookingToolExecutor {
     const daypart = (String(args.daypart || 'ANY').toUpperCase() || 'ANY') as Daypart;
     const tz = exec.settings.timezone || 'America/Argentina/Cordoba';
 
+    // "La semana que viene" / "esta semana" sin día concreto → lista de DÍAS, no los mismos 2 ASAP
+    // (domingo/lunes ASAP ≈ semana próxima y el texto engañaba)
+    const hasWeekday = /\b(lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b/i.test(dateQuery);
+    const hasConcreteDate = /\b\d{1,2}[\/\-]\d{1,2}|\b(hoy|mañana|manana|pasado\s+mañana)\b/i.test(dateQuery);
+    if (dateQuery && !hasWeekday && !hasConcreteDate) {
+      if (wantsNextWeek(dateQuery)) {
+        return this.getAvailableDays(exec, ctx, { ...args, range: 'next_week', service_id: serviceId });
+      }
+      if (wantsThisWeek(dateQuery)) {
+        return this.getAvailableDays(exec, ctx, { ...args, range: 'this_week', service_id: serviceId });
+      }
+    }
+
     const hasShown = (ctx.agentState.shownSlotKeys?.length || 0) > 0;
     const excludeShown = args.exclude_shown !== undefined
       ? !!args.exclude_shown
@@ -243,6 +256,22 @@ export class BookingToolExecutor {
       const wr = weekRangeInTz(tz, which);
       dateFrom = wr.dateFrom;
       dateTo = wr.dateTo;
+    } else if (dateQuery) {
+      // Acotar fetch al rango/fecha pedida (no traer ASAP y reetiquetar)
+      if (wantsNextWeek(dateQuery)) {
+        const wr = weekRangeInTz(tz, 'next');
+        dateFrom = wr.dateFrom;
+        dateTo = wr.dateTo;
+      } else if (wantsThisWeek(dateQuery)) {
+        const wr = weekRangeInTz(tz, 'this');
+        dateFrom = wr.dateFrom;
+        dateTo = wr.dateTo;
+      }
+      const resolved = resolveTargetDateStr(dateQuery, tz);
+      if (resolved) {
+        dateFrom = resolved;
+        dateTo = resolved;
+      }
     }
 
     const slots = await BookingAvailabilityService.getAvailableSlots(exec.tenantId, {
@@ -462,7 +491,11 @@ export class BookingToolExecutor {
           browsePhase: 'picking_day',
           uiPresentation: {
             type: 'available_days',
-            body: 'Tengo disponibilidad estos días:',
+            body: rangeArg === 'next_week'
+              ? 'Días con lugar la semana que viene:'
+              : rangeArg === 'this_week'
+                ? 'Días con lugar esta semana:'
+                : 'Tengo disponibilidad estos días:',
             options: [...days.slice(0, 8).map((d) => d.label), MORE_SLOTS_LABEL],
           },
         },
