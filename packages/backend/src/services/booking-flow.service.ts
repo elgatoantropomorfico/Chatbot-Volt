@@ -1161,17 +1161,18 @@ export class BookingFlowService {
     flow: BookingFlowContext,
   ): Promise<FlowHandleResult> {
     const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
-    const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
     const depositPct = settings.depositPercentage || 50;
-    const promoBlock = await BookingPricingService.formatActivePromosSummary(tenantId, basePrice);
     const slots = await BookingAvailabilityService.getAvailableSlots(tenantId, { limit: 5 });
-    const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
     const duration = settings.sessionDurationMinutes || 80;
+    const rules = await BookingPricingService.getActivePriceRules(tenantId);
+    const priceBlock = basePrice
+      ? BookingPricingService.formatServicePriceLines('Sesión', basePrice, duration, rules)
+      : `Valor de sesión (${duration} min): consultá en sala`;
 
     if (!slots.length) {
       return {
         handled: true,
-        text: `💆‍♀️ *Valor de sesión* (${duration} min): ${price}${promoSection}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nPor ahora no hay horarios libres 😔 Escribí *1* o *2* y te ayudamos a encontrar un momento cuando haya turnos.${HOME_HINT}`,
+        text: `💆‍♀️ *Precios*\n\n${priceBlock}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nPor ahora no hay horarios libres 😔 Escribí *1* o *2* y te ayudamos a encontrar un momento cuando haya turnos.${HOME_HINT}`,
       };
     }
 
@@ -1185,7 +1186,7 @@ export class BookingFlowService {
     };
     await this.saveFlow(conversationId, nextFlow);
 
-    const body = `💆‍♀️ *Valor de sesión* (${duration} min): ${price}${promoSection}\n\nPara confirmar tu turno pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\n📅 A continuación te dejo algunos horarios disponibles. Podés elegir uno de la lista o escribir el día y la hora que prefieras (ej: *mañana a las 18*).`;
+    const body = `💆‍♀️ *Precios*\n\n${priceBlock}\n\nPara confirmar tu turno pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\n📅 A continuación te dejo algunos horarios disponibles. Podés elegir uno de la lista o escribir el día y la hora que prefieras (ej: *mañana a las 18*).`;
     return flowReply(body, previewSlots.map((s) => s.label), true);
   }
 

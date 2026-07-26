@@ -135,7 +135,7 @@ export class BookingPricingService {
     return Math.round(finalPrice * (depositPercentage / 100));
   }
 
-  /** Texto breve para mostrar promos activas (menú "Ver precios", etc.). */
+  /** Texto breve de promos (solo cuando preguntan por promociones, no en Ver precios). */
   static async formatActivePromosSummary(tenantId: string, basePrice?: number | null): Promise<string | null> {
     const rules = await this.getActivePriceRules(tenantId);
     if (!rules.length) return null;
@@ -163,29 +163,51 @@ export class BookingPricingService {
     return `🎉 *Promos vigentes:*\n${lines.join('\n')}`;
   }
 
-  /** Lista de precios por servicio activo (catalog v2 / Ver precios). */
+  /** Líneas de precio base + cada promo activa para un servicio. */
+  static formatServicePriceLines(
+    name: string,
+    listPrice: number,
+    durationMinutes: number,
+    rules: Array<{ ruleType: string; value: unknown; label: string }>,
+  ): string {
+    const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
+    if (!listPrice) {
+      return `• *${name}*: consultar (${durationMinutes} min)`;
+    }
+
+    const parts = [`• *${name}* (${durationMinutes} min)`, `  Base: ${fmt(listPrice)}`];
+    for (const rule of rules) {
+      const resolved = this.applyRule(listPrice, rule);
+      if (rule.ruleType === 'label_only') {
+        parts.push(`  ${rule.label}`);
+      } else if (rule.ruleType === 'percentage_discount') {
+        parts.push(`  ${rule.label}: ${fmt(resolved.finalPrice)} (${Number(rule.value)}% off)`);
+      } else {
+        parts.push(`  ${rule.label}: ${fmt(resolved.finalPrice)}`);
+      }
+    }
+    return parts.join('\n');
+  }
+
+  /** Lista de precios por servicio: base + todas las promos (catalog v2 / Ver precios). */
   static async formatServicesPriceList(tenantId: string): Promise<string> {
-    const [settings, services, rule] = await Promise.all([
+    const [settings, services, rules] = await Promise.all([
       prisma.bookingSettings.findUnique({ where: { tenantId } }),
       prisma.bookingService.findMany({
         where: { tenantId, isActive: true },
         orderBy: { sortOrder: 'asc' },
       }),
-      this.getActivePriceRule(tenantId),
+      this.getActivePriceRules(tenantId),
     ]);
     if (!settings || !services.length) {
       return 'Consultá el precio al confirmar el servicio.';
     }
 
-    const fmt = (n: number) => `$${n.toLocaleString('es-AR')}`;
     const lines = services.map((svc) => {
       const listPrice = this.resolveServiceListPrice(svc, settings);
-      const resolved = this.applyRule(listPrice || 0, rule);
       const dur = svc.durationMinutes || settings.sessionDurationMinutes || 80;
-      let line = `• *${svc.name}*: ${listPrice ? fmt(resolved.finalPrice) : 'consultar'} (${dur} min)`;
-      if (resolved.discountLabel && listPrice) line += ` — ${resolved.discountLabel}`;
-      return line;
+      return this.formatServicePriceLines(svc.name, listPrice || 0, dur, rules);
     });
-    return lines.join('\n');
+    return lines.join('\n\n');
   }
 }

@@ -56,7 +56,12 @@ export class BookingToolExecutor {
           result = await this.matchService(exec, String(args.query || ''));
           break;
         case 'show_price_info':
-          result = await this.showPriceInfo(exec, ctx, args.service_id as string | undefined);
+          result = await this.showPriceInfo(
+            exec,
+            ctx,
+            args.service_id as string | undefined,
+            String(args.mode || 'prices') === 'promos' ? 'promos' : 'prices',
+          );
           break;
         case 'find_available_slots':
           result = await this.findAvailableSlots(exec, ctx, args);
@@ -172,30 +177,68 @@ export class BookingToolExecutor {
     exec: ToolExecutionContext,
     ctx: BookingConversationContext,
     serviceId?: string,
+    mode: 'prices' | 'promos' = 'prices',
   ): Promise<ToolResult> {
     const settings = exec.settings;
     const depositPct = settings.depositPercentage || 50;
-    const promoBlock = await BookingPricingService.formatActivePromosSummary(exec.tenantId);
     const v2 = !!settings.catalogConfigV2;
+
+    if (mode === 'promos') {
+      const promoBlock = await BookingPricingService.formatActivePromosSummary(
+        exec.tenantId,
+        settings.basePrice ? Number(settings.basePrice) : null,
+      );
+      const text = promoBlock
+        || 'Ahora no hay promociones vigentes. Los precios de cada servicio están en *Ver precios*.';
+      return {
+        ok: true,
+        data: { text },
+        contextPatch: {
+          agentState: {
+            ...ctx.agentState,
+            pricePreviewShown: true,
+            mode: 'booking',
+            uiPresentation: null,
+            browsePhase: null,
+          },
+        },
+      };
+    }
 
     let serviceLine = '';
     const sid = serviceId || ctx.agentState.service?.id;
     if (sid) {
-      const pricing = await BookingPricingService.resolvePrice(exec.tenantId, sid);
-      const noun = v2 ? 'servicio' : 'camino';
-      serviceLine = `Precio del ${noun} elegido: $${pricing.finalPrice.toLocaleString('es-AR')} ARS`;
-      if (pricing.discountLabel) serviceLine += ` (${pricing.discountLabel})`;
+      const [svc, rules] = await Promise.all([
+        prisma.bookingService.findFirst({
+          where: { id: sid, tenantId: exec.tenantId },
+        }),
+        BookingPricingService.getActivePriceRules(exec.tenantId),
+      ]);
+      if (svc) {
+        const listPrice = BookingPricingService.resolveServiceListPrice(svc, settings);
+        const dur = svc.durationMinutes || settings.sessionDurationMinutes || 80;
+        serviceLine = BookingPricingService.formatServicePriceLines(svc.name, listPrice || 0, dur, rules);
+      } else {
+        const pricing = await BookingPricingService.resolvePrice(exec.tenantId, sid, new Date(), null);
+        const noun = v2 ? 'servicio' : 'camino';
+        serviceLine = `Precio del ${noun} elegido: $${pricing.listPrice.toLocaleString('es-AR')} ARS (sin promo)`;
+      }
     } else if (v2) {
       serviceLine = await BookingPricingService.formatServicesPriceList(exec.tenantId);
     } else if (settings.basePrice) {
       const basePrice = Number(settings.basePrice);
-      serviceLine = `Precio base de sesión: $${basePrice.toLocaleString('es-AR')} ARS`;
+      const rules = await BookingPricingService.getActivePriceRules(exec.tenantId);
+      serviceLine = BookingPricingService.formatServicePriceLines(
+        'Sesión',
+        basePrice,
+        settings.sessionDurationMinutes || 80,
+        rules,
+      );
     }
 
     const lines = [
       serviceLine || (v2 ? 'Consultá el precio al confirmar el servicio.' : 'Consultá el precio al confirmar el camino.'),
       `Seña para reservar: ${depositPct}% del valor de la sesión.`,
-      promoBlock,
     ].filter(Boolean);
 
     return {

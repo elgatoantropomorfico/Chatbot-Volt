@@ -109,6 +109,19 @@ export function looksLikePriceQuery(q: string): boolean {
   return /\b(precio|precios|promo|promos|promoci[oó]n|promociones|cu[aá]nto\s+(sale|cuesta|vale|cobr)|valor(es)?|tarifa|costo|se[nñ]a)\b/i.test(q);
 }
 
+/** Solo info de promociones (no el menú Ver precios completo) */
+export function looksLikePromoInfoQuery(q: string): boolean {
+  const t = q.toLowerCase();
+  if (!/\b(promo|promos|promoci[oó]n|promociones|descuento|descuentos|oferta|ofertas|2\s*x\s*1)\b/i.test(t)) {
+    return false;
+  }
+  // "ver precios", "cuánto sale", etc. → lista de precios (con promos inline), no bloque de promos
+  if (/\b(ver\s+precios|lista\s+de\s+precios|cu[aá]nto\s+(sale|cuesta|vale|cobr)|tarifas?|costos?)\b/i.test(t)) {
+    return false;
+  }
+  return true;
+}
+
 /** Texto libre que debe soltar menús sticky de horarios/días */
 export function looksLikeBrowseReleaseQuery(q: string): boolean {
   return looksLikeServiceInfoQuery(q) || looksLikePriceQuery(q);

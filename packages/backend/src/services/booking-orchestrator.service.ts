@@ -15,6 +15,7 @@ import {
   formatServicePreviewBody,
   looksLikeBrowseReleaseQuery,
   looksLikePriceQuery,
+  looksLikePromoInfoQuery,
   looksLikeServiceInfoQuery,
   matchServiceFromText,
 } from './booking-flow-nav.service';
@@ -314,6 +315,30 @@ export class BookingOrchestrator {
     const checkoutProgress = await this.tryHardCheckoutProgress(params, ctx, settings);
     if (checkoutProgress) return checkoutProgress;
 
+    // Solo promos (no Ver precios): listado de promociones vigentes
+    if (looksLikePromoInfoQuery(params.text)) {
+      const promoBlock = await BookingPricingService.formatActivePromosSummary(
+        params.tenantId,
+        settings.basePrice ? Number(settings.basePrice) : null,
+      );
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          greetingPending: false,
+          pricePreviewShown: true,
+          mode: 'booking',
+          uiPresentation: null,
+          browsePhase: null,
+        },
+      });
+      return {
+        handled: true,
+        text: promoBlock
+          || 'Ahora no hay promociones vigentes. Si querés ver valores por servicio, tocá *Ver precios*.',
+      };
+    }
+
     // Cambio/pedido de servicio: si matchea un camino, NO pasar por menú Ver más viejo
     const serviceSwitch = await this.tryHardServiceSwitch(params, ctx, settings);
     if (serviceSwitch) return serviceSwitch;
@@ -576,10 +601,8 @@ export class BookingOrchestrator {
       );
     }
 
-    // Ver precios
+    // Ver precios — base + promos por servicio (sin bloque aparte de promos)
     const depositPct = settings.depositPercentage || 50;
-    const promoBlock = await BookingPricingService.formatActivePromosSummary(params.tenantId);
-    const promoSection = promoBlock ? `\n\n${promoBlock}` : '';
     await BookingContextService.save(params.conversationId, {
       ...ctx,
       agentState: {
@@ -594,18 +617,19 @@ export class BookingOrchestrator {
       const list = await BookingPricingService.formatServicesPriceList(params.tenantId);
       return {
         handled: true,
-        text: `💆‍♀️ *Precios de servicios*\n\n${list}${promoSection}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nEscribí *1* para ver todos los servicios o decime cuál querés.`,
+        text: `💆‍♀️ *Precios de servicios*\n\n${list}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nEscribí *1* para ver todos los servicios o decime cuál querés.`,
       };
     }
 
     const basePrice = settings.basePrice ? Number(settings.basePrice) : null;
-    const price = basePrice ? `$${basePrice.toLocaleString('es-AR')}` : 'consultá en sala';
     const duration = settings.sessionDurationMinutes || 80;
-    const promoWithBase = await BookingPricingService.formatActivePromosSummary(params.tenantId, basePrice);
-    const promoLegacy = promoWithBase ? `\n\n${promoWithBase}` : '';
+    const rules = await BookingPricingService.getActivePriceRules(params.tenantId);
+    const priceBlock = basePrice
+      ? BookingPricingService.formatServicePriceLines('Sesión', basePrice, duration, rules)
+      : 'Consultá el precio en sala';
     return {
       handled: true,
-      text: `💆‍♀️ *Valor de sesión* (${duration} min): ${price}${promoLegacy}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nDecime qué camino querés o escribí *1* si preferís que te ayude a elegir.`,
+      text: `💆‍♀️ *Valor de sesión*\n\n${priceBlock}\n\nPara reservar pedimos una seña del *${depositPct}%* por Mercado Pago 🌿\n\nDecime qué camino querés o escribí *1* si preferís que te ayude a elegir.`,
     };
   }
 

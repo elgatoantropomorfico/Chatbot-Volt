@@ -28,11 +28,19 @@ export const BOOKING_AGENT_TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] =
     type: 'function',
     function: {
       name: 'show_price_info',
-      description: 'Muestra precios base y promociones vigentes en texto. NO lista horarios ni slots. Usar cuando preguntan precios o "ver precios".',
+      description:
+        'Muestra precios. mode=prices (default): precio base + precio con cada promo por servicio. ' +
+        'mode=promos: solo lista de promociones vigentes. NO lista horarios. ' +
+        'Usar prices para "ver precios" / cuánto sale; promos solo si preguntan explícitamente por promociones/descuentos.',
       parameters: {
         type: 'object',
         properties: {
           service_id: { type: 'string', description: 'ID del servicio si ya está elegido (opcional)' },
+          mode: {
+            type: 'string',
+            enum: ['prices', 'promos'],
+            description: 'prices = lista con base+promos por servicio; promos = solo bloque de promociones',
+          },
         },
         additionalProperties: false,
       },
