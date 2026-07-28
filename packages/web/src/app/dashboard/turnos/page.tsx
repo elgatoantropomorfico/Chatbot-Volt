@@ -229,13 +229,21 @@ export default function TurnosPage() {
   const [rescheduleError, setRescheduleError] = useState('');
   const [rescheduleSaving, setRescheduleSaving] = useState(false);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (opts?: { soft?: boolean }) => {
+    const soft = !!opts?.soft;
+    if (!soft) setLoading(true);
     try {
       const params: Record<string, string> = {};
       if (filter) params.status = filter;
       if (dateFrom) params.from = dateFrom;
       if (dateTo) params.to = dateTo;
+
+      if (soft) {
+        const apptRes = await api.getAppointments(params);
+        setAppointments(apptRes.appointments || []);
+        return;
+      }
+
       const [apptRes, svcRes, slotRes, rulesRes, settingsRes] = await Promise.all([
         api.getAppointments(params),
         api.getBookingServices(),
@@ -251,11 +259,34 @@ export default function TurnosPage() {
     } catch (e) {
       console.error(e);
     } finally {
-      setLoading(false);
+      if (!soft) setLoading(false);
     }
   }, [filter, dateFrom, dateTo]);
 
   useEffect(() => { load(); }, [load]);
+
+  function upsertAppointmentLocal(appointment: any) {
+    if (!appointment?.id) return;
+    // Si hay filtro de estado y el turno ya no matchea, sacarlo de la lista
+    if (filter && appointment.status && appointment.status !== filter) {
+      setAppointments((prev) => prev.filter((a) => a.id !== appointment.id));
+      setSelected((prev: any) => (prev?.id === appointment.id ? { ...prev, ...appointment } : prev));
+      return;
+    }
+    setAppointments((prev) => {
+      const idx = prev.findIndex((a) => a.id === appointment.id);
+      if (idx === -1) return [appointment, ...prev];
+      const next = prev.slice();
+      next[idx] = { ...prev[idx], ...appointment };
+      return next;
+    });
+    setSelected((prev: any) => (prev?.id === appointment.id ? { ...prev, ...appointment } : prev));
+  }
+
+  function removeAppointmentLocal(id: string) {
+    setAppointments((prev) => prev.filter((a) => a.id !== id));
+    setSelected((prev: any) => (prev?.id === id ? null : prev));
+  }
 
   // Deep link: /dashboard/turnos?appointment=<id>
   useEffect(() => {
@@ -359,13 +390,20 @@ export default function TurnosPage() {
 
   async function updateAppointment(id: string, data: Record<string, unknown>) {
     const res = await api.updateAppointment(id, data);
-    await load();
-    if (selected?.id === id) setSelected(res.appointment);
+    upsertAppointmentLocal(res.appointment);
     return res.appointment;
   }
 
   async function handleStatusChange(id: string, status: string) {
-    await updateAppointment(id, { status });
+    const prev = appointments.find((a) => a.id === id) || selected;
+    // Optimistic: el badge cambia al toque
+    if (prev) upsertAppointmentLocal({ ...prev, status });
+    try {
+      await updateAppointment(id, { status });
+    } catch (err) {
+      if (prev) upsertAppointmentLocal(prev);
+      throw err;
+    }
   }
 
   async function openReschedule(a: any) {
@@ -392,9 +430,8 @@ export default function TurnosPage() {
     setRescheduleError('');
     try {
       const res = await api.rescheduleAppointment(selected.id, { date, time });
-      setSelected(res.appointment);
+      upsertAppointmentLocal(res.appointment);
       setRescheduleOpen(false);
-      await load();
     } catch (err: any) {
       setRescheduleError(err.message || 'No se pudo reprogramar');
     } finally {
@@ -407,8 +444,7 @@ export default function TurnosPage() {
     if (!confirm(`¿Eliminar el turno de ${label}?\n\nEsta acción no se puede deshacer.`)) return;
     try {
       await api.deleteAppointment(a.id);
-      if (selected?.id === a.id) setSelected(null);
-      await load();
+      removeAppointmentLocal(a.id);
     } catch (err: any) {
       alert(err.message || 'No se pudo eliminar el turno');
     }
@@ -514,7 +550,7 @@ export default function TurnosPage() {
       setShowCreate(false);
       setCreateForm({ ...EMPTY_FORM });
       setSelectedDate(createForm.appointmentDate);
-      await load();
+      upsertAppointmentLocal(res.appointment);
       setSelected(res.appointment);
     } catch (err: any) {
       setCreateError(err.message || 'No se pudo crear el turno');
@@ -618,7 +654,7 @@ export default function TurnosPage() {
             <option key={k} value={k}>{v}</option>
           ))}
         </select>
-        <button type="button" className={styles.refreshBtn} onClick={load} title="Actualizar">
+        <button type="button" className={styles.refreshBtn} onClick={() => load()} title="Actualizar">
           <RefreshCw size={16} />
         </button>
       </div>
