@@ -67,16 +67,28 @@ export class BookingCheckoutService {
       });
       return this.presentPaymentChoice(params);
     }
+    if (rules.length === 1) {
+      await BookingContextService.save(params.conversationId, {
+        ...ctx,
+        checkout: {
+          ...ctx.checkout,
+          phase: 'payment_choice',
+          priceRuleId: rules[0].id,
+          discountLabel: rules[0].label,
+        },
+      });
+      return this.presentPaymentChoice(params);
+    }
 
     const checkout = ctx.checkout;
-    const body = `Antes de pagar, elegí cómo cobramos tu sesión:
+    const body = `Antes de pagar, elegí la promo para tu sesión:
 
 Camino: ${checkout.serviceName}
 Día y horario: ${checkout.slotLabel}
 
 Elegí una opción:`;
 
-    const options = [...rules.map((r) => r.label), 'Precio de lista', 'Cambiar horario'];
+    const options = [...rules.map((r) => r.label), 'Cambiar horario'];
     return BookingFlowService.buildOptionsReply(body, options, true);
   }
 
@@ -268,33 +280,17 @@ Elegí cómo querés pagar:`;
       return BookingFlowService.buildWelcomeReply(params.tenantId, settings);
     }
 
-    // Elegir promo (2+ activas) o precio de lista
+    // Elegir promo (2+ activas)
     if (ctx.checkout.phase === 'promo_choice') {
       const rules = await BookingPricingService.getActivePriceRules(params.tenantId);
       const t = normalize(params.text);
-      const listIdx = rules.length + 1;
-      const changeIdx = rules.length + 2;
-      if (t === String(changeIdx) || t.includes('cambiar horario')) {
+      // Última opción del menú = Cambiar horario
+      if (t === String(rules.length + 1) || t.includes('cambiar horario')) {
         return this.changeSchedule({
           tenantId: params.tenantId,
           conversationId: params.conversationId,
           leadId: params.leadId,
           phone: params.phone,
-        });
-      }
-      if (t === String(listIdx) || t.includes('precio de lista') || t === 'sin promo' || t === 'sin descuento') {
-        await BookingContextService.save(params.conversationId, {
-          ...ctx,
-          checkout: {
-            ...ctx.checkout,
-            phase: 'payment_choice',
-            priceRuleId: null,
-            discountLabel: null,
-          },
-        });
-        return this.presentPaymentChoice({
-          tenantId: params.tenantId,
-          conversationId: params.conversationId,
         });
       }
       let picked = rules.find((r) => normalize(r.label) === t) ?? null;
