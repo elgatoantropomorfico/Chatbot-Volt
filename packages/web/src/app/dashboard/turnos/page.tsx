@@ -147,17 +147,36 @@ const EMPTY_FORM = {
 };
 
 function toNum(v: unknown): number {
-  if (v == null) return 0;
-  if (typeof v === 'object' && v !== null && 'toNumber' in (v as object)) {
-    return (v as { toNumber: () => number }).toNumber();
+  if (v == null || v === '') return 0;
+  if (typeof v === 'number') return Number.isFinite(v) ? v : 0;
+  if (typeof v === 'string') {
+    const cleaned = v.replace(/[^\d.-]/g, '');
+    const n = Number(cleaned);
+    return Number.isFinite(n) ? n : 0;
   }
-  return Number(v) || 0;
+  if (typeof v === 'object' && v !== null) {
+    if ('toNumber' in v && typeof (v as { toNumber: () => number }).toNumber === 'function') {
+      return (v as { toNumber: () => number }).toNumber();
+    }
+    // Prisma Decimal serializado
+    if ('d' in v && Array.isArray((v as { d: number[] }).d)) {
+      const n = Number(String((v as { d: number[] }).d.join('')));
+      return Number.isFinite(n) ? n : 0;
+    }
+  }
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
 
 function serviceListPrice(service: any, settings: any): number {
   if (!service) return 0;
-  if (!service.usesBasePrice && service.price != null) return toNum(service.price);
-  return toNum(settings?.basePrice);
+  if (service.usesBasePrice === false || service.usesBasePrice === 'false') {
+    const own = toNum(service.price);
+    if (own > 0) return own;
+  }
+  const base = toNum(settings?.basePrice);
+  if (base > 0) return base;
+  return toNum(service.price);
 }
 
 function applyPriceRule(listPrice: number, rule: any | null): { finalPrice: number; label: string | null } {
@@ -815,179 +834,200 @@ export default function TurnosPage() {
       )}
 
       {showCreate && (
-        <VoltDrawer open onClose={() => setShowCreate(false)} width={440}>
+        <VoltDrawer open onClose={() => setShowCreate(false)} width={420}>
           <div className={styles.detailHeader}>
-              <h2>Nuevo turno manual</h2>
-              <button type="button" className={styles.closeBtn} onClick={() => setShowCreate(false)}>
-                <X size={18} />
-              </button>
-            </div>
-            <p className={styles.createHint}>
-              Los turnos manuales no pasan por el chatbot. Podés asignar el estado desde el inicio.
-            </p>
-            <form onSubmit={handleCreate} className={styles.createForm}>
-              <div className={styles.formGrid}>
-                <label className={styles.formField}>
-                  <span>Camino / servicio</span>
-                  <select
-                    required
-                    value={createForm.serviceId}
-                    onChange={(e) => setCreateForm({ ...createForm, serviceId: e.target.value })}
-                  >
-                    <option value="">Seleccionar...</option>
-                    {services.map((s) => (
-                      <option key={s.id} value={s.id}>{s.name}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.formField}>
-                  <span>Fecha</span>
-                  <input
-                    type="date"
-                    required
-                    value={createForm.appointmentDate}
-                    onChange={(e) => setCreateForm({ ...createForm, appointmentDate: e.target.value })}
-                  />
-                </label>
-                <label className={styles.formField}>
-                  <span>Horario</span>
-                  <select
-                    value={createForm.appointmentTime}
-                    onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
-                  >
-                    {slotTimes.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.formField}>
-                  <span>Otro horario</span>
-                  <input
-                    type="time"
-                    value={createForm.appointmentTime}
-                    onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
-                  />
-                </label>
-                <label className={`${styles.formField} ${styles.suggestField}`}>
-                  <span>Nombre del cliente</span>
-                  <input
-                    required
-                    value={createForm.customerName}
-                    onChange={(e) => {
-                      const value = e.target.value;
-                      setCreateForm({ ...createForm, customerName: value, leadId: '' });
-                      void searchLeadsByName(value);
-                    }}
-                    onFocus={() => {
-                      if (leadSuggestions.length) setLeadSuggestOpen(true);
-                    }}
-                    onBlur={() => {
-                      // Delay para permitir click en sugerencia
-                      setTimeout(() => setLeadSuggestOpen(false), 150);
-                    }}
-                    placeholder="Escribí para buscar clientes existentes…"
-                    autoComplete="off"
-                  />
-                  {leadSuggestOpen && leadSuggestions.length > 0 && (
-                    <ul className={styles.suggestList}>
-                      {leadSuggestions.map((lead) => (
-                        <li key={lead.id}>
-                          <button
-                            type="button"
-                            className={styles.suggestItem}
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => pickLead(lead)}
-                          >
-                            <strong>{lead.name || 'Sin nombre'}</strong>
-                            <span>{lead.phone}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </label>
-                <label className={styles.formField}>
-                  <span>Teléfono</span>
-                  <input
-                    required
-                    value={createForm.customerPhone}
-                    onChange={(e) => setCreateForm({ ...createForm, customerPhone: e.target.value, leadId: createForm.leadId })}
-                    placeholder="549351..."
-                  />
-                </label>
-                <label className={styles.formField}>
-                  <span>Precio / promo</span>
-                  <select
-                    value={createForm.priceRuleId}
-                    onChange={(e) => setCreateForm({ ...createForm, priceRuleId: e.target.value })}
-                  >
-                    <option value="__list__">
-                      Precio de lista
-                      {createPricePreview.hasService ? ` (${formatPrice(createPricePreview.list)})` : ''}
-                    </option>
-                    {priceRules.map((rule) => {
-                      const svc = services.find((s) => s.id === createForm.serviceId);
-                      const list = serviceListPrice(svc, bookingSettings);
-                      const { finalPrice } = applyPriceRule(list, rule);
-                      return (
-                        <option key={rule.id} value={rule.id}>
-                          {rule.label}
-                          {list > 0 ? ` → ${formatPrice(finalPrice)}` : ''}
-                        </option>
-                      );
-                    })}
-                  </select>
-                </label>
-                <label className={styles.formField}>
-                  <span>Estado inicial</span>
-                  <select
-                    value={createForm.status}
-                    onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
-                  >
-                    {Object.entries(STATUS_LABELS).map(([k, v]) => (
-                      <option key={k} value={k}>{v}</option>
-                    ))}
-                  </select>
-                </label>
-                <label className={styles.formField}>
-                  <span>Monto pagado (opcional)</span>
-                  <input
-                    type="number"
-                    min={0}
-                    value={createForm.amountPaid}
-                    onChange={(e) => setCreateForm({ ...createForm, amountPaid: e.target.value })}
-                    placeholder={createPricePreview.hasService ? `Auto: ${formatPrice(createPricePreview.finalPrice)}` : 'Auto según estado'}
-                  />
-                </label>
-              </div>
-              {createPricePreview.hasService && (
-                <p className={styles.pricePreview}>
-                  Cobrado en el turno: <strong>{formatPrice(createPricePreview.finalPrice)}</strong>
-                  {createPricePreview.label ? ` · ${createPricePreview.label}` : ' · sin promo'}
-                  {createPricePreview.finalPrice !== createPricePreview.list
-                    ? ` (lista ${formatPrice(createPricePreview.list)})`
-                    : ''}
-                </p>
-              )}
-              <label className={styles.formFieldFull}>
-                <span>Notas</span>
-                <textarea
-                  rows={3}
-                  value={createForm.customerNotes}
-                  onChange={(e) => setCreateForm({ ...createForm, customerNotes: e.target.value })}
-                  placeholder="Preferencias, contexto, etc."
+            <h2>Nuevo turno manual</h2>
+            <button type="button" className={styles.closeBtn} onClick={() => setShowCreate(false)}>
+              <X size={18} />
+            </button>
+          </div>
+          <p className={styles.createHint}>
+            Los turnos manuales no pasan por el chatbot. Podés asignar el estado desde el inicio.
+          </p>
+          <form onSubmit={handleCreate} className={styles.createForm}>
+            <label className={styles.formField}>
+              <span>Camino / servicio</span>
+              <select
+                required
+                value={createForm.serviceId}
+                onChange={(e) => setCreateForm({ ...createForm, serviceId: e.target.value })}
+              >
+                <option value="">Seleccionar...</option>
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <div className={styles.formGrid}>
+              <label className={styles.formField}>
+                <span>Fecha</span>
+                <input
+                  type="date"
+                  required
+                  value={createForm.appointmentDate}
+                  onChange={(e) => setCreateForm({ ...createForm, appointmentDate: e.target.value })}
                 />
               </label>
-              {createError && <p className={styles.formError}>{createError}</p>}
-              <div className={styles.createActions}>
-                <button type="button" className={styles.secondaryBtn} onClick={() => setShowCreate(false)}>
-                  Cancelar
-                </button>
-                <button type="submit" className={styles.primaryBtn} disabled={saving}>
-                  {saving ? 'Guardando...' : 'Crear turno'}
-                </button>
-              </div>
-            </form>
+              <label className={styles.formField}>
+                <span>Horario</span>
+                <select
+                  value={createForm.appointmentTime}
+                  onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
+                >
+                  {slotTimes.map((t) => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <label className={styles.formField}>
+              <span>Otro horario</span>
+              <input
+                type="time"
+                value={createForm.appointmentTime}
+                onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
+              />
+            </label>
+
+            <label className={`${styles.formField} ${styles.suggestField}`}>
+              <span>Nombre del cliente</span>
+              <input
+                required
+                value={createForm.customerName}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setCreateForm({ ...createForm, customerName: value, leadId: '' });
+                  void searchLeadsByName(value);
+                }}
+                onFocus={() => {
+                  if (leadSuggestions.length) setLeadSuggestOpen(true);
+                }}
+                onBlur={() => {
+                  setTimeout(() => setLeadSuggestOpen(false), 150);
+                }}
+                placeholder="Buscar existente o escribir nombre nuevo"
+                autoComplete="off"
+              />
+              {leadSuggestOpen && leadSuggestions.length > 0 && (
+                <ul className={styles.suggestList}>
+                  {leadSuggestions.map((lead) => (
+                    <li key={lead.id}>
+                      <button
+                        type="button"
+                        className={styles.suggestItem}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => pickLead(lead)}
+                      >
+                        <strong>{lead.name || lead.fullName || 'Sin nombre'}</strong>
+                        <span>{lead.phone}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </label>
+
+            <label className={styles.formField}>
+              <span>Teléfono</span>
+              <input
+                required
+                value={createForm.customerPhone}
+                onChange={(e) => setCreateForm({
+                  ...createForm,
+                  customerPhone: e.target.value,
+                  leadId: createForm.leadId,
+                })}
+                placeholder="Ej: 5493511234567"
+              />
+            </label>
+
+            <label className={styles.formField}>
+              <span>Precio / promo</span>
+              <select
+                value={createForm.priceRuleId}
+                onChange={(e) => setCreateForm({ ...createForm, priceRuleId: e.target.value })}
+              >
+                <option value="__list__">
+                  Precio de lista
+                  {createPricePreview.list > 0 ? ` (${formatPrice(createPricePreview.list)})` : ''}
+                </option>
+                {priceRules.map((rule) => {
+                  const svc = services.find((s) => s.id === createForm.serviceId);
+                  const list = serviceListPrice(svc, bookingSettings);
+                  const { finalPrice } = applyPriceRule(list, rule);
+                  return (
+                    <option key={rule.id} value={rule.id}>
+                      {rule.label}
+                      {list > 0 ? ` — ${formatPrice(finalPrice)}` : ''}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
+
+            {createForm.serviceId && (
+              <p className={createPricePreview.list > 0 ? styles.pricePreview : styles.pricePreviewWarn}>
+                {createPricePreview.list > 0 ? (
+                  <>
+                    Cobrado en el turno:{' '}
+                    <strong>{formatPrice(createPricePreview.finalPrice)}</strong>
+                    {createPricePreview.label ? ` · ${createPricePreview.label}` : ' · sin promo'}
+                    {createPricePreview.finalPrice !== createPricePreview.list
+                      ? ` (lista ${formatPrice(createPricePreview.list)})`
+                      : ''}
+                  </>
+                ) : (
+                  <>Este servicio no tiene precio cargado. Revisalo en Turnera antes de crear el turno.</>
+                )}
+              </p>
+            )}
+
+            <div className={styles.formGrid}>
+              <label className={styles.formField}>
+                <span>Estado inicial</span>
+                <select
+                  value={createForm.status}
+                  onChange={(e) => setCreateForm({ ...createForm, status: e.target.value })}
+                >
+                  {Object.entries(STATUS_LABELS).map(([k, v]) => (
+                    <option key={k} value={k}>{v}</option>
+                  ))}
+                </select>
+              </label>
+              <label className={styles.formField}>
+                <span>Monto pagado</span>
+                <input
+                  type="number"
+                  min={0}
+                  value={createForm.amountPaid}
+                  onChange={(e) => setCreateForm({ ...createForm, amountPaid: e.target.value })}
+                  placeholder={createPricePreview.list > 0 ? `Auto: ${formatPrice(createPricePreview.finalPrice)}` : 'Auto'}
+                />
+              </label>
+            </div>
+
+            <label className={styles.formField}>
+              <span>Notas</span>
+              <textarea
+                rows={3}
+                value={createForm.customerNotes}
+                onChange={(e) => setCreateForm({ ...createForm, customerNotes: e.target.value })}
+                placeholder="Preferencias, contexto, etc."
+              />
+            </label>
+
+            {createError && <p className={styles.formError}>{createError}</p>}
+            <div className={styles.createActions}>
+              <button type="button" className={styles.secondaryBtn} onClick={() => setShowCreate(false)}>
+                Cancelar
+              </button>
+              <button type="submit" className={styles.primaryBtn} disabled={saving}>
+                {saving ? 'Guardando...' : 'Crear turno'}
+              </button>
+            </div>
+          </form>
         </VoltDrawer>
       )}
 
