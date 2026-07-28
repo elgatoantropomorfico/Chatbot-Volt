@@ -891,10 +891,8 @@ export class BookingToolExecutor {
     let phase: 'promo_choice' | 'payment_choice' = 'payment_choice';
     let priceRuleId: string | null = null;
     let discountLabel: string | null = null;
-    if (rules.length === 1) {
-      priceRuleId = rules[0].id;
-      discountLabel = rules[0].label;
-    } else if (rules.length >= 2) {
+    if (rules.length >= 1) {
+      // Siempre dejar elegir promo o precio de lista (1 o más)
       phase = 'promo_choice';
     }
 

@@ -138,10 +138,47 @@ const EMPTY_FORM = {
   appointmentTime: '16:30',
   customerName: '',
   customerPhone: '',
+  leadId: '',
   status: 'confirmado',
   amountPaid: '',
   customerNotes: '',
+  /** '__list__' = sin promo; id de regla = promo elegida */
+  priceRuleId: '__list__',
 };
+
+function toNum(v: unknown): number {
+  if (v == null) return 0;
+  if (typeof v === 'object' && v !== null && 'toNumber' in (v as object)) {
+    return (v as { toNumber: () => number }).toNumber();
+  }
+  return Number(v) || 0;
+}
+
+function serviceListPrice(service: any, settings: any): number {
+  if (!service) return 0;
+  if (!service.usesBasePrice && service.price != null) return toNum(service.price);
+  return toNum(settings?.basePrice);
+}
+
+function applyPriceRule(listPrice: number, rule: any | null): { finalPrice: number; label: string | null } {
+  if (!rule) return { finalPrice: listPrice, label: null };
+  const value = toNum(rule.value);
+  let finalPrice = listPrice;
+  if (rule.ruleType === 'percentage_discount') {
+    finalPrice = Math.round(listPrice * (1 - value / 100));
+  } else if (rule.ruleType === 'fixed_price') {
+    finalPrice = value;
+  }
+  return { finalPrice, label: rule.label || null };
+}
+
+function isRuleActiveNow(rule: any): boolean {
+  if (!rule?.isActive) return false;
+  const now = Date.now();
+  if (rule.validFrom && new Date(rule.validFrom).getTime() > now) return false;
+  if (rule.validUntil && new Date(rule.validUntil).getTime() < now) return false;
+  return true;
+}
 
 export default function TurnosPage() {
   const [view, setView] = useState<'calendar' | 'list'>('calendar');
@@ -163,6 +200,10 @@ export default function TurnosPage() {
   const [createForm, setCreateForm] = useState({ ...EMPTY_FORM });
   const [saving, setSaving] = useState(false);
   const [createError, setCreateError] = useState('');
+  const [priceRules, setPriceRules] = useState<any[]>([]);
+  const [bookingSettings, setBookingSettings] = useState<any>(null);
+  const [leadSuggestions, setLeadSuggestions] = useState<any[]>([]);
+  const [leadSuggestOpen, setLeadSuggestOpen] = useState(false);
   const [rescheduleOpen, setRescheduleOpen] = useState(false);
   const [rescheduleSlots, setRescheduleSlots] = useState<Array<{ date: string; time: string; label: string }>>([]);
   const [reschedulePick, setReschedulePick] = useState('');
@@ -176,14 +217,18 @@ export default function TurnosPage() {
       if (filter) params.status = filter;
       if (dateFrom) params.from = dateFrom;
       if (dateTo) params.to = dateTo;
-      const [apptRes, svcRes, slotRes] = await Promise.all([
+      const [apptRes, svcRes, slotRes, rulesRes, settingsRes] = await Promise.all([
         api.getAppointments(params),
         api.getBookingServices(),
         api.getBookingSlots(),
+        api.getBookingPriceRules().catch(() => ({ rules: [] })),
+        api.getBookingSettings().catch(() => ({ settings: null })),
       ]);
       setAppointments(apptRes.appointments || []);
       setServices((svcRes.services || []).filter((s: any) => s.isActive));
       setSlots((slotRes.slots || []).filter((s: any) => s.isActive));
+      setPriceRules((rulesRes.rules || []).filter(isRuleActiveNow));
+      setBookingSettings(settingsRes.settings || null);
     } catch (e) {
       console.error(e);
     } finally {
@@ -373,14 +418,58 @@ export default function TurnosPage() {
   }
 
   function openCreate(date?: string) {
+    const activeRules = priceRules.filter(isRuleActiveNow);
     setCreateForm({
       ...EMPTY_FORM,
       appointmentDate: date || selectedDate || todayKey(),
       appointmentTime: slotTimes[0] || '16:30',
       serviceId: services[0]?.id || '',
+      // Por defecto aplicar la primera promo activa (si hay)
+      priceRuleId: activeRules[0]?.id || '__list__',
     });
+    setLeadSuggestions([]);
+    setLeadSuggestOpen(false);
     setCreateError('');
     setShowCreate(true);
+  }
+
+  const createPricePreview = useMemo(() => {
+    const svc = services.find((s) => s.id === createForm.serviceId);
+    const list = serviceListPrice(svc, bookingSettings);
+    const rule = createForm.priceRuleId === '__list__'
+      ? null
+      : priceRules.find((r) => r.id === createForm.priceRuleId) || null;
+    const resolved = applyPriceRule(list, rule);
+    return { list, ...resolved, hasService: !!svc && list > 0 };
+  }, [services, bookingSettings, createForm.serviceId, createForm.priceRuleId, priceRules]);
+
+  async function searchLeadsByName(q: string) {
+    const query = q.trim();
+    if (query.length < 2) {
+      setLeadSuggestions([]);
+      setLeadSuggestOpen(false);
+      return;
+    }
+    try {
+      const res = await api.getLeads({ search: query, limit: '8' });
+      const leads = (res.leads || []).filter((l: any) => l.name || l.phone);
+      setLeadSuggestions(leads);
+      setLeadSuggestOpen(leads.length > 0);
+    } catch {
+      setLeadSuggestions([]);
+      setLeadSuggestOpen(false);
+    }
+  }
+
+  function pickLead(lead: any) {
+    setCreateForm((prev) => ({
+      ...prev,
+      leadId: lead.id || '',
+      customerName: lead.name || lead.fullName || prev.customerName,
+      customerPhone: lead.phone || prev.customerPhone,
+    }));
+    setLeadSuggestOpen(false);
+    setLeadSuggestions([]);
   }
 
   async function handleCreate(e: React.FormEvent) {
@@ -396,7 +485,9 @@ export default function TurnosPage() {
         customerPhone: createForm.customerPhone.trim(),
         status: createForm.status,
         customerNotes: createForm.customerNotes.trim() || null,
+        priceRuleId: createForm.priceRuleId === '__list__' ? null : createForm.priceRuleId,
       };
+      if (createForm.leadId) payload.leadId = createForm.leadId;
       if (createForm.amountPaid !== '') {
         payload.amountPaid = Number(createForm.amountPaid);
       }
@@ -777,23 +868,75 @@ export default function TurnosPage() {
                     onChange={(e) => setCreateForm({ ...createForm, appointmentTime: e.target.value })}
                   />
                 </label>
-                <label className={styles.formField}>
+                <label className={`${styles.formField} ${styles.suggestField}`}>
                   <span>Nombre del cliente</span>
                   <input
                     required
                     value={createForm.customerName}
-                    onChange={(e) => setCreateForm({ ...createForm, customerName: e.target.value })}
-                    placeholder="Nombre y apellido"
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setCreateForm({ ...createForm, customerName: value, leadId: '' });
+                      void searchLeadsByName(value);
+                    }}
+                    onFocus={() => {
+                      if (leadSuggestions.length) setLeadSuggestOpen(true);
+                    }}
+                    onBlur={() => {
+                      // Delay para permitir click en sugerencia
+                      setTimeout(() => setLeadSuggestOpen(false), 150);
+                    }}
+                    placeholder="Escribí para buscar clientes existentes…"
+                    autoComplete="off"
                   />
+                  {leadSuggestOpen && leadSuggestions.length > 0 && (
+                    <ul className={styles.suggestList}>
+                      {leadSuggestions.map((lead) => (
+                        <li key={lead.id}>
+                          <button
+                            type="button"
+                            className={styles.suggestItem}
+                            onMouseDown={(e) => e.preventDefault()}
+                            onClick={() => pickLead(lead)}
+                          >
+                            <strong>{lead.name || 'Sin nombre'}</strong>
+                            <span>{lead.phone}</span>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
                 </label>
                 <label className={styles.formField}>
                   <span>Teléfono</span>
                   <input
                     required
                     value={createForm.customerPhone}
-                    onChange={(e) => setCreateForm({ ...createForm, customerPhone: e.target.value })}
+                    onChange={(e) => setCreateForm({ ...createForm, customerPhone: e.target.value, leadId: createForm.leadId })}
                     placeholder="549351..."
                   />
+                </label>
+                <label className={styles.formField}>
+                  <span>Precio / promo</span>
+                  <select
+                    value={createForm.priceRuleId}
+                    onChange={(e) => setCreateForm({ ...createForm, priceRuleId: e.target.value })}
+                  >
+                    <option value="__list__">
+                      Precio de lista
+                      {createPricePreview.hasService ? ` (${formatPrice(createPricePreview.list)})` : ''}
+                    </option>
+                    {priceRules.map((rule) => {
+                      const svc = services.find((s) => s.id === createForm.serviceId);
+                      const list = serviceListPrice(svc, bookingSettings);
+                      const { finalPrice } = applyPriceRule(list, rule);
+                      return (
+                        <option key={rule.id} value={rule.id}>
+                          {rule.label}
+                          {list > 0 ? ` → ${formatPrice(finalPrice)}` : ''}
+                        </option>
+                      );
+                    })}
+                  </select>
                 </label>
                 <label className={styles.formField}>
                   <span>Estado inicial</span>
@@ -813,10 +956,19 @@ export default function TurnosPage() {
                     min={0}
                     value={createForm.amountPaid}
                     onChange={(e) => setCreateForm({ ...createForm, amountPaid: e.target.value })}
-                    placeholder="Auto según estado"
+                    placeholder={createPricePreview.hasService ? `Auto: ${formatPrice(createPricePreview.finalPrice)}` : 'Auto según estado'}
                   />
                 </label>
               </div>
+              {createPricePreview.hasService && (
+                <p className={styles.pricePreview}>
+                  Cobrado en el turno: <strong>{formatPrice(createPricePreview.finalPrice)}</strong>
+                  {createPricePreview.label ? ` · ${createPricePreview.label}` : ' · sin promo'}
+                  {createPricePreview.finalPrice !== createPricePreview.list
+                    ? ` (lista ${formatPrice(createPricePreview.list)})`
+                    : ''}
+                </p>
+              )}
               <label className={styles.formFieldFull}>
                 <span>Notas</span>
                 <textarea
@@ -904,7 +1056,13 @@ export default function TurnosPage() {
               <h3><CreditCard size={12} /> Pago</h3>
               <div className={styles.detailRow}>
                 <span className={styles.detailLabel}>Precio cobrado</span>
-                <span className={styles.detailValue}>{formatPrice(Number(selected.finalPrice || 0))}</span>
+                <span className={styles.detailValue}>
+                  {formatPrice(Number(selected.finalPrice || 0))}
+                  {selected.discountLabel ? ` · ${selected.discountLabel}` : ''}
+                  {selected.listPrice != null && Number(selected.listPrice) !== Number(selected.finalPrice)
+                    ? ` (lista ${formatPrice(Number(selected.listPrice))})`
+                    : ''}
+                </span>
               </div>
               {selected.discountLabel && (
                 <div className={styles.detailRow}>

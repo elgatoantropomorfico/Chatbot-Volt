@@ -34,6 +34,8 @@ export interface AgentSlotRef {
 export interface AgentCustomerRef {
   fullName: string;
   nameConfirmed: boolean;
+  /** Hay un nombre conocido del lead/teléfono: pedir confirmación antes de seguir */
+  nameAwaitingConfirm?: boolean;
   notes?: string | null;
   notesCollected?: boolean;
 }

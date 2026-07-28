@@ -369,6 +369,16 @@ export class BookingOrchestrator {
       });
     }
 
+    // Si el agente confirmó horario y aún no pedimos nombre → reutilizar lead / pedir confirmación
+    if (
+      nextCtx.agentState.offeredSlot?.confirmed
+      && !nextCtx.agentState.customer?.nameConfirmed
+      && !nextCtx.agentState.customer?.nameAwaitingConfirm
+    ) {
+      const namePrompt = await this.ensureCustomerNamePrompt(params, nextCtx);
+      if (namePrompt) return namePrompt;
+    }
+
     // Post-agente: si quedó listo para pago, forzar resumen
     if (
       nextCtx.agentState.service?.confirmed
@@ -894,6 +904,77 @@ export class BookingOrchestrator {
     const exec = this.toolExec(params, settings);
     const cust = ctx.agentState.customer;
 
+    // 0) Confirmar nombre conocido del teléfono (evitar duplicados / overwrite)
+    if (cust?.nameAwaitingConfirm && cust.fullName && !cust.nameConfirmed) {
+      const t = normalizeInput(raw);
+      const yes = /^(si|sí|dale|ok|okay|correcto|exacto|eso|sip|sep|claro|va)$/i.test(t)
+        || /^(si|sí)\b/.test(t);
+      const no = /^(no|nop|nope|otro|otra|cambiar|incorrecto)$/i.test(t);
+      if (yes) {
+        const confirmed = {
+          ...ctx,
+          agentState: {
+            ...ctx.agentState,
+            customer: {
+              ...cust,
+              nameConfirmed: true,
+              nameAwaitingConfirm: false,
+            },
+          },
+        };
+        await BookingContextService.save(params.conversationId, confirmed);
+        return {
+          handled: true,
+          text: `Perfecto, *${cust.fullName}*.\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
+        };
+      }
+      if (no) {
+        const cleared = {
+          ...ctx,
+          agentState: {
+            ...ctx.agentState,
+            customer: {
+              fullName: '',
+              nameConfirmed: false,
+              nameAwaitingConfirm: false,
+              notesCollected: false,
+            },
+          },
+        };
+        await BookingContextService.save(params.conversationId, cleared);
+        return {
+          handled: true,
+          text: 'Dale, pasame el *nombre y apellido* de la persona del turno.',
+        };
+      }
+      if (this.looksLikePersonName(raw)) {
+        const { ctx: named } = await BookingToolExecutor.execute(
+          'set_customer_name',
+          { full_name: raw },
+          ctx,
+          exec,
+        );
+        const next = {
+          ...named,
+          agentState: {
+            ...named.agentState,
+            customer: named.agentState.customer
+              ? { ...named.agentState.customer, nameAwaitingConfirm: false, nameConfirmed: true }
+              : named.agentState.customer,
+          },
+        };
+        await BookingContextService.save(params.conversationId, next);
+        return {
+          handled: true,
+          text: `Gracias, *${raw.trim()}*.\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
+        };
+      }
+      return {
+        handled: true,
+        text: `¿El turno es para *${cust.fullName}*? Respondé *sí* o *no*, o escribí el nombre correcto.`,
+      };
+    }
+
     // 1) Falta nombre
     if (!cust?.nameConfirmed || !cust.fullName) {
       if (!this.looksLikePersonName(raw)) return null;
@@ -970,6 +1051,47 @@ export class BookingOrchestrator {
         text: 'Tu turno quedó armado. Escribí *1* para seña, *2* para pagar 100%, o *Cambiar horario*.',
       };
     }
+  }
+
+  /** Tras confirmar slot: reutilizar nombre del lead o pedir confirmación. */
+  private static async ensureCustomerNamePrompt(
+    params: { conversationId: string; leadId: string },
+    ctx: BookingConversationContext,
+  ): Promise<FlowHandleResult | null> {
+    if (ctx.agentState.customer?.nameConfirmed && ctx.agentState.customer.fullName) {
+      return null;
+    }
+
+    const lead = await prisma.lead.findUnique({ where: { id: params.leadId } });
+    const known = (lead?.name || lead?.fullName || '').trim();
+    const slotLabel = ctx.agentState.offeredSlot?.label || 'tu horario';
+
+    if (known) {
+      const next = {
+        ...ctx,
+        agentState: {
+          ...ctx.agentState,
+          customer: {
+            fullName: known,
+            nameConfirmed: false,
+            nameAwaitingConfirm: true,
+            notes: ctx.agentState.customer?.notes ?? null,
+            notesCollected: !!ctx.agentState.customer?.notesCollected,
+          },
+        },
+      };
+      await BookingContextService.save(params.conversationId, next);
+      return {
+        handled: true,
+        text: `Quedó anotado: *${slotLabel}*.\n\n¿El turno es para *${known}*? Respondé *sí* o *no* (o escribí el nombre correcto).`,
+      };
+    }
+
+    await BookingContextService.save(params.conversationId, ctx);
+    return {
+      handled: true,
+      text: `Quedó anotado: *${slotLabel}*.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.`,
+    };
   }
 
   private static looksLikePersonName(raw: string): boolean {
@@ -1261,18 +1383,13 @@ export class BookingOrchestrator {
           return this.deliverFromCtx(params.conversationId, next);
         }
         if (next.agentState.offeredSlot?.confirmed) {
-          await BookingContextService.save(params.conversationId, next);
-          const slotLabel = next.agentState.offeredSlot.label;
-          if (!next.agentState.customer?.nameConfirmed) {
-            return {
-              handled: true,
-              text: `Quedó anotado: *${slotLabel}*.\n\nPasame tu *nombre y apellido* para dejar el turno preparado.`,
-            };
-          }
+          const afterName = await this.ensureCustomerNamePrompt(params, next);
+          if (afterName) return afterName;
           if (!next.agentState.customer?.notesCollected) {
+            await BookingContextService.save(params.conversationId, next);
             return {
               handled: true,
-              text: `Quedó anotado: *${slotLabel}*.\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
+              text: `Quedó anotado: *${next.agentState.offeredSlot.label}*.\n\n¿Hay algo que quieras avisar antes de la sesión? Si no, respondé *no*.`,
             };
           }
           const { ctx: checkoutCtx, result } = await BookingToolExecutor.execute(

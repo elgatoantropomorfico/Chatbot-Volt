@@ -106,6 +106,9 @@ const appointmentCreateSchema = z.object({
   customerNotes: z.string().nullable().optional(),
   amountPaid: z.number().min(0).optional(),
   finalPrice: z.number().positive().optional(),
+  /** null = precio de lista; id = promo elegida; omitido = primera promo activa (compat) */
+  priceRuleId: z.string().nullable().optional(),
+  leadId: z.string().optional(),
 });
 
 const appointmentPatchSchema = z.object({
@@ -120,17 +123,45 @@ const appointmentPatchSchema = z.object({
   amountPaid: z.number().min(0).optional(),
   finalPrice: z.number().positive().optional(),
   serviceId: z.string().optional(),
+  priceRuleId: z.string().nullable().optional(),
 });
+
+function normalizeAppointmentPhone(phone: string): string {
+  return phone.replace(/\D/g, '');
+}
 
 async function getOrCreateLeadForAppointment(
   tenantId: string,
   phone: string,
   name: string,
+  leadId?: string,
 ) {
-  const cleanPhone = phone.replace(/\s/g, '');
+  if (leadId) {
+    const byId = await prisma.lead.findFirst({ where: { id: leadId, tenantId } });
+    if (byId) {
+      if (name && byId.name !== name) {
+        return prisma.lead.update({ where: { id: byId.id }, data: { name } });
+      }
+      return byId;
+    }
+  }
+
+  const cleanPhone = normalizeAppointmentPhone(phone);
   let lead = await prisma.lead.findFirst({
     where: { tenantId, phone: cleanPhone },
   });
+  // Compat: teléfonos guardados con + / espacios
+  if (!lead && cleanPhone) {
+    const loose = await prisma.lead.findMany({
+      where: { tenantId },
+      select: { id: true, phone: true, name: true },
+      take: 5000,
+    });
+    const hit = loose.find((l) => normalizeAppointmentPhone(l.phone) === cleanPhone);
+    if (hit) {
+      lead = await prisma.lead.findUnique({ where: { id: hit.id } });
+    }
+  }
   if (!lead) {
     const channel = await prisma.channel.findFirst({
       where: { tenantId, isActive: true },
@@ -515,10 +546,16 @@ export async function bookingRoutes(app: FastifyInstance) {
       ? {
           listPrice: body.data.finalPrice,
           finalPrice: body.data.finalPrice,
-          priceRuleId: null,
-          discountLabel: null,
+          priceRuleId: null as string | null,
+          discountLabel: null as string | null,
         }
-      : await BookingPricingService.resolvePrice(tenantId, service.id);
+      : await BookingPricingService.resolvePrice(
+          tenantId,
+          service.id,
+          new Date(),
+          // undefined = primera promo (compat); null = sin promo; id = esa promo
+          body.data.priceRuleId === undefined ? undefined : body.data.priceRuleId,
+        );
 
     const settings = await prisma.bookingSettings.findUnique({ where: { tenantId } });
     const accounting = accountingForStatus({
@@ -535,6 +572,7 @@ export async function bookingRoutes(app: FastifyInstance) {
       tenantId,
       body.data.customerPhone,
       body.data.customerName,
+      body.data.leadId,
     );
 
     const appointment = await prisma.appointment.create({

@@ -43,6 +43,9 @@ export async function leadRoutes(app: FastifyInstance) {
     if (query.search) {
       where.OR = [
         { name: { contains: query.search, mode: 'insensitive' } },
+        { fullName: { contains: query.search, mode: 'insensitive' } },
+        { firstName: { contains: query.search, mode: 'insensitive' } },
+        { lastName: { contains: query.search, mode: 'insensitive' } },
         { phone: { contains: query.search } },
       ];
     }
