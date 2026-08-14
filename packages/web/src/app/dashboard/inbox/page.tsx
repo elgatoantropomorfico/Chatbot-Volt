@@ -21,9 +21,18 @@ export default function InboxPage() {
   const [togglingAI, setTogglingAI] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesWrapRef = useRef<HTMLDivElement>(null);
   const lastMessageTimeRef = useRef<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useInboxViewportLock(!!selectedId);
+
+  function scrollMessagesToBottom(smooth = false) {
+    const wrap = messagesWrapRef.current;
+    if (!wrap) return;
+    wrap.scrollTo({ top: wrap.scrollHeight, behavior: smooth ? 'smooth' : 'auto' });
+  }
 
   // Derived: client-side filtered conversations (instant)
   const conversations = useMemo(() => {
@@ -57,10 +66,26 @@ export default function InboxPage() {
     return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current); };
   }, [selectedId]);
 
-  // Auto-scroll on new messages
+  // Auto-scroll on new messages — only inside the chat pane (never the page)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    scrollMessagesToBottom(messages.length > 8);
   }, [messages]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    const onViewportChange = () => {
+      window.scrollTo(0, 0);
+      const wrap = messagesWrapRef.current;
+      if (wrap) wrap.scrollTop = wrap.scrollHeight;
+    };
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', onViewportChange);
+    vv?.addEventListener('scroll', onViewportChange);
+    return () => {
+      vv?.removeEventListener('resize', onViewportChange);
+      vv?.removeEventListener('scroll', onViewportChange);
+    };
+  }, [selectedId]);
 
   async function fetchAll() {
     try {
@@ -365,7 +390,6 @@ export default function InboxPage() {
                 </div>
               </div>
               <div className={styles.chatActions}>
-                {/* AI Toggle Switch */}
                 {convStatus !== 'closed' && (
                   <button
                     className={`${styles.aiToggle} ${isAIActive ? styles.aiToggleOn : styles.aiToggleOff}`}
@@ -374,12 +398,13 @@ export default function InboxPage() {
                     title={isAIActive ? 'IA respondiendo - Click para pausar' : 'IA pausada - Click para activar'}
                   >
                     {isAIActive ? <Bot size={14} /> : <Hand size={14} />}
-                    {isAIActive ? 'IA Activa' : 'IA Pausada'}
+                    <span className={styles.actionLabel}>{isAIActive ? 'IA Activa' : 'IA Pausada'}</span>
                   </button>
                 )}
                 {convStatus !== 'closed' && (
                   <button className={styles.actionBtn} onClick={() => handleResetContext(selectedConv.id)} title="Resetear contexto del bot para esta conversación">
-                    <RefreshCw size={14} /> Reset contexto
+                    <RefreshCw size={14} />
+                    <span className={styles.actionLabel}>Reset contexto</span>
                   </button>
                 )}
                 {!showArchived ? (
@@ -402,7 +427,7 @@ export default function InboxPage() {
               </div>
             )}
 
-            <div className={styles.chatMessages}>
+            <div className={styles.chatMessages} ref={messagesWrapRef}>
               {messages.map((msg, i) => {
                 const prev = i > 0 ? messages[i - 1] : null;
                 const showDateSep =
@@ -450,11 +475,19 @@ export default function InboxPage() {
                   type="text"
                   value={inputText}
                   onChange={(e) => setInputText(e.target.value)}
-                  placeholder="Escribí un mensaje como agente..."
+                  placeholder="Mensaje..."
                   disabled={sending}
-                  autoFocus
+                  onFocus={() => {
+                    window.scrollTo(0, 0);
+                    requestAnimationFrame(() => {
+                      const wrap = messagesWrapRef.current;
+                      if (wrap) wrap.scrollTop = wrap.scrollHeight;
+                    });
+                  }}
+                  enterKeyHint="send"
+                  inputMode="text"
                 />
-                <button type="submit" disabled={!inputText.trim() || sending}>
+                <button type="submit" disabled={!inputText.trim() || sending} aria-label="Enviar">
                   <Send size={18} />
                 </button>
               </form>
@@ -466,4 +499,38 @@ export default function InboxPage() {
       </div>
     </div>
   );
+}
+
+function useInboxViewportLock(chatOpen: boolean) {
+  useEffect(() => {
+    const root = document.documentElement;
+    const apply = () => {
+      const vv = window.visualViewport;
+      const height = Math.round(vv?.height ?? window.innerHeight);
+      const offsetTop = Math.round(vv?.offsetTop ?? 0);
+      root.style.setProperty('--inbox-vv-height', `${height}px`);
+      root.style.setProperty('--inbox-vv-top', `${offsetTop}px`);
+    };
+
+    apply();
+    const vv = window.visualViewport;
+    vv?.addEventListener('resize', apply);
+    vv?.addEventListener('scroll', apply);
+    window.addEventListener('orientationchange', apply);
+    window.addEventListener('resize', apply);
+
+    root.classList.add('inbox-page');
+    if (chatOpen) root.classList.add('inbox-chat-open');
+    else root.classList.remove('inbox-chat-open');
+
+    return () => {
+      vv?.removeEventListener('resize', apply);
+      vv?.removeEventListener('scroll', apply);
+      window.removeEventListener('orientationchange', apply);
+      window.removeEventListener('resize', apply);
+      root.classList.remove('inbox-page', 'inbox-chat-open');
+      root.style.removeProperty('--inbox-vv-height');
+      root.style.removeProperty('--inbox-vv-top');
+    };
+  }, [chatOpen]);
 }

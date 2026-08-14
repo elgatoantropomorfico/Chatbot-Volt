@@ -124,7 +124,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
       </div>
 
       {/* Mobile Header */}
-      <div className={styles.mobileHeader}>
+      <div className={styles.mobileHeader} data-dash-mobile-header>
         <button className={styles.hamburgerBtn} onClick={() => setMobileMenuOpen(!mobileMenuOpen)}>
           {mobileMenuOpen ? <X size={22} /> : <Menu size={22} />}
         </button>

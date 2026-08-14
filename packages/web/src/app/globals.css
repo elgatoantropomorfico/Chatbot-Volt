@@ -301,6 +301,40 @@ body {
   letter-spacing: -0.011em;
 }
 
+/* Inbox mobile: un solo scroll, teclado = visualViewport (estilo WhatsApp) */
+@media (max-width: 768px) {
+  html.inbox-page,
+  html.inbox-page body {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
+  }
+
+  html.inbox-chat-open [data-dash-mobile-header] {
+    display: none !important;
+  }
+
+  html.inbox-page .dashboard-main {
+    overflow: hidden !important;
+    max-height: var(--inbox-vv-height, 100dvh);
+    height: var(--inbox-vv-height, 100dvh);
+  }
+
+  html.inbox-chat-open .dashboard-main {
+    position: fixed;
+    top: var(--inbox-vv-top, 0px);
+    left: 0;
+    right: 0;
+    width: 100%;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100%;
+    height: var(--inbox-vv-height, 100dvh) !important;
+    max-height: var(--inbox-vv-height, 100dvh) !important;
+  }
+}
+
 a {
   color: var(--color-primary);
   text-decoration: none;

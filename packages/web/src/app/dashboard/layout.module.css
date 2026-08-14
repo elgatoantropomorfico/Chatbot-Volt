@@ -357,6 +357,7 @@
   .mainInbox {
     padding: 56px 0 0;
     height: 100dvh;
+    max-height: 100dvh;
     min-height: 0;
     overflow: hidden;
   }
@@ -364,6 +365,7 @@
   .contentAreaInbox {
     height: 100%;
     min-height: 0;
+    overflow: hidden;
   }
 
   .contentAreaConfigPanel {

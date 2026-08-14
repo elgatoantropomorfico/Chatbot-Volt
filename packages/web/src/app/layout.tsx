@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import { ThemeProvider } from '@/context/ThemeContext';
@@ -8,6 +8,13 @@ export const metadata: Metadata = {
   title: 'Volt — Automatización, IA e integraciones para tu empresa',
   description:
     'Asistentes inteligentes, integraciones con WhatsApp e Instagram, automatización de turnos y desarrollo de software a medida.',
+};
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
