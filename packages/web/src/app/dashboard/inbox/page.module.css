@@ -838,11 +838,13 @@
 
   .messageInput {
     padding: 8px 10px;
-    padding-bottom: max(8px, env(safe-area-inset-bottom));
+    padding-bottom: max(8px, env(safe-area-inset-bottom), env(keyboard-inset-bottom, 0px));
     gap: 8px;
     flex-shrink: 0;
-    position: relative;
-    z-index: 2;
+    position: sticky;
+    bottom: 0;
+    z-index: 3;
+    background: var(--inbox-chat-bg);
   }
 
   .messageInput input {

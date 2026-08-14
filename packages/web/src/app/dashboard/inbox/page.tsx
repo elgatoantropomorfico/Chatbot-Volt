@@ -22,11 +22,12 @@ export default function InboxPage() {
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesWrapRef = useRef<HTMLDivElement>(null);
+  const composerRef = useRef<HTMLFormElement>(null);
   const lastMessageTimeRef = useRef<string | null>(null);
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useInboxViewportLock();
+  const viewportBox = useInboxViewportLock();
 
   function scrollMessagesToBottom(smooth = false) {
     const wrap = messagesWrapRef.current;
@@ -260,7 +261,10 @@ export default function InboxPage() {
   }
 
   return (
-    <div className={styles.wrapper}>
+    <div
+      className={styles.wrapper}
+      style={viewportBox.height ? { height: viewportBox.height, maxHeight: viewportBox.height } : undefined}
+    >
       <div className={styles.shell}>
         <div className={`${styles.container} ${selectedId ? styles.mobileChatOpen : ''}`}>
       {/* Conversation list */}
@@ -461,7 +465,7 @@ export default function InboxPage() {
 
             {/* Message input */}
             {convStatus !== 'closed' && (
-              <form className={styles.messageInput} onSubmit={handleSendMessage}>
+              <form ref={composerRef} className={styles.messageInput} onSubmit={handleSendMessage}>
                 <input
                   type="text"
                   value={inputText}
@@ -471,6 +475,12 @@ export default function InboxPage() {
                   enterKeyHint="send"
                   inputMode="text"
                   autoComplete="off"
+                  onFocus={() => {
+                    window.dispatchEvent(new Event('inbox:keyboard'));
+                    requestAnimationFrame(() => {
+                      composerRef.current?.scrollIntoView({ block: 'end', inline: 'nearest' });
+                    });
+                  }}
                 />
                 <button type="submit" disabled={!inputText.trim() || sending} aria-label="Enviar">
                   <Send size={18} />
@@ -486,40 +496,90 @@ export default function InboxPage() {
   );
 }
 
+function readInboxViewport() {
+  const vv = window.visualViewport;
+  const inner = window.innerHeight;
+  const vvHeight = vv?.height ?? inner;
+  const offsetTop = Math.round(vv?.offsetTop ?? 0);
+  // iOS: innerHeight suele achicarse con el teclado aunque 100dvh no
+  const height = Math.round(Math.min(vvHeight, inner));
+  return { height, offsetTop };
+}
+
 function useInboxViewportLock() {
+  const [box, setBox] = useState({ height: 0, offsetTop: 0 });
+
   useEffect(() => {
     const root = document.documentElement;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
     const apply = () => {
-      const vv = window.visualViewport;
-      const height = Math.round(vv?.height ?? window.innerHeight);
-      const offsetTop = Math.round(vv?.offsetTop ?? 0);
-      root.style.setProperty('--inbox-vv-height', `${height}px`);
-      root.style.setProperty('--inbox-vv-top', `${offsetTop}px`);
+      const next = readInboxViewport();
+      setBox(next);
+      root.style.setProperty('--inbox-vv-height', `${next.height}px`);
+      root.style.setProperty('--inbox-vv-top', `${next.offsetTop}px`);
+
+      const main = document.querySelector('.dashboard-main') as HTMLElement | null;
+      if (main) {
+        main.style.height = `${next.height}px`;
+        main.style.maxHeight = `${next.height}px`;
+        main.style.top = `${next.offsetTop}px`;
+      }
+    };
+
+    const startPoll = () => {
+      if (pollTimer) clearInterval(pollTimer);
+      let n = 0;
+      pollTimer = setInterval(() => {
+        apply();
+        if (++n >= 16) {
+          if (pollTimer) clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      }, 50);
     };
 
     apply();
     const vv = window.visualViewport;
     vv?.addEventListener('resize', apply);
     vv?.addEventListener('scroll', apply);
-    window.addEventListener('orientationchange', apply);
+    window.addEventListener('resize', apply);
+    window.addEventListener('orientationchange', startPoll);
+    window.addEventListener('focusin', startPoll);
+    window.addEventListener('inbox:keyboard', startPoll);
 
     root.classList.add('inbox-page');
-    document.body.style.position = 'fixed';
-    document.body.style.inset = '0';
-    document.body.style.width = '100%';
     document.body.style.overflow = 'hidden';
 
+    const vk = (navigator as Navigator & {
+      virtualKeyboard?: { overlaysContent: boolean; addEventListener: Function; removeEventListener: Function };
+    }).virtualKeyboard;
+    if (vk) {
+      vk.overlaysContent = true;
+      vk.addEventListener('geometrychange', apply);
+    }
+
     return () => {
+      if (pollTimer) clearInterval(pollTimer);
       vv?.removeEventListener('resize', apply);
       vv?.removeEventListener('scroll', apply);
-      window.removeEventListener('orientationchange', apply);
-      root.classList.remove('inbox-page', 'inbox-chat-open');
+      window.removeEventListener('resize', apply);
+      window.removeEventListener('orientationchange', startPoll);
+      window.removeEventListener('focusin', startPoll);
+      window.removeEventListener('inbox:keyboard', startPoll);
+      vk?.removeEventListener('geometrychange', apply);
+      root.classList.remove('inbox-page');
       root.style.removeProperty('--inbox-vv-height');
       root.style.removeProperty('--inbox-vv-top');
-      document.body.style.position = '';
-      document.body.style.inset = '';
-      document.body.style.width = '';
       document.body.style.overflow = '';
+      const main = document.querySelector('.dashboard-main') as HTMLElement | null;
+      if (main) {
+        main.style.height = '';
+        main.style.maxHeight = '';
+        main.style.top = '';
+      }
     };
   }, []);
+
+  return box;
 }
