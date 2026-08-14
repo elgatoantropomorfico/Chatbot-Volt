@@ -408,18 +408,23 @@ function TenantDashboard() {
             </div>
           </div>
         </div>
-      </div>
-
-      <div
-        ref={sheetRef}
-        className={`${styles.dashSheet} ${openMenu ? styles.dashSheetOpen : ''}`}
-      >
-        <div className={styles.dashSheetClip}>
+        <div
+          ref={sheetRef}
+          className={`${styles.dashSheet} ${openMenu ? styles.dashSheetOpen : ''}`}
+        >
           <div className={styles.dashSheetPanel}>
             {sheetContent === 'notif' ? notifList : sheetContent === 'profile' ? profileCard : null}
           </div>
         </div>
       </div>
+
+      <button
+        type="button"
+        className={`${styles.menuBackdrop} ${openMenu ? styles.menuBackdropOpen : ''}`}
+        aria-label="Cerrar panel"
+        tabIndex={openMenu ? 0 : -1}
+        onClick={() => setOpenMenu(null)}
+      />
 
       <section className={styles.heroStage}>
         <div className={styles.heroContent}>

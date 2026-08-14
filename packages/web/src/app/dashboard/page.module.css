@@ -7,6 +7,7 @@
   flex-direction: column;
   gap: 14px;
   min-height: 0;
+  position: relative;
 }
 
 /* ── Top bar ── */
@@ -15,6 +16,8 @@
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+  position: relative;
+  z-index: 46;
 }
 
 .searchPill {
@@ -106,6 +109,10 @@
   display: none;
 }
 
+.menuBackdrop {
+  display: none;
+}
+
 .notifDropdownHead {
   display: flex;
   align-items: center;
@@ -176,7 +183,7 @@
 
 .iconBtn {
   position: relative;
-  z-index: 33;
+  z-index: 48;
   width: 40px;
   height: 40px;
   border-radius: 10px;
@@ -220,6 +227,8 @@
   color: inherit;
   font: inherit;
   text-align: left;
+  position: relative;
+  z-index: 48;
   transition: all var(--transition-fast);
 }
 
@@ -1064,23 +1073,51 @@
     display: none;
   }
 
-  .dashSheet {
-    display: grid;
-    grid-template-rows: 0fr;
+  .menuBackdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 40;
+    border: none;
+    padding: 0;
+    background: color-mix(in srgb, var(--color-bg) 28%, transparent);
+    backdrop-filter: blur(7px) saturate(1.05);
+    -webkit-backdrop-filter: blur(7px) saturate(1.05);
+    cursor: pointer;
     opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.28s ease;
+  }
+
+  .menuBackdropOpen {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .dashSheet {
+    display: block;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: calc(100% + 8px);
+    z-index: 47;
+    width: 100%;
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(-10px) scale(0.98);
+    transform-origin: top center;
     transition:
-      grid-template-rows 0.36s cubic-bezier(0.22, 1, 0.36, 1),
-      opacity 0.28s ease;
+      opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+      transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+      visibility 0.32s;
   }
 
   .dashSheetOpen {
-    grid-template-rows: 1fr;
     opacity: 1;
-  }
-
-  .dashSheetClip {
-    min-height: 0;
-    overflow: hidden;
+    visibility: visible;
+    pointer-events: auto;
+    transform: translateY(0) scale(1);
   }
 
   .dashSheetPanel {
@@ -1090,7 +1127,7 @@
     background: var(--dropdown-bg);
     backdrop-filter: blur(24px);
     -webkit-backdrop-filter: blur(24px);
-    box-shadow: var(--shadow-card);
+    box-shadow: var(--shadow-lg);
     overflow: hidden;
     max-height: min(62dvh, 480px);
     overflow-y: auto;
