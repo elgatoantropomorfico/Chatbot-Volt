@@ -333,11 +333,6 @@ export default function InboxPage() {
             >
               <div className={styles.avatar}>
                 {(conv.lead?.name || conv.lead?.phone || '?')[0].toUpperCase()}
-                {showUnread && (
-                  <span className={styles.unreadBadge}>
-                    {unread > 0 ? (unread > 99 ? '99+' : unread) : '!'}
-                  </span>
-                )}
               </div>
               <div className={styles.convInfo}>
                 <div className={styles.convHeader}>
@@ -346,8 +341,15 @@ export default function InboxPage() {
                     {conv.messages?.[0] ? formatTime(conv.messages[0].createdAt) : ''}
                   </span>
                 </div>
-                <div className={styles.convPreview}>
-                  {conv.messages?.[0]?.text || 'Sin mensajes'}
+                <div className={styles.convPreviewRow}>
+                  <div className={styles.convPreview}>
+                    {conv.messages?.[0]?.text || 'Sin mensajes'}
+                  </div>
+                  {showUnread && (
+                    <span className={styles.unreadBadge}>
+                      {unread > 0 ? (unread > 99 ? '99+' : unread) : '!'}
+                    </span>
+                  )}
                 </div>
                 <span className={`${styles.badge} ${getBadgeClass(conv.status)}`}>
                   {getStatusLabel(conv.status)}

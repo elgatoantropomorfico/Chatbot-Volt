@@ -231,21 +231,25 @@
 }
 
 .unreadBadge {
-  position: absolute;
-  top: -4px;
-  right: -4px;
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
   border-radius: 999px;
-  background: #ef4444;
+  background: #25d366;
   color: #fff;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 20px;
   text-align: center;
-  border: 2px solid var(--color-surface, #fff);
+  flex-shrink: 0;
   box-sizing: border-box;
+}
+
+.convPreviewRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 4px;
 }
 
 .conversationItemUnread .convName {
@@ -290,6 +294,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .badge {
@@ -794,10 +800,7 @@
 
   .chatHeaderInfo span {
     font-size: 11px;
-    display: block;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    display: none;
   }
 
   .avatar {
@@ -807,16 +810,19 @@
   }
 
   .chatActions {
-    gap: 4px;
+    gap: 2px;
+    flex-shrink: 0;
   }
 
   .aiToggle,
   .actionBtn {
-    padding: 8px;
+    padding: 0;
     font-size: 0;
     gap: 0;
-    min-width: 36px;
-    min-height: 36px;
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
     justify-content: center;
   }
 
