@@ -299,6 +299,8 @@ body {
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
   letter-spacing: -0.011em;
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 /* Inbox mobile: cover fullscreen. Header + composer fijos al visualViewport; solo el hilo se achica. */
@@ -351,6 +353,25 @@ textarea,
 select {
   font-family: inherit;
   font-size: inherit;
+}
+
+a,
+button,
+input,
+select,
+textarea,
+label,
+summary {
+  touch-action: manipulation;
+}
+
+/* iOS/Android zoom al enfocar inputs < 16px. En mobile forzamos 16px en todos. */
+@media (max-width: 768px) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='file']):not([type='hidden']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
 }
 
 /* Ambient canvas texture */
