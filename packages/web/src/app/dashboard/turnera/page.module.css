@@ -14,42 +14,34 @@
   display: none;
 }
 
-.accLabel {
-  flex: 1;
-  text-align: left;
+.mobilePick {
+  display: none;
 }
 
-.accChevron {
-  margin-left: auto;
-  flex-shrink: 0;
+.pickLabel {
+  display: block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   color: var(--color-text-muted);
-  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  margin-bottom: 8px;
 }
 
-.accChevronOpen {
-  transform: rotate(180deg);
-  color: var(--color-primary);
+.pickSelect {
+  width: 100%;
+  height: 48px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--input-bg);
+  color: var(--color-text);
+  font-size: 16px;
+  margin-bottom: 16px;
 }
 
-.accCollapse {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows 0.36s cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.accCollapseOpen {
-  grid-template-rows: 1fr;
-}
-
-.accCollapseInner {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.accPanel {
-  padding: 8px 16px 22px;
-  background: var(--color-bg-secondary);
-  border-bottom: 1px solid var(--color-border);
+.pickBody {
+  min-width: 0;
 }
 
 .accStatus {
@@ -646,21 +638,21 @@
 
 @media (max-width: 768px) {
   .wrapper {
-    flex: 1 1 0;
+    flex: none;
     min-height: 0;
-    height: 100%;
-    overflow: auto;
+    height: auto;
+    overflow: visible;
   }
 
   .shell {
     flex-direction: column;
-    flex: 1 1 0;
+    flex: none;
     min-height: 0;
-    height: 100%;
+    height: auto;
     border: none;
     box-shadow: none;
     border-radius: 0;
-    overflow: auto;
+    overflow: visible;
   }
 
   .sidebarTitle {
@@ -689,36 +681,9 @@
     display: none;
   }
 
-  .mobileAccordion {
-    display: flex;
-    flex-direction: column;
-    flex: 1 1 auto;
-    min-height: 0;
-    width: 100%;
-    overflow-y: auto;
-    -webkit-overflow-scrolling: touch;
-    background: var(--glass-bg);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-lg);
-  }
-
-  .mobileAccordion .tabBtn {
-    flex: none;
-    width: 100%;
-    white-space: nowrap;
-    border-left: 3px solid transparent;
-    border-bottom: 1px solid var(--color-border);
-    padding: 14px 16px;
-  }
-
-  .mobileAccordion .tabBtnActive {
-    border-left-color: var(--color-primary-dim);
-    border-bottom-color: var(--color-border);
-  }
-
-  .mobileAccordion .sidebarGroupTitle {
+  .mobilePick {
     display: block;
-    padding: 14px 16px 4px;
+    width: 100%;
   }
 
   .inlineForm {

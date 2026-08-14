@@ -24,6 +24,7 @@ import {
 import { api } from '@/lib/api';
 import { getTenantDisplayName } from '@/lib/tenant';
 import { VoltBrand, VoltLogo } from '@/components/ui/VoltLogo';
+import { HeaderChrome } from '@/components/dashboard/HeaderChrome';
 import styles from './layout.module.css';
 
 // Super admin: only tenant management
@@ -138,6 +139,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
           <VoltLogo size={28} />
           <h2 className={styles.mobileTitle}>Volt</h2>
         </div>
+        <HeaderChrome variant="header" />
       </div>
 
       {/* Backdrop */}
@@ -272,6 +274,7 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className={styles.sidebarFooter}>
+          <HeaderChrome variant="sidebar" />
           <div className={styles.userInfo}>
             <div className={styles.userAvatar}>
               {user.email[0].toUpperCase()}

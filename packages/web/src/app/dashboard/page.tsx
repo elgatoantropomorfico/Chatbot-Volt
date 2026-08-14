@@ -1,11 +1,11 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import {
   Users, ShoppingCart, Bot, Bell, AlertTriangle, Info, Settings, ArrowRight,
-  Calendar, Zap, Inbox, TrendingUp, Phone, LogOut, ChevronDown,
+  Calendar, Zap, Inbox, TrendingUp, Phone,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { SuperAdminPanel } from '@/components/superadmin/SuperAdminPanel';
@@ -35,22 +35,13 @@ interface DashboardStats {
   modules?: TenantModules;
 }
 
-const ROLE_LABELS: Record<string, string> = {
-  tenant_admin: 'Admin',
-  agent: 'Agente',
-};
-
 function TenantDashboard() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [actions, setActions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [openMenu, setOpenMenu] = useState<'notif' | 'profile' | null>(null);
-  const [sheetContent, setSheetContent] = useState<'notif' | 'profile' | null>(null);
   const [chartMetrics, setChartMetrics] = useState<ChartMetric[]>(['messages', 'conversations', 'leads']);
-  const menusRef = useRef<HTMLDivElement>(null);
-  const sheetRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -65,25 +56,6 @@ function TenantDashboard() {
       finally { setLoading(false); }
     })();
   }, []);
-
-  useEffect(() => {
-    function onClickOutside(e: MouseEvent) {
-      const target = e.target as Node;
-      if (menusRef.current?.contains(target) || sheetRef.current?.contains(target)) return;
-      setOpenMenu(null);
-    }
-    document.addEventListener('mousedown', onClickOutside);
-    return () => document.removeEventListener('mousedown', onClickOutside);
-  }, []);
-
-  useEffect(() => {
-    if (openMenu) {
-      setSheetContent(openMenu);
-      return;
-    }
-    const t = window.setTimeout(() => setSheetContent(null), 360);
-    return () => window.clearTimeout(t);
-  }, [openMenu]);
 
   const trends = stats?.trends || [];
   const msgTrend = trends.map((d) => d.messages);
@@ -255,8 +227,6 @@ function TenantDashboard() {
   };
 
   const tenantName = getTenantDisplayName(user?.tenant) || 'Tu negocio';
-  const displayName = user?.name || user?.email?.split('@')[0] || 'Usuario';
-  const roleLabel = ROLE_LABELS[user?.role || 'agent'] || user?.role;
 
   const statusPill = useMemo(() => {
     if (!stats) return null;
@@ -271,76 +241,6 @@ function TenantDashboard() {
     }
     return { text: `${stats.messages.todayCount} mensajes hoy`, urgent: false, icon: <Bot size={13} /> };
   }, [stats]);
-
-  const notifList = (
-    <>
-      <div className={styles.notifDropdownHead}>
-        <strong>Notificaciones</strong>
-        <span>{actions.length} pendiente{actions.length !== 1 ? 's' : ''}</span>
-      </div>
-      {actions.length === 0 ? (
-        <div className={styles.notifEmpty}>Todo al día</div>
-      ) : (
-        actions.map((action: any) => {
-          const c = actionStyle(action.type);
-          return (
-            <button
-              key={action.id}
-              type="button"
-              className={styles.notifItem}
-              onClick={() => { setOpenMenu(null); router.push(action.link); }}
-            >
-              <span className={styles.notifItemIcon} style={{ background: c.bg, color: c.color }}>
-                {actionIcon(action.type)}
-              </span>
-              <span className={styles.notifItemBody}>
-                <strong>{action.title}</strong>
-                <span>{action.description}</span>
-              </span>
-            </button>
-          );
-        })
-      )}
-    </>
-  );
-
-  const profileCard = (
-    <div className={styles.profileBody}>
-      <div className={styles.profileIdentity}>
-        <div className={styles.userAvatar}>{displayName[0]?.toUpperCase()}</div>
-        <div className={styles.profileIdentityText}>
-          <strong>{displayName}</strong>
-          <span>{user?.email}</span>
-        </div>
-      </div>
-      <div className={styles.profileMeta}>
-        <div>
-          <span>Rol</span>
-          <strong>{roleLabel}</strong>
-        </div>
-        <div>
-          <span>Negocio</span>
-          <strong>{tenantName}</strong>
-        </div>
-      </div>
-      <button
-        type="button"
-        className={styles.profileAction}
-        onClick={() => { setOpenMenu(null); router.push('/dashboard/settings?tab=cuenta'); }}
-      >
-        <Settings size={15} />
-        Mi cuenta
-      </button>
-      <button
-        type="button"
-        className={`${styles.profileAction} ${styles.profileActionDanger}`}
-        onClick={() => { setOpenMenu(null); logout(); }}
-      >
-        <LogOut size={15} />
-        Cerrar sesión
-      </button>
-    </div>
-  );
 
   if (loading) {
     return (
@@ -366,65 +266,15 @@ function TenantDashboard() {
         <div className={styles.searchPill}>
           <DashboardSearch modules={stats?.modules} />
         </div>
-        <div className={styles.topBarRight} ref={menusRef}>
+        <div className={styles.topBarRight}>
           {statusPill && (
             <span className={`${styles.statusPill} ${statusPill.urgent ? styles.statusPillUrgent : ''}`}>
               {statusPill.icon}
               {statusPill.text}
             </span>
           )}
-          <div className={styles.notifWrap}>
-            <button
-              type="button"
-              className={`${styles.iconBtn} ${openMenu === 'notif' ? styles.iconBtnActive : ''}`}
-              onClick={() => setOpenMenu((m) => (m === 'notif' ? null : 'notif'))}
-              title="Notificaciones"
-              aria-expanded={openMenu === 'notif'}
-            >
-              <Bell size={16} />
-              {actions.length > 0 && <span className={styles.notifDot} />}
-            </button>
-            <div className={`${styles.notifDropdown} ${openMenu === 'notif' ? styles.menuOpen : ''}`}>
-              {notifList}
-            </div>
-          </div>
-          <div className={styles.profileWrap}>
-            <button
-              type="button"
-              className={`${styles.userChip} ${openMenu === 'profile' ? styles.userChipActive : ''}`}
-              onClick={() => setOpenMenu((m) => (m === 'profile' ? null : 'profile'))}
-              title="Perfil"
-              aria-expanded={openMenu === 'profile'}
-            >
-              <div className={styles.userAvatar}>{displayName[0]?.toUpperCase()}</div>
-              <div className={styles.userChipText}>
-                <span className={styles.userChipName}>{displayName}</span>
-                <span className={styles.userChipRole}>{roleLabel}</span>
-              </div>
-              <ChevronDown size={14} className={`${styles.userChipChevron} ${openMenu === 'profile' ? styles.userChipChevronOpen : ''}`} />
-            </button>
-            <div className={`${styles.profileDropdown} ${openMenu === 'profile' ? styles.menuOpen : ''}`}>
-              {profileCard}
-            </div>
-          </div>
-        </div>
-        <div
-          ref={sheetRef}
-          className={`${styles.dashSheet} ${openMenu ? styles.dashSheetOpen : ''}`}
-        >
-          <div className={styles.dashSheetPanel}>
-            {sheetContent === 'notif' ? notifList : sheetContent === 'profile' ? profileCard : null}
-          </div>
         </div>
       </div>
-
-      <button
-        type="button"
-        className={`${styles.menuBackdrop} ${openMenu ? styles.menuBackdropOpen : ''}`}
-        aria-label="Cerrar panel"
-        tabIndex={openMenu ? 0 : -1}
-        onClick={() => setOpenMenu(null)}
-      />
 
       <section className={styles.heroStage}>
         <div className={styles.heroContent}>
