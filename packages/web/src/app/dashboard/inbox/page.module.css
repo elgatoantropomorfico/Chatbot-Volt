@@ -53,14 +53,21 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 10px;
   background: transparent;
   flex-shrink: 0;
+}
+
+.navMenuBtn {
+  display: none;
 }
 
 .listHeader h2 {
   font-size: 16px;
   font-weight: 700;
   letter-spacing: -0.01em;
+  flex: 1;
+  min-width: 0;
 }
 
 .filterBar {
@@ -720,6 +727,25 @@
     -webkit-backdrop-filter: none;
   }
 
+  .navMenuBtn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    margin: -4px 0 -4px -6px;
+    border: none;
+    border-radius: var(--radius-sm);
+    background: transparent;
+    color: var(--color-text);
+    flex-shrink: 0;
+  }
+
+  .listHeader {
+    padding: 10px 12px;
+    padding-top: max(10px, env(safe-area-inset-top));
+  }
+
   .conversationList,
   .chatArea {
     width: 100%;
@@ -814,6 +840,9 @@
     padding: 8px 10px;
     padding-bottom: max(8px, env(safe-area-inset-bottom));
     gap: 8px;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 2;
   }
 
   .messageInput input {
@@ -832,10 +861,6 @@
 
   .filterBar {
     padding: 10px 12px;
-  }
-
-  .listHeader {
-    padding: 14px 16px;
   }
 
   .conversationItem {

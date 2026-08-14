@@ -76,6 +76,12 @@ function DashboardLayoutInner({ children }: { children: React.ReactNode }) {
     setMobileMenuOpen(false);
   }, [pathname]);
 
+  useEffect(() => {
+    const openNav = () => setMobileMenuOpen(true);
+    window.addEventListener('volt:open-nav', openNav);
+    return () => window.removeEventListener('volt:open-nav', openNav);
+  }, []);
+
   // Show Sales nav whenever WooCommerce integration is active (regardless of cart toggle)
   useEffect(() => {
     if (!user || user.role === 'superadmin') return;

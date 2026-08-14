@@ -1,8 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from 'react';
+import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, UserX, RotateCcw, X, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw, Image } from 'lucide-react';
+import { MessageSquare, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw, Menu } from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
@@ -26,7 +26,7 @@ export default function InboxPage() {
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
   const convPollTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  useInboxViewportLock(!!selectedId);
+  useInboxViewportLock();
 
   function scrollMessagesToBottom(smooth = false) {
     const wrap = messagesWrapRef.current;
@@ -66,26 +66,9 @@ export default function InboxPage() {
     return () => { if (pollTimerRef.current) clearInterval(pollTimerRef.current); };
   }, [selectedId]);
 
-  // Auto-scroll on new messages — only inside the chat pane (never the page)
   useEffect(() => {
-    scrollMessagesToBottom(messages.length > 8);
+    scrollMessagesToBottom(false);
   }, [messages]);
-
-  useEffect(() => {
-    if (!selectedId) return;
-    const onViewportChange = () => {
-      window.scrollTo(0, 0);
-      const wrap = messagesWrapRef.current;
-      if (wrap) wrap.scrollTop = wrap.scrollHeight;
-    };
-    const vv = window.visualViewport;
-    vv?.addEventListener('resize', onViewportChange);
-    vv?.addEventListener('scroll', onViewportChange);
-    return () => {
-      vv?.removeEventListener('resize', onViewportChange);
-      vv?.removeEventListener('scroll', onViewportChange);
-    };
-  }, [selectedId]);
 
   async function fetchAll() {
     try {
@@ -283,6 +266,14 @@ export default function InboxPage() {
       {/* Conversation list */}
       <div className={styles.conversationList}>
         <div className={styles.listHeader}>
+          <button
+            type="button"
+            className={styles.navMenuBtn}
+            onClick={() => window.dispatchEvent(new Event('volt:open-nav'))}
+            aria-label="Abrir menú"
+          >
+            <Menu size={20} />
+          </button>
           <h2>Inbox</h2>
           <span className={styles.liveIndicator}>EN VIVO</span>
         </div>
@@ -477,15 +468,9 @@ export default function InboxPage() {
                   onChange={(e) => setInputText(e.target.value)}
                   placeholder="Mensaje..."
                   disabled={sending}
-                  onFocus={() => {
-                    window.scrollTo(0, 0);
-                    requestAnimationFrame(() => {
-                      const wrap = messagesWrapRef.current;
-                      if (wrap) wrap.scrollTop = wrap.scrollHeight;
-                    });
-                  }}
                   enterKeyHint="send"
                   inputMode="text"
+                  autoComplete="off"
                 />
                 <button type="submit" disabled={!inputText.trim() || sending} aria-label="Enviar">
                   <Send size={18} />
@@ -501,7 +486,7 @@ export default function InboxPage() {
   );
 }
 
-function useInboxViewportLock(chatOpen: boolean) {
+function useInboxViewportLock() {
   useEffect(() => {
     const root = document.documentElement;
     const apply = () => {
@@ -517,20 +502,24 @@ function useInboxViewportLock(chatOpen: boolean) {
     vv?.addEventListener('resize', apply);
     vv?.addEventListener('scroll', apply);
     window.addEventListener('orientationchange', apply);
-    window.addEventListener('resize', apply);
 
     root.classList.add('inbox-page');
-    if (chatOpen) root.classList.add('inbox-chat-open');
-    else root.classList.remove('inbox-chat-open');
+    document.body.style.position = 'fixed';
+    document.body.style.inset = '0';
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
 
     return () => {
       vv?.removeEventListener('resize', apply);
       vv?.removeEventListener('scroll', apply);
       window.removeEventListener('orientationchange', apply);
-      window.removeEventListener('resize', apply);
       root.classList.remove('inbox-page', 'inbox-chat-open');
       root.style.removeProperty('--inbox-vv-height');
       root.style.removeProperty('--inbox-vv-top');
+      document.body.style.position = '';
+      document.body.style.inset = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
     };
-  }, [chatOpen]);
+  }, []);
 }

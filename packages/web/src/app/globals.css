@@ -301,7 +301,7 @@ body {
   letter-spacing: -0.011em;
 }
 
-/* Inbox mobile: un solo scroll, teclado = visualViewport (estilo WhatsApp) */
+/* Inbox mobile: cover fullscreen. Header + composer fijos al visualViewport; solo el hilo se achica. */
 @media (max-width: 768px) {
   html.inbox-page,
   html.inbox-page body {
@@ -311,27 +311,23 @@ body {
     touch-action: manipulation;
   }
 
-  html.inbox-chat-open [data-dash-mobile-header] {
+  html.inbox-page [data-dash-mobile-header] {
     display: none !important;
   }
 
   html.inbox-page .dashboard-main {
-    overflow: hidden !important;
-    max-height: var(--inbox-vv-height, 100dvh);
-    height: var(--inbox-vv-height, 100dvh);
-  }
-
-  html.inbox-chat-open .dashboard-main {
-    position: fixed;
-    top: var(--inbox-vv-top, 0px);
-    left: 0;
-    right: 0;
-    width: 100%;
-    padding: 0 !important;
+    position: fixed !important;
+    top: var(--inbox-vv-top, 0px) !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
     margin: 0 !important;
-    max-width: 100%;
+    padding: 0 !important;
     height: var(--inbox-vv-height, 100dvh) !important;
     max-height: var(--inbox-vv-height, 100dvh) !important;
+    overflow: hidden !important;
   }
 }
 
