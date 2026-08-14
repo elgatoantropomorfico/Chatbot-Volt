@@ -58,6 +58,11 @@
 
 .notifWrap {
   position: relative;
+  z-index: 30;
+}
+
+.notifBackdrop {
+  display: none;
 }
 
 .notifDropdown {
@@ -65,7 +70,7 @@
   top: calc(100% + 8px);
   right: 0;
   width: min(340px, calc(100vw - 32px));
-  z-index: 200;
+  z-index: 32;
   border-radius: var(--radius-lg);
   border: 1px solid var(--glass-border);
   background: var(--dropdown-bg);
@@ -145,6 +150,7 @@
 
 .iconBtn {
   position: relative;
+  z-index: 33;
   width: 40px;
   height: 40px;
   border-radius: 10px;
@@ -917,13 +923,26 @@
     flex: 1 1 100%;
   }
 
-  .notifDropdown {
+  .notifBackdrop {
+    display: block;
     position: fixed;
-    top: 64px;
-    left: 12px;
-    right: 12px;
-    width: auto;
-    max-height: min(70dvh, 520px);
+    inset: 0;
+    z-index: 31;
+    border: none;
+    padding: 0;
+    background: color-mix(in srgb, var(--color-bg) 28%, transparent);
+    backdrop-filter: blur(7px) saturate(1.05);
+    -webkit-backdrop-filter: blur(7px) saturate(1.05);
+    cursor: pointer;
+  }
+
+  .notifDropdown {
+    position: absolute;
+    top: calc(100% + 8px);
+    right: 0;
+    left: auto;
+    width: min(calc(100vw - 24px), 360px);
+    max-height: min(62dvh, 480px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }

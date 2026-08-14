@@ -303,35 +303,43 @@ function TenantDashboard() {
               {actions.length > 0 && <span className={styles.notifDot} />}
             </button>
             {notifOpen && (
-              <div className={styles.notifDropdown}>
-                <div className={styles.notifDropdownHead}>
-                  <strong>Notificaciones</strong>
-                  <span>{actions.length} pendiente{actions.length !== 1 ? 's' : ''}</span>
+              <>
+                <button
+                  type="button"
+                  className={styles.notifBackdrop}
+                  aria-label="Cerrar notificaciones"
+                  onClick={() => setNotifOpen(false)}
+                />
+                <div className={styles.notifDropdown}>
+                  <div className={styles.notifDropdownHead}>
+                    <strong>Notificaciones</strong>
+                    <span>{actions.length} pendiente{actions.length !== 1 ? 's' : ''}</span>
+                  </div>
+                  {actions.length === 0 ? (
+                    <div className={styles.notifEmpty}>Todo al día</div>
+                  ) : (
+                    actions.map((action: any) => {
+                      const c = actionStyle(action.type);
+                      return (
+                        <button
+                          key={action.id}
+                          type="button"
+                          className={styles.notifItem}
+                          onClick={() => { setNotifOpen(false); router.push(action.link); }}
+                        >
+                          <span className={styles.notifItemIcon} style={{ background: c.bg, color: c.color }}>
+                            {actionIcon(action.type)}
+                          </span>
+                          <span className={styles.notifItemBody}>
+                            <strong>{action.title}</strong>
+                            <span>{action.description}</span>
+                          </span>
+                        </button>
+                      );
+                    })
+                  )}
                 </div>
-                {actions.length === 0 ? (
-                  <div className={styles.notifEmpty}>Todo al día</div>
-                ) : (
-                  actions.map((action: any) => {
-                    const c = actionStyle(action.type);
-                    return (
-                      <button
-                        key={action.id}
-                        type="button"
-                        className={styles.notifItem}
-                        onClick={() => { setNotifOpen(false); router.push(action.link); }}
-                      >
-                        <span className={styles.notifItemIcon} style={{ background: c.bg, color: c.color }}>
-                          {actionIcon(action.type)}
-                        </span>
-                        <span className={styles.notifItemBody}>
-                          <strong>{action.title}</strong>
-                          <span>{action.description}</span>
-                        </span>
-                      </button>
-                    );
-                  })
-                )}
-              </div>
+              </>
             )}
           </div>
           <div className={styles.userChip} title={user?.email}>
