@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type ReactNode } from 'react';
 import { api } from '@/lib/api';
 import { useAuth } from '@/context/AuthContext';
 import { useBookingFlags } from '@/context/BookingFlagsContext';
@@ -67,6 +67,63 @@ const TABS: { id: TabId; label: string; icon: any; group: string }[] = [
 
 const HIDDEN_WHEN_CATALOG_V2: TabId[] = ['products', 'shipping', 'promotions', 'policies'];
 
+function useReveal(open: boolean, ms = 360) {
+  const [shown, setShown] = useState(open);
+  const [expanded, setExpanded] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setShown(true);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setExpanded(true));
+      });
+      return () => cancelAnimationFrame(id);
+    }
+    setExpanded(false);
+    const t = window.setTimeout(() => setShown(false), ms);
+    return () => window.clearTimeout(t);
+  }, [open, ms]);
+
+  return { shown, expanded };
+}
+
+function BotAccItem({
+  open,
+  onToggle,
+  icon: Icon,
+  label,
+  hasContent,
+  children,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  icon: any;
+  label: string;
+  hasContent: boolean;
+  children: ReactNode;
+}) {
+  const { shown, expanded } = useReveal(open);
+  return (
+    <div className="volt-acc-item">
+      <button
+        type="button"
+        className={`volt-acc-btn${open ? ' volt-acc-btn-active' : ''}`}
+        onClick={onToggle}
+      >
+        <Icon size={15} />
+        <span className="volt-acc-label">{label}</span>
+        {hasContent && <span className="volt-dot-filled" />}
+        <ChevronDown size={16} className={`volt-acc-chevron${open ? ' volt-acc-chevron-open' : ''}`} />
+      </button>
+      <div className={`volt-acc-collapse${expanded ? ' volt-acc-collapse-open' : ''}`}>
+        <div className="volt-acc-collapse-inner">
+          {shown && <div className="volt-acc-panel">{children}</div>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function BotSettingsPage() {
   const { user, isSuperAdmin, isTenantAdmin } = useAuth();
   const [settings, setSettings] = useState<any>(null);
@@ -76,6 +133,7 @@ export default function BotSettingsPage() {
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('business');
   const [isMobile, setIsMobile] = useState(false);
+  const [mobileExpanded, setMobileExpanded] = useState(true);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
   const [flowPreview, setFlowPreview] = useState<any>(null);
   const [hasPilot, setHasPilot] = useState(false);
@@ -827,29 +885,27 @@ export default function BotSettingsPage() {
             <div key={group}>
               <div className="volt-acc-group">{group}</div>
               {visibleTabs.filter((t) => t.group === group).map((tab) => {
-                const Icon = tab.icon;
-                const open = activeTab === tab.id;
+                const open = activeTab === tab.id && mobileExpanded;
                 const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id)
                   ? false
                   : sectionHasContent(tab.id as keyof PromptBuilder);
                 return (
-                  <div key={tab.id} className="volt-acc-item">
-                    <button
-                      type="button"
-                      className={`volt-acc-btn${open ? ' volt-acc-btn-active' : ''}`}
-                      onClick={() => setActiveTab(tab.id)}
-                    >
-                      <Icon size={15} />
-                      <span className="volt-acc-label">{tab.label}</span>
-                      {hasContent && <span className="volt-dot-filled" />}
-                      <ChevronDown size={16} className={`volt-acc-chevron${open ? ' volt-acc-chevron-open' : ''}`} />
-                    </button>
-                    {open && (
-                      <div className="volt-acc-panel">
-                        {renderContent(tab.id)}
-                      </div>
-                    )}
-                  </div>
+                  <BotAccItem
+                    key={tab.id}
+                    open={open}
+                    icon={tab.icon}
+                    label={tab.label}
+                    hasContent={hasContent}
+                    onToggle={() => {
+                      if (activeTab === tab.id) setMobileExpanded((v) => !v);
+                      else {
+                        setActiveTab(tab.id);
+                        setMobileExpanded(true);
+                      }
+                    }}
+                  >
+                    {renderContent(tab.id)}
+                  </BotAccItem>
                 );
               })}
             </div>

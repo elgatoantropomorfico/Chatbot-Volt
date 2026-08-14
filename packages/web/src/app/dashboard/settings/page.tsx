@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import { useTheme } from '@/context/ThemeContext';
@@ -50,6 +50,63 @@ function isGeneralTab(tab: string): tab is GeneralTab {
   return GENERAL_TABS.some((t) => t.id === tab);
 }
 
+function useReveal(open: boolean, ms = 360) {
+  const [shown, setShown] = useState(open);
+  const [expanded, setExpanded] = useState(open);
+
+  useEffect(() => {
+    if (open) {
+      setShown(true);
+      const id = requestAnimationFrame(() => {
+        requestAnimationFrame(() => setExpanded(true));
+      });
+      return () => cancelAnimationFrame(id);
+    }
+    setExpanded(false);
+    const t = window.setTimeout(() => setShown(false), ms);
+    return () => window.clearTimeout(t);
+  }, [open, ms]);
+
+  return { shown, expanded };
+}
+
+function AccordionRow({
+  label,
+  icon: Icon,
+  open,
+  onToggle,
+  children,
+}: {
+  label: string;
+  icon: typeof UserCircle;
+  open: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  const { shown, expanded } = useReveal(open);
+  return (
+    <div className={styles.accItem}>
+      <button
+        type="button"
+        className={`${styles.tabBtn} ${styles.accBtn} ${open ? styles.tabBtnActive : ''}`}
+        onClick={onToggle}
+      >
+        <Icon size={15} />
+        <span className={styles.accLabel}>{label}</span>
+        <ChevronDown
+          size={16}
+          className={`${styles.accChevron} ${open ? styles.accChevronOpen : ''}`}
+        />
+      </button>
+      <div className={`${styles.accCollapse} ${expanded ? styles.accCollapseOpen : ''}`}>
+        <div className={styles.accCollapseInner}>
+          {shown && children}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function SettingsPage() {
   return (
     <Suspense fallback={<div className={styles.wrapper}><div className={styles.emptyState}>Cargando...</div></div>}>
@@ -68,7 +125,7 @@ function SettingsPageContent() {
     catalogConfigV2: catalogV2,
   } = useBookingFlags();
 
-  const [tab, setTab] = useState<ConfigTab>('cuenta');
+  const [tab, setTab] = useState<ConfigTab | null>('cuenta');
   const [isMobile, setIsMobile] = useState(false);
   const [turneraStatus, setTurneraStatus] = useState({ msg: '', saving: false });
 
@@ -101,8 +158,12 @@ function SettingsPageContent() {
   }, []);
 
   useEffect(() => {
-    if (bookingFlagsReady && !showBooking && isTurneraTab(tab)) setTab('cuenta');
+    if (bookingFlagsReady && !showBooking && tab && isTurneraTab(tab)) setTab('cuenta');
   }, [bookingFlagsReady, showBooking, tab]);
+
+  useEffect(() => {
+    if (!isMobile && tab === null) setTab('cuenta');
+  }, [isMobile, tab]);
 
   const handleTurneraStatus = useCallback((status: { msg: string; saving: boolean }) => {
     setTurneraStatus(status);
@@ -114,6 +175,7 @@ function SettingsPageContent() {
   );
 
   const activeMeta = useMemo(() => {
+    if (!tab) return { label: 'Configuración', icon: Settings, group: 'General' };
     const general = GENERAL_TABS.find((t) => t.id === tab);
     if (general) return { label: general.label, icon: general.icon, group: 'General' };
     const turnera = turneraTabs.find((t) => t.id === tab);
@@ -128,7 +190,7 @@ function SettingsPageContent() {
   }, [tab, turneraTabs]);
 
   const ActiveIcon = activeMeta.icon;
-  const isTurneraActive = isTurneraTab(tab);
+  const isTurneraActive = !!tab && isTurneraTab(tab);
 
   function startEditProfile() {
     setEditingProfile(true);
@@ -205,7 +267,7 @@ function SettingsPageContent() {
     }
   }
 
-  function renderGeneralContent(which: GeneralTab = isGeneralTab(tab) ? tab : 'cuenta') {
+  function renderGeneralContent(which: GeneralTab = (tab && isGeneralTab(tab) ? tab : 'cuenta')) {
     switch (which) {
       case 'cuenta':
         return (
@@ -396,42 +458,21 @@ function SettingsPageContent() {
     return null;
   }
 
-  function AccordionRow({
-    id,
-    label,
-    icon: Icon,
-  }: { id: ConfigTab; label: string; icon: typeof UserCircle }) {
-    const open = tab === id;
+  function accordionPanel(id: ConfigTab) {
     return (
-      <div className={styles.accItem}>
-        <button
-          type="button"
-          className={`${styles.tabBtn} ${styles.accBtn} ${open ? styles.tabBtnActive : ''}`}
-          onClick={() => setTab(id)}
-        >
-          <Icon size={15} />
-          <span className={styles.accLabel}>{label}</span>
-          <ChevronDown
-            size={16}
-            className={`${styles.accChevron} ${open ? styles.accChevronOpen : ''}`}
-          />
-        </button>
-        {open && (
-          <div className={styles.accPanel}>
-            {message && isGeneralTab(id) && (
-              <div className={`${styles.generalMessage} ${message.type === 'success' ? styles.generalMessageSuccess : styles.generalMessageError}`}>
-                {message.text}
-              </div>
-            )}
-            {isTurneraTab(id) && (turneraStatus.msg || turneraStatus.saving) && (
-              <div className={styles.accStatus}>
-                {turneraStatus.msg && <span className={styles.saveMsg}>{turneraStatus.msg}</span>}
-                {turneraStatus.saving && <span>Guardando...</span>}
-              </div>
-            )}
-            {renderConfigBody(id)}
+      <div className={styles.accPanel}>
+        {message && isGeneralTab(id) && (
+          <div className={`${styles.generalMessage} ${message.type === 'success' ? styles.generalMessageSuccess : styles.generalMessageError}`}>
+            {message.text}
           </div>
         )}
+        {isTurneraTab(id) && (turneraStatus.msg || turneraStatus.saving) && (
+          <div className={styles.accStatus}>
+            {turneraStatus.msg && <span className={styles.saveMsg}>{turneraStatus.msg}</span>}
+            {turneraStatus.saving && <span>Guardando...</span>}
+          </div>
+        )}
+        {renderConfigBody(id)}
       </div>
     );
   }
@@ -447,19 +488,43 @@ function SettingsPageContent() {
           <div className={styles.mobileAccordion}>
             <div className={styles.sidebarGroupTitle}>General</div>
             {GENERAL_TABS.map((t) => (
-              <AccordionRow key={t.id} id={t.id} label={t.label} icon={t.icon} />
+              <AccordionRow
+                key={t.id}
+                label={t.label}
+                icon={t.icon}
+                open={tab === t.id}
+                onToggle={() => setTab(tab === t.id ? null : t.id)}
+              >
+                {accordionPanel(t.id)}
+              </AccordionRow>
             ))}
             {bookingFlagsReady && showBooking && (
               <>
                 <div className={styles.sidebarGroupTitle}>Turnera</div>
                 {turneraTabs.filter((t) => t.group === 'turnera').map((t) => (
-                  <AccordionRow key={t.id} id={t.id} label={t.label} icon={t.icon} />
+                  <AccordionRow
+                    key={t.id}
+                    label={t.label}
+                    icon={t.icon}
+                    open={tab === t.id}
+                    onToggle={() => setTab(tab === t.id ? null : t.id)}
+                  >
+                    {accordionPanel(t.id)}
+                  </AccordionRow>
                 ))}
                 {catalogV2 && (
                   <>
                     <div className={styles.sidebarGroupTitle}>Catálogo</div>
                     {turneraTabs.filter((t) => t.group === 'catalogo').map((t) => (
-                      <AccordionRow key={t.id} id={t.id} label={t.label} icon={t.icon} />
+                      <AccordionRow
+                        key={t.id}
+                        label={t.label}
+                        icon={t.icon}
+                        open={tab === t.id}
+                        onToggle={() => setTab(tab === t.id ? null : t.id)}
+                      >
+                        {accordionPanel(t.id)}
+                      </AccordionRow>
                     ))}
                   </>
                 )}
@@ -554,7 +619,7 @@ function SettingsPageContent() {
                     {message.text}
                   </div>
                 )}
-                {renderConfigBody(tab)}
+                {renderConfigBody(tab ?? 'cuenta')}
               </div>
             </div>
           </>

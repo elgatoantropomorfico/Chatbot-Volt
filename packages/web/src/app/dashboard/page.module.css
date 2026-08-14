@@ -61,11 +61,17 @@
   z-index: 30;
 }
 
+.profileWrap {
+  position: relative;
+  z-index: 30;
+}
+
 .notifBackdrop {
   display: none;
 }
 
-.notifDropdown {
+.notifDropdown,
+.profileDropdown {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
@@ -78,6 +84,26 @@
   -webkit-backdrop-filter: blur(24px);
   box-shadow: var(--shadow-lg);
   overflow: hidden;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(-6px);
+  transform-origin: top right;
+  transition:
+    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.32s cubic-bezier(0.22, 1, 0.36, 1),
+    visibility 0.32s;
+}
+
+.menuOpen {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+.dashSheet {
+  display: none;
 }
 
 .notifDropdownHead {
@@ -185,11 +211,32 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 12px 4px 4px;
+  padding: 4px 10px 4px 4px;
   border-radius: 12px;
   border: 1px solid var(--border-ui);
   background: var(--fill-subtle);
-  max-width: 200px;
+  max-width: 220px;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  transition: all var(--transition-fast);
+}
+
+.userChip:hover,
+.userChipActive {
+  border-color: var(--border-ui-strong);
+  background: var(--fill-hover);
+}
+
+.userChipChevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.userChipChevronOpen {
+  transform: rotate(180deg);
 }
 
 .userChipText {
@@ -227,6 +274,91 @@
   font-weight: 800;
   color: white;
   flex-shrink: 0;
+}
+
+.profileBody {
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.profileIdentity {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.profileIdentityText {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.profileIdentityText strong {
+  font-size: 14px;
+  color: var(--color-text);
+}
+
+.profileIdentityText span {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.profileMeta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.profileMeta div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-ui);
+}
+
+.profileMeta span {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-faint);
+  font-weight: 700;
+}
+
+.profileMeta strong {
+  font-size: 12px;
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.profileAction {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--border-ui);
+  background: var(--fill-subtle);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  text-align: left;
+}
+
+.profileAction:hover {
+  background: var(--fill-hover);
+}
+
+.profileActionDanger {
+  color: #fb7185;
 }
 
 .liveDotSmall {
@@ -912,6 +1044,10 @@
     max-width: none;
   }
 
+  .topBarRight .userChipChevron {
+    display: none;
+  }
+
   .statusPill {
     display: none;
   }
@@ -923,26 +1059,39 @@
     flex: 1 1 100%;
   }
 
-  .notifBackdrop {
-    display: block;
-    position: fixed;
-    inset: 0;
-    z-index: 31;
-    border: none;
-    padding: 0;
-    background: color-mix(in srgb, var(--color-bg) 28%, transparent);
-    backdrop-filter: blur(7px) saturate(1.05);
-    -webkit-backdrop-filter: blur(7px) saturate(1.05);
-    cursor: pointer;
+  .notifDropdown,
+  .profileDropdown {
+    display: none;
   }
 
-  .notifDropdown {
-    position: fixed;
-    top: var(--notif-top, 72px);
-    right: var(--notif-right, 12px);
-    left: auto;
-    width: var(--notif-width, 300px);
-    max-width: calc(100vw - 24px);
+  .dashSheet {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    transition:
+      grid-template-rows 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.28s ease;
+  }
+
+  .dashSheetOpen {
+    grid-template-rows: 1fr;
+    opacity: 1;
+  }
+
+  .dashSheetClip {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .dashSheetPanel {
+    width: 100%;
+    border-radius: 16px;
+    border: 1px solid var(--glass-border);
+    background: var(--dropdown-bg);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    box-shadow: var(--shadow-card);
+    overflow: hidden;
     max-height: min(62dvh, 480px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;

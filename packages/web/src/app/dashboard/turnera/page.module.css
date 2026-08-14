@@ -23,12 +23,27 @@
   margin-left: auto;
   flex-shrink: 0;
   color: var(--color-text-muted);
-  transition: transform 0.2s ease;
+  transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .accChevronOpen {
   transform: rotate(180deg);
   color: var(--color-primary);
+}
+
+.accCollapse {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.36s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.accCollapseOpen {
+  grid-template-rows: 1fr;
+}
+
+.accCollapseInner {
+  min-height: 0;
+  overflow: hidden;
 }
 
 .accPanel {
