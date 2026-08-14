@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { api } from '@/lib/api';
 import {
@@ -49,6 +49,7 @@ function TenantDashboard() {
   const [notifOpen, setNotifOpen] = useState(false);
   const [chartMetrics, setChartMetrics] = useState<ChartMetric[]>(['messages', 'conversations', 'leads']);
   const notifRef = useRef<HTMLDivElement>(null);
+  const notifBtnRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     (async () => {
@@ -73,6 +74,30 @@ function TenantDashboard() {
     document.addEventListener('mousedown', onClickOutside);
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!notifOpen) return;
+    const place = () => {
+      const wrap = notifRef.current;
+      const btn = notifBtnRef.current;
+      if (!wrap || !btn) return;
+      const r = btn.getBoundingClientRect();
+      const vw = window.innerWidth;
+      const width = Math.min(300, vw - 24);
+      const desiredRight = Math.max(12, vw - r.right);
+      const maxRight = Math.max(12, vw - 12 - width);
+      wrap.style.setProperty('--notif-top', `${Math.round(r.bottom + 8)}px`);
+      wrap.style.setProperty('--notif-right', `${Math.round(Math.min(desiredRight, maxRight))}px`);
+      wrap.style.setProperty('--notif-width', `${Math.round(width)}px`);
+    };
+    place();
+    window.addEventListener('resize', place);
+    window.addEventListener('scroll', place, true);
+    return () => {
+      window.removeEventListener('resize', place);
+      window.removeEventListener('scroll', place, true);
+    };
+  }, [notifOpen]);
 
   const trends = stats?.trends || [];
   const msgTrend = trends.map((d) => d.messages);
@@ -294,6 +319,7 @@ function TenantDashboard() {
           )}
           <div className={styles.notifWrap} ref={notifRef}>
             <button
+              ref={notifBtnRef}
               type="button"
               className={`${styles.iconBtn} ${notifOpen ? styles.iconBtnActive : ''}`}
               onClick={() => setNotifOpen(!notifOpen)}

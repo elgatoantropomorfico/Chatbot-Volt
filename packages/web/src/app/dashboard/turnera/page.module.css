@@ -10,6 +10,42 @@
   overflow: hidden;
 }
 
+.mobileAccordion {
+  display: none;
+}
+
+.accLabel {
+  flex: 1;
+  text-align: left;
+}
+
+.accChevron {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.accChevronOpen {
+  transform: rotate(180deg);
+  color: var(--color-primary);
+}
+
+.accPanel {
+  padding: 8px 16px 22px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.accStatus {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .shell {
   display: flex;
   gap: 0;
@@ -598,6 +634,7 @@
     flex: 1 1 0;
     min-height: 0;
     height: 100%;
+    overflow: auto;
   }
 
   .shell {
@@ -608,40 +645,18 @@
     border: none;
     box-shadow: none;
     border-radius: 0;
-  }
-
-  .sidebar {
-    width: 100%;
-    min-width: unset;
-    display: flex;
-    overflow-x: auto;
-    padding: 0;
-    border-right: none;
-    border-bottom: 1px solid var(--color-border);
+    overflow: auto;
   }
 
   .sidebarTitle {
     display: none;
   }
 
-  .tabBtn {
-    flex: 0 0 auto;
-    border-left: none;
-    border-bottom: 3px solid transparent;
-    padding: 12px 16px;
-    white-space: nowrap;
-  }
-
-  .tabBtnActive {
-    border-left-color: transparent;
-    border-bottom-color: #8b5cf6;
-  }
-
   .mobileHeader {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 16px;
+    margin-bottom: 12px;
   }
 
   .mobileHeader h1 {
@@ -653,17 +668,42 @@
     -webkit-text-fill-color: transparent;
   }
 
+  .sidebar,
+  .content,
   .contentHeader {
     display: none;
   }
 
-  .content {
-    flex: 1 1 0;
+  .mobileAccordion {
+    display: flex;
+    flex-direction: column;
+    flex: 1 1 auto;
     min-height: 0;
+    width: 100%;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    background: var(--glass-bg);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-lg);
   }
 
-  .contentBody {
-    padding: 16px 0;
+  .mobileAccordion .tabBtn {
+    flex: none;
+    width: 100%;
+    white-space: nowrap;
+    border-left: 3px solid transparent;
+    border-bottom: 1px solid var(--color-border);
+    padding: 14px 16px;
+  }
+
+  .mobileAccordion .tabBtnActive {
+    border-left-color: var(--color-primary-dim);
+    border-bottom-color: var(--color-border);
+  }
+
+  .mobileAccordion .sidebarGroupTitle {
+    display: block;
+    padding: 14px 16px 4px;
   }
 
   .inlineForm {

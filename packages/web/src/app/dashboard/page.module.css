@@ -937,11 +937,12 @@
   }
 
   .notifDropdown {
-    position: absolute;
-    top: calc(100% + 8px);
-    right: 0;
+    position: fixed;
+    top: var(--notif-top, 72px);
+    right: var(--notif-right, 12px);
     left: auto;
-    width: min(calc(100vw - 24px), 360px);
+    width: var(--notif-width, 300px);
+    max-width: calc(100vw - 24px);
     max-height: min(62dvh, 480px);
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;

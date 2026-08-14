@@ -14,6 +14,7 @@ import {
   Moon,
   Info,
   Pencil,
+  ChevronDown,
 } from 'lucide-react';
 import {
   TurneraConfigPanel,
@@ -68,6 +69,7 @@ function SettingsPageContent() {
   } = useBookingFlags();
 
   const [tab, setTab] = useState<ConfigTab>('cuenta');
+  const [isMobile, setIsMobile] = useState(false);
   const [turneraStatus, setTurneraStatus] = useState({ msg: '', saving: false });
 
   const [editingProfile, setEditingProfile] = useState(false);
@@ -90,6 +92,13 @@ function SettingsPageContent() {
       setTab(requested);
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth <= 768);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   useEffect(() => {
     if (bookingFlagsReady && !showBooking && isTurneraTab(tab)) setTab('cuenta');
@@ -196,12 +205,8 @@ function SettingsPageContent() {
     }
   }
 
-  function renderGeneralContent() {
-    if (message && !isTurneraActive) {
-      // shown above content
-    }
-
-    switch (tab) {
+  function renderGeneralContent(which: GeneralTab = isGeneralTab(tab) ? tab : 'cuenta') {
+    switch (which) {
       case 'cuenta':
         return (
           <>
@@ -383,6 +388,54 @@ function SettingsPageContent() {
     }
   }
 
+  function renderConfigBody(which: ConfigTab) {
+    if (isTurneraTab(which)) {
+      return <TurneraConfigPanel tab={which} onStatusChange={handleTurneraStatus} />;
+    }
+    if (isGeneralTab(which)) return renderGeneralContent(which);
+    return null;
+  }
+
+  function AccordionRow({
+    id,
+    label,
+    icon: Icon,
+  }: { id: ConfigTab; label: string; icon: typeof UserCircle }) {
+    const open = tab === id;
+    return (
+      <div className={styles.accItem}>
+        <button
+          type="button"
+          className={`${styles.tabBtn} ${styles.accBtn} ${open ? styles.tabBtnActive : ''}`}
+          onClick={() => setTab(id)}
+        >
+          <Icon size={15} />
+          <span className={styles.accLabel}>{label}</span>
+          <ChevronDown
+            size={16}
+            className={`${styles.accChevron} ${open ? styles.accChevronOpen : ''}`}
+          />
+        </button>
+        {open && (
+          <div className={styles.accPanel}>
+            {message && isGeneralTab(id) && (
+              <div className={`${styles.generalMessage} ${message.type === 'success' ? styles.generalMessageSuccess : styles.generalMessageError}`}>
+                {message.text}
+              </div>
+            )}
+            {isTurneraTab(id) && (turneraStatus.msg || turneraStatus.saving) && (
+              <div className={styles.accStatus}>
+                {turneraStatus.msg && <span className={styles.saveMsg}>{turneraStatus.msg}</span>}
+                {turneraStatus.saving && <span>Guardando...</span>}
+              </div>
+            )}
+            {renderConfigBody(id)}
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className={styles.wrapper}>
       <div className={styles.mobileHeader}>
@@ -390,27 +443,34 @@ function SettingsPageContent() {
       </div>
 
       <div className={styles.shell}>
-        <aside className={styles.sidebar}>
-          <div className={styles.sidebarGroupTitle}>General</div>
-          {GENERAL_TABS.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.id}
-                type="button"
-                className={`${styles.tabBtn} ${tab === t.id ? styles.tabBtnActive : ''}`}
-                onClick={() => setTab(t.id)}
-              >
-                <Icon size={15} />
-                {t.label}
-              </button>
-            );
-          })}
-
-          {bookingFlagsReady && showBooking && (
-            <>
-              <div className={styles.sidebarGroupTitle}>Turnera</div>
-              {turneraTabs.filter((t) => t.group === 'turnera').map((t) => {
+        {isMobile ? (
+          <div className={styles.mobileAccordion}>
+            <div className={styles.sidebarGroupTitle}>General</div>
+            {GENERAL_TABS.map((t) => (
+              <AccordionRow key={t.id} id={t.id} label={t.label} icon={t.icon} />
+            ))}
+            {bookingFlagsReady && showBooking && (
+              <>
+                <div className={styles.sidebarGroupTitle}>Turnera</div>
+                {turneraTabs.filter((t) => t.group === 'turnera').map((t) => (
+                  <AccordionRow key={t.id} id={t.id} label={t.label} icon={t.icon} />
+                ))}
+                {catalogV2 && (
+                  <>
+                    <div className={styles.sidebarGroupTitle}>Catálogo</div>
+                    {turneraTabs.filter((t) => t.group === 'catalogo').map((t) => (
+                      <AccordionRow key={t.id} id={t.id} label={t.label} icon={t.icon} />
+                    ))}
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        ) : (
+          <>
+            <aside className={styles.sidebar}>
+              <div className={styles.sidebarGroupTitle}>General</div>
+              {GENERAL_TABS.map((t) => {
                 const Icon = t.icon;
                 return (
                   <button
@@ -424,10 +484,11 @@ function SettingsPageContent() {
                   </button>
                 );
               })}
-              {catalogV2 && (
+
+              {bookingFlagsReady && showBooking && (
                 <>
-                  <div className={styles.sidebarGroupTitle}>Catálogo</div>
-                  {turneraTabs.filter((t) => t.group === 'catalogo').map((t) => {
+                  <div className={styles.sidebarGroupTitle}>Turnera</div>
+                  {turneraTabs.filter((t) => t.group === 'turnera').map((t) => {
                     const Icon = t.icon;
                     return (
                       <button
@@ -441,48 +502,63 @@ function SettingsPageContent() {
                       </button>
                     );
                   })}
+                  {catalogV2 && (
+                    <>
+                      <div className={styles.sidebarGroupTitle}>Catálogo</div>
+                      {turneraTabs.filter((t) => t.group === 'catalogo').map((t) => {
+                        const Icon = t.icon;
+                        return (
+                          <button
+                            key={t.id}
+                            type="button"
+                            className={`${styles.tabBtn} ${tab === t.id ? styles.tabBtnActive : ''}`}
+                            onClick={() => setTab(t.id)}
+                          >
+                            <Icon size={15} />
+                            {t.label}
+                          </button>
+                        );
+                      })}
+                    </>
+                  )}
                 </>
               )}
-            </>
-          )}
-          {!bookingFlagsReady && !isSuperAdmin && (
-            <div className={styles.sidebarGroupTitle} style={{ opacity: 0.5 }}>Cargando…</div>
-          )}
-        </aside>
+              {!bookingFlagsReady && !isSuperAdmin && (
+                <div className={styles.sidebarGroupTitle} style={{ opacity: 0.5 }}>Cargando…</div>
+              )}
+            </aside>
 
-        <div className={styles.content}>
-          <div className={styles.contentHeader}>
-            <h1>
-              <ActiveIcon size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8, color: '#a78bfa' }} />
-              {activeMeta.label}
-              <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 10 }}>
-                {activeMeta.group}
-              </span>
-            </h1>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              {isTurneraActive ? (
-                <>
-                  {turneraStatus.msg && <span className={styles.saveMsg}>{turneraStatus.msg}</span>}
-                  {turneraStatus.saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>}
-                </>
-              ) : (
-                saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>
-              )}
-            </div>
-          </div>
-          <div className={styles.contentBody}>
-            {message && !isTurneraActive && (
-              <div className={`${styles.generalMessage} ${message.type === 'success' ? styles.generalMessageSuccess : styles.generalMessageError}`}>
-                {message.text}
+            <div className={styles.content}>
+              <div className={styles.contentHeader}>
+                <h1>
+                  <ActiveIcon size={18} style={{ display: 'inline', verticalAlign: 'middle', marginRight: 8, color: '#a78bfa' }} />
+                  {activeMeta.label}
+                  <span style={{ fontSize: 12, fontWeight: 500, color: 'var(--color-text-muted)', marginLeft: 10 }}>
+                    {activeMeta.group}
+                  </span>
+                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  {isTurneraActive ? (
+                    <>
+                      {turneraStatus.msg && <span className={styles.saveMsg}>{turneraStatus.msg}</span>}
+                      {turneraStatus.saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>}
+                    </>
+                  ) : (
+                    saving && <span style={{ fontSize: 12, color: 'var(--color-text-muted)' }}>Guardando...</span>
+                  )}
+                </div>
               </div>
-            )}
-            {isTurneraActive ? (
-              <TurneraConfigPanel tab={tab} onStatusChange={handleTurneraStatus} />
-            ) : (
-              renderGeneralContent()
-            )}
-          </div>
-        </div>
+              <div className={styles.contentBody}>
+                {message && !isTurneraActive && (
+                  <div className={`${styles.generalMessage} ${message.type === 'success' ? styles.generalMessageSuccess : styles.generalMessageError}`}>
+                    {message.text}
+                  </div>
+                )}
+                {renderConfigBody(tab)}
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

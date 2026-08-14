@@ -510,6 +510,68 @@
   flex-shrink: 0;
 }
 
+.volt-acc {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--glass-bg);
+}
+
+.volt-acc-group {
+  padding: 14px 16px 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-faint);
+  font-weight: 700;
+}
+
+.volt-acc-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 14px 16px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  border: none;
+  border-left: 3px solid transparent;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 13px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.volt-acc-btn-active {
+  background: linear-gradient(135deg, rgba(155, 123, 247, 0.14), rgba(212, 141, 232, 0.06));
+  color: var(--color-primary-hover);
+  border-left-color: var(--color-primary-dim);
+}
+
+.volt-acc-label {
+  flex: 1;
+}
+
+.volt-acc-chevron {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  transition: transform 0.2s ease;
+}
+
+.volt-acc-chevron-open {
+  transform: rotate(180deg);
+  color: var(--color-primary);
+}
+
+.volt-acc-panel {
+  padding: 8px 16px 22px;
+  background: var(--color-bg-secondary);
+  border-bottom: 1px solid var(--color-border);
+}
+
 @media (max-width: 768px) {
   .volt-config-wrapper {
     flex: 1 1 0;

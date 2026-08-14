@@ -76,7 +76,6 @@ export default function BotSettingsPage() {
   const [selectedTenantId, setSelectedTenantId] = useState('');
   const [activeTab, setActiveTab] = useState<TabId>('business');
   const [isMobile, setIsMobile] = useState(false);
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [generatingField, setGeneratingField] = useState<string | null>(null);
   const [flowPreview, setFlowPreview] = useState<any>(null);
   const [hasPilot, setHasPilot] = useState(false);
@@ -237,11 +236,11 @@ export default function BotSettingsPage() {
     );
   }
 
-  function renderContent() {
+  function renderContent(tabId: TabId = activeTab) {
     if (loading) return <p className="volt-empty">Cargando...</p>;
     if (!settings) return <div className="volt-empty"><Bot size={32} /><p>No hay configuración para este tenant</p></div>;
 
-    switch (activeTab) {
+    switch (tabId) {
       case 'business':
         return (
           <div>
@@ -823,60 +822,38 @@ export default function BotSettingsPage() {
           </div>
         )}
 
-        <div className="volt-panel volt-panel-accent-violet">
-          <div className="volt-panel-body" style={{ padding: '12px 16px' }}>
-            <div style={{ position: 'relative' }}>
-              <button
-                type="button"
-                onClick={() => setMobileNavOpen(!mobileNavOpen)}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: '10px', width: '100%', padding: '12px 16px',
-                  background: 'var(--fill-subtle)', border: '1px solid var(--color-border)',
-                  borderRadius: mobileNavOpen ? '14px 14px 0 0' : '14px',
-                  color: 'var(--color-primary)', fontSize: '14px', fontWeight: 600, cursor: 'pointer',
-                  transition: 'all 0.15s',
-                }}
-              >
-                {ActiveIcon && <ActiveIcon size={16} />}
-                <span style={{ flex: 1, textAlign: 'left' }}>{activeTabData?.label}</span>
-                <ChevronDown size={16} style={{ transition: 'transform 0.2s', transform: mobileNavOpen ? 'rotate(180deg)' : 'rotate(0)' }} />
-              </button>
-
-              {mobileNavOpen && (
-                <div style={{
-                  position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
-                  background: 'var(--dropdown-bg)', border: '1px solid var(--color-border)', borderTop: 'none',
-                  borderRadius: '0 0 14px 14px',
-                  boxShadow: 'var(--shadow-lg)',
-                  maxHeight: '60vh', overflowY: 'auto',
-                }}>
-                  {groups.map((group) => (
-                    <div key={group}>
-                      <div className="volt-bot-nav-group">{group}</div>
-                      {visibleTabs.filter((t) => t.group === group).map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-                        const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id) ? false : sectionHasContent(tab.id as keyof PromptBuilder);
-                        return (
-                          <button key={tab.id} type="button" onClick={() => { setActiveTab(tab.id); setMobileNavOpen(false); }} className={`volt-bot-nav-item${isActive ? ' volt-bot-nav-item-active' : ''}`}>
-                            <Icon size={15} />
-                            <span style={{ flex: 1 }}>{tab.label}</span>
-                            {hasContent && <span className="volt-dot-filled" />}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              )}
+        <div className="volt-acc">
+          {groups.map((group) => (
+            <div key={group}>
+              <div className="volt-acc-group">{group}</div>
+              {visibleTabs.filter((t) => t.group === group).map((tab) => {
+                const Icon = tab.icon;
+                const open = activeTab === tab.id;
+                const hasContent = ['engine', 'guardrails', 'handoff'].includes(tab.id)
+                  ? false
+                  : sectionHasContent(tab.id as keyof PromptBuilder);
+                return (
+                  <div key={tab.id} className="volt-acc-item">
+                    <button
+                      type="button"
+                      className={`volt-acc-btn${open ? ' volt-acc-btn-active' : ''}`}
+                      onClick={() => setActiveTab(tab.id)}
+                    >
+                      <Icon size={15} />
+                      <span className="volt-acc-label">{tab.label}</span>
+                      {hasContent && <span className="volt-dot-filled" />}
+                      <ChevronDown size={16} className={`volt-acc-chevron${open ? ' volt-acc-chevron-open' : ''}`} />
+                    </button>
+                    {open && (
+                      <div className="volt-acc-panel">
+                        {renderContent(tab.id)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
-          </div>
-        </div>
-
-        <div className="volt-panel volt-panel-accent-violet">
-          <div className="volt-panel-body volt-config-page">
-            {renderContent()}
-          </div>
+          ))}
         </div>
       </div>
     );
