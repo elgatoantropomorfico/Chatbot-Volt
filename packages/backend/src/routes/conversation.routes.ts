@@ -200,6 +200,25 @@ export async function conversationRoutes(app: FastifyInstance) {
       return reply.status(403).send({ error: 'Forbidden' });
     }
 
+    // WhatsApp customer care window: 24h desde el último mensaje del cliente
+    let lastCustomerAt = conversation.lastCustomerMessageAt
+      ? new Date(conversation.lastCustomerMessageAt).getTime()
+      : 0;
+    if (!lastCustomerAt) {
+      const lastIn = await prisma.message.findFirst({
+        where: { conversationId: conversation.id, direction: 'in' },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+      lastCustomerAt = lastIn ? lastIn.createdAt.getTime() : 0;
+    }
+    if (!lastCustomerAt || Date.now() - lastCustomerAt > 24 * 60 * 60 * 1000) {
+      return reply.status(403).send({
+        error: 'Fuera de la ventana de 24 horas. El cliente debe escribir primero, o contactalo por WhatsApp personal.',
+        code: 'OUTSIDE_MESSAGING_WINDOW',
+      });
+    }
+
     // Send via WhatsApp
     let providerMessageId: string | null = null;
     try {

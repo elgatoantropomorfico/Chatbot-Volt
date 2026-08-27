@@ -2,10 +2,46 @@
 
 import { useState, useEffect, useRef, useMemo, Fragment } from 'react';
 import { api } from '@/lib/api';
-import { MessageSquare, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw, Menu } from 'lucide-react';
+import {
+  MessageSquare, Send, Bot, Hand, ArrowLeft, Archive, ArchiveRestore, RefreshCw, Menu,
+  ExternalLink, Calendar, Phone, X,
+} from 'lucide-react';
 import styles from './page.module.css';
 
 type ConversationStatus = 'open' | 'pending_human' | 'closed';
+
+const WINDOW_MS = 24 * 60 * 60 * 1000;
+const ACTIVE_APPT_STATUSES = new Set([
+  'pendiente_datos',
+  'pendiente_pago',
+  'senado',
+  'confirmado',
+  'reprogramado',
+]);
+
+function waMeUrl(phone?: string | null) {
+  const digits = String(phone || '').replace(/\D/g, '');
+  if (!digits) return null;
+  return `https://wa.me/${digits}`;
+}
+
+function formatApptWhen(dateStr: string, time?: string | null) {
+  const d = new Date(dateStr);
+  const day = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+  const hm = (time || '').slice(0, 5);
+  return hm ? `${day} · ${hm}` : day;
+}
+
+function apptStatusLabel(status: string) {
+  switch (status) {
+    case 'pendiente_datos': return 'Pend. datos';
+    case 'pendiente_pago': return 'Pend. pago';
+    case 'senado': return 'Señado';
+    case 'confirmado': return 'Confirmado';
+    case 'reprogramado': return 'Reprogramado';
+    default: return status;
+  }
+}
 
 export default function InboxPage() {
   const [allConversations, setAllConversations] = useState<any[]>([]);
@@ -20,6 +56,10 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [togglingAI, setTogglingAI] = useState(false);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [contactOpen, setContactOpen] = useState(false);
+  const [activeAppts, setActiveAppts] = useState<any[]>([]);
+  const [apptsLoading, setApptsLoading] = useState(false);
+  const [nowTick, setNowTick] = useState(() => Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesWrapRef = useRef<HTMLDivElement>(null);
   const composerRef = useRef<HTMLFormElement>(null);
@@ -51,6 +91,12 @@ export default function InboxPage() {
     return () => { if (convPollTimerRef.current) clearInterval(convPollTimerRef.current); };
   }, []);
 
+  // Refresh 24h window countdown periodically
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
   // Deep link: /dashboard/inbox?c=<conversationId>
   useEffect(() => {
     const c = new URLSearchParams(window.location.search).get('c');
@@ -60,6 +106,8 @@ export default function InboxPage() {
   // Load messages when selecting a conversation + start polling
   useEffect(() => {
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+    setContactOpen(false);
+    setActiveAppts([]);
     if (selectedId) {
       loadMessages(selectedId);
       pollTimerRef.current = setInterval(() => pollNewMessages(selectedId), 3000);
@@ -130,7 +178,7 @@ export default function InboxPage() {
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
-    if (!selectedId || !inputText.trim() || sending) return;
+    if (!selectedId || !inputText.trim() || sending || !withinWindow) return;
     setSending(true);
     try {
       const result = await api.sendAgentMessage(selectedId, inputText.trim());
@@ -145,6 +193,34 @@ export default function InboxPage() {
       alert('Error enviando: ' + err.message);
     } finally {
       setSending(false);
+    }
+  }
+
+  async function openContactPanel() {
+    setContactOpen(true);
+    const leadId = selectedConv?.lead?.id;
+    if (!leadId) {
+      setActiveAppts([]);
+      return;
+    }
+    setApptsLoading(true);
+    try {
+      const data = await api.getAppointments({ leadId });
+      const items = data.appointments || [];
+      const active = items
+        .filter((a) => ACTIVE_APPT_STATUSES.has(a.status))
+        .sort((a, b) => {
+          const da = new Date(a.appointmentDate).getTime();
+          const db = new Date(b.appointmentDate).getTime();
+          if (da !== db) return da - db;
+          return String(a.appointmentTime || '').localeCompare(String(b.appointmentTime || ''));
+        });
+      setActiveAppts(active);
+    } catch (err) {
+      console.error('Error loading appointments:', err);
+      setActiveAppts([]);
+    } finally {
+      setApptsLoading(false);
     }
   }
 
@@ -197,6 +273,24 @@ export default function InboxPage() {
 
   const selectedConv = conversations.find((c: any) => c.id === selectedId);
   const isAIActive = convStatus === 'open';
+
+  const lastCustomerAtMs = useMemo(() => {
+    void nowTick;
+    const fromField = selectedConv?.lastCustomerMessageAt
+      ? new Date(selectedConv.lastCustomerMessageAt).getTime()
+      : 0;
+    let fromMessages = 0;
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+      if (messages[i]?.direction === 'in' && messages[i]?.createdAt) {
+        fromMessages = new Date(messages[i].createdAt).getTime();
+        break;
+      }
+    }
+    return Math.max(fromField || 0, fromMessages || 0);
+  }, [selectedConv?.lastCustomerMessageAt, messages, nowTick]);
+
+  const withinWindow = lastCustomerAtMs > 0 && Date.now() - lastCustomerAtMs <= WINDOW_MS;
+  const waUrl = waMeUrl(selectedConv?.lead?.phone);
 
   function getBadgeClass(status: string) {
     switch (status) {
@@ -378,13 +472,27 @@ export default function InboxPage() {
                 >
                   <ArrowLeft size={20} />
                 </button>
-                <div className={styles.avatar}>
-                  {(selectedConv.lead?.name || selectedConv.lead?.phone || '?')[0].toUpperCase()}
-                </div>
-                <div>
-                  <h3>{selectedConv.lead?.name || selectedConv.lead?.phone}</h3>
-                  <span>{selectedConv.lead?.phone} &middot; {getStatusLabel(convStatus || selectedConv.status)}</span>
-                </div>
+                <button
+                  type="button"
+                  className={styles.contactTrigger}
+                  onClick={openContactPanel}
+                  title="Ver contacto"
+                >
+                  <div className={styles.avatar}>
+                    {(selectedConv.lead?.name || selectedConv.lead?.phone || '?')[0].toUpperCase()}
+                  </div>
+                  <div className={styles.contactTriggerText}>
+                    <h3>{selectedConv.lead?.name || selectedConv.lead?.phone}</h3>
+                    <span>
+                      {selectedConv.lead?.phone} &middot; {getStatusLabel(convStatus || selectedConv.status)}
+                      {withinWindow
+                        ? ' · Ventana activa'
+                        : lastCustomerAtMs
+                          ? ' · Fuera de ventana'
+                          : ''}
+                    </span>
+                  </div>
+                </button>
               </div>
               <div className={styles.chatActions}>
                 {convStatus !== 'closed' && (
@@ -421,6 +529,28 @@ export default function InboxPage() {
               <div className={styles.aiBanner}>
                 <Hand size={14} />
                 <span>IA pausada - Estás respondiendo como agente. Los mensajes del cliente no serán procesados por la IA.</span>
+              </div>
+            )}
+
+            {/* WhatsApp 24h window banner */}
+            {convStatus !== 'closed' && !withinWindow && (
+              <div className={styles.windowBanner}>
+                <Phone size={14} />
+                <span>
+                  Fuera de la ventana de 24 h de WhatsApp. No se pueden enviar mensajes desde el inbox hasta que el cliente escriba de nuevo.
+                  {waUrl ? ' Podés hablarle desde tu WhatsApp personal.' : ''}
+                </span>
+                {waUrl && (
+                  <a
+                    className={styles.windowBannerLink}
+                    href={waUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Abrir WhatsApp
+                    <ExternalLink size={12} />
+                  </a>
+                )}
               </div>
             )}
 
@@ -465,8 +595,8 @@ export default function InboxPage() {
               </div>
             )}
 
-            {/* Message input */}
-            {convStatus !== 'closed' && (
+            {/* Message input — solo dentro de ventana 24h */}
+            {convStatus !== 'closed' && withinWindow && (
               <form ref={composerRef} className={styles.messageInput} onSubmit={handleSendMessage}>
                 <input
                   type="text"
@@ -488,6 +618,84 @@ export default function InboxPage() {
                   <Send size={18} />
                 </button>
               </form>
+            )}
+            {convStatus !== 'closed' && !withinWindow && (
+              <div className={styles.messageInputLocked}>
+                <span>Envío bloqueado — ventana de 24 h cerrada</span>
+                {waUrl && (
+                  <a href={waUrl} target="_blank" rel="noopener noreferrer" className={styles.waBtn}>
+                    <ExternalLink size={14} />
+                    WhatsApp
+                  </a>
+                )}
+                <button type="button" className={styles.contactLinkBtn} onClick={openContactPanel}>
+                  Ver contacto
+                </button>
+              </div>
+            )}
+
+            {contactOpen && (
+              <div className={styles.contactOverlay} onClick={() => setContactOpen(false)}>
+                <div
+                  className={styles.contactModal}
+                  onClick={(e) => e.stopPropagation()}
+                  role="dialog"
+                  aria-modal="true"
+                  aria-label="Contacto"
+                >
+                  <div className={styles.contactModalHead}>
+                    <h3>Contacto</h3>
+                    <button type="button" className={styles.contactClose} onClick={() => setContactOpen(false)} aria-label="Cerrar">
+                      <X size={18} />
+                    </button>
+                  </div>
+                  <div className={styles.contactIdentity}>
+                    <div className={styles.avatarLg}>
+                      {(selectedConv.lead?.name || selectedConv.lead?.phone || '?')[0].toUpperCase()}
+                    </div>
+                    <div>
+                      <strong>{selectedConv.lead?.name || 'Sin nombre'}</strong>
+                      <p>{selectedConv.lead?.phone || 'Sin teléfono'}</p>
+                    </div>
+                  </div>
+
+                  <div className={styles.contactSection}>
+                    <div className={styles.contactSectionTitle}>
+                      <Calendar size={14} />
+                      Turnos activos
+                    </div>
+                    {apptsLoading ? (
+                      <p className={styles.contactMuted}>Cargando…</p>
+                    ) : activeAppts.length === 0 ? (
+                      <p className={styles.contactMuted}>Sin turnos activos</p>
+                    ) : (
+                      <ul className={styles.contactApptList}>
+                        {activeAppts.slice(0, 5).map((a) => (
+                          <li key={a.id}>
+                            <strong>{a.service?.name || 'Turno'}</strong>
+                            <span>{formatApptWhen(a.appointmentDate, a.appointmentTime)}</span>
+                            <em>{apptStatusLabel(a.status)}</em>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </div>
+
+                  {waUrl ? (
+                    <a
+                      className={styles.waPrimaryBtn}
+                      href={waUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      <ExternalLink size={16} />
+                      Hablar por WhatsApp
+                    </a>
+                  ) : (
+                    <p className={styles.contactMuted}>No hay número para abrir WhatsApp</p>
+                  )}
+                </div>
+              </div>
             )}
           </>
         )}

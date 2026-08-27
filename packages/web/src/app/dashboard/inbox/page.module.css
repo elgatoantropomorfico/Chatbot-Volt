@@ -333,6 +333,7 @@
   max-height: 100%;
   overflow: hidden;
   background: var(--inbox-chat-bg);
+  position: relative;
 }
 
 .chatHeader {
@@ -627,6 +628,260 @@
   flex-shrink: 0;
 }
 
+.windowBanner {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  padding: 10px 20px;
+  background: color-mix(in srgb, var(--color-danger) 10%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-danger) 20%, transparent);
+  color: var(--color-danger);
+  font-size: 12px;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.windowBanner span {
+  flex: 1;
+  min-width: 180px;
+  line-height: 1.4;
+}
+
+.windowBannerLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-danger) 14%, transparent);
+  color: inherit;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.contactTrigger {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 0;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  border-radius: 10px;
+}
+
+.contactTrigger:hover {
+  background: var(--row-hover);
+}
+
+.contactTriggerText {
+  min-width: 0;
+}
+
+.contactTriggerText h3 {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.contactTriggerText span {
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.messageInputLocked {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+  border-top: 1px solid var(--divider);
+  background: var(--inbox-chat-bg);
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.waBtn,
+.contactLinkBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--fill-subtle);
+  color: var(--color-text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.waBtn {
+  background: color-mix(in srgb, #25d366 16%, transparent);
+  border-color: color-mix(in srgb, #25d366 30%, transparent);
+  color: #128c7e;
+}
+
+.contactOverlay {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  background: color-mix(in srgb, var(--color-bg) 45%, transparent);
+  backdrop-filter: blur(6px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 16px;
+}
+
+.contactModal {
+  width: min(420px, 100%);
+  max-height: min(78dvh, 560px);
+  overflow-y: auto;
+  border-radius: 18px;
+  border: 1px solid var(--glass-border);
+  background: var(--dropdown-bg);
+  box-shadow: var(--shadow-lg);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.contactModalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.contactModalHead h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.contactClose {
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 10px;
+  background: var(--fill-subtle);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.contactIdentity {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.avatarLg {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #7c3aed, #d48de8);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.contactIdentity strong {
+  display: block;
+  font-size: 16px;
+  color: var(--color-text);
+}
+
+.contactIdentity p {
+  margin-top: 2px;
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.contactSection {
+  border-top: 1px solid var(--divider);
+  padding-top: 12px;
+}
+
+.contactSectionTitle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-muted);
+  margin-bottom: 8px;
+}
+
+.contactMuted {
+  font-size: 13px;
+  color: var(--color-text-muted);
+}
+
+.contactApptList {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+}
+
+.contactApptList li {
+  display: grid;
+  gap: 2px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: var(--fill-subtle);
+  border: 1px solid var(--border-ui);
+}
+
+.contactApptList strong {
+  font-size: 13px;
+  color: var(--color-text);
+}
+
+.contactApptList span,
+.contactApptList em {
+  font-size: 12px;
+  color: var(--color-text-muted);
+  font-style: normal;
+}
+
+.waPrimaryBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #25d366;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
 /* ─── Back Button (mobile only) ─── */
 .backBtn {
   display: none;
@@ -794,13 +1049,35 @@
     gap: 8px;
   }
 
-  .chatHeaderInfo h3 {
+  .chatHeaderInfo h3,
+  .contactTriggerText h3 {
     font-size: 14px;
   }
 
-  .chatHeaderInfo span {
+  .chatHeaderInfo span,
+  .contactTriggerText span {
     font-size: 11px;
     display: none;
+  }
+
+  .contactOverlay {
+    align-items: flex-end;
+    padding: 12px;
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+
+  .contactModal {
+    width: 100%;
+    border-radius: 18px 18px 14px 14px;
+  }
+
+  .windowBanner {
+    padding: 10px 12px;
+    font-size: 11.5px;
+  }
+
+  .messageInputLocked {
+    padding: 12px;
   }
 
   .avatar {
